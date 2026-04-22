@@ -1,0 +1,222 @@
+import { useState, useEffect } from "react";
+import { Bar, Doughnut } from "react-chartjs-2";
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend } from "chart.js";
+import { getOverviewAPI, getMonthlyCollectionAPI, getLoanStatusAPI, getLoanTypeAPI, getPaymentBehaviorAPI, getAuditLogAPI } from "../../api/reports";
+import "./Reports.css";
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
+
+const REPORT_TYPES = ["Financial Summary","Collection Report","Loan Summary","Member Report","Payment Behavior","Blockchain Audit Log"];
+
+function ReportPreviewModal({ type, dateFrom, dateTo, onClose }) {
+  if (!type) return null;
+  return (
+    <div className="rp-overlay" onClick={onClose}>
+      <div className="rp-modal rp-modal-lg" onClick={e=>e.stopPropagation()}>
+        <div className="rp-modal-header">
+          <div><div className="rp-modal-title">Report Preview — {type}</div><div className="rp-modal-sub">Period: {dateFrom} to {dateTo} · Generated {new Date().toLocaleString()}</div></div>
+          <button className="rp-modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="rp-modal-body">
+          <div className="rp-preview-header">
+            <div className="rp-preview-logo">🌿 LEAF MPC</div>
+            <div className="rp-preview-info"><div className="rp-preview-title">{type}</div><div className="rp-preview-period">Period: {dateFrom} – {dateTo}</div></div>
+          </div>
+          <div className="rp-preview-content">
+            <div className="rp-preview-placeholder">
+              <div className="rp-placeholder-icon">📄</div>
+              <div>Report content generated from live data</div>
+            </div>
+          </div>
+        </div>
+        <div className="rp-modal-footer">
+          <button className="rp-btn-cancel" onClick={onClose}>Close</button>
+          <button className="rp-btn-export excel" onClick={onClose}>⬇ Export Excel</button>
+          <button className="rp-btn-export pdf" onClick={onClose}>📄 Export PDF</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Reports() {
+  const [activeTab, setTab]       = useState("overview");
+  const [overview,  setOverview]  = useState({});
+  const [monthly,   setMonthly]   = useState([]);
+  const [loanStat,  setLoanStat]  = useState({});
+  const [loanType,  setLoanType]  = useState({});
+  const [payBehav,  setPayBehav]  = useState({});
+  const [auditLog,  setAuditLog]  = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [dateFrom,  setDateFrom]  = useState("2026-01-01");
+  const [dateTo,    setDateTo]    = useState("2026-12-31");
+  const [reportType,setReportType]= useState("");
+  const [showPreview,setPreview]  = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [ov,mn,ls,lt,pb,al] = await Promise.allSettled([
+          getOverviewAPI(), getMonthlyCollectionAPI(), getLoanStatusAPI(),
+          getLoanTypeAPI(), getPaymentBehaviorAPI(), getAuditLogAPI(),
+        ]);
+        if (ov.status==="fulfilled") setOverview(ov.value);
+        if (mn.status==="fulfilled") setMonthly(mn.value);
+        if (ls.status==="fulfilled") setLoanStat(ls.value);
+        if (lt.status==="fulfilled") setLoanType(lt.value);
+        if (pb.status==="fulfilled") setPayBehav(pb.value);
+        if (al.status==="fulfilled") setAuditLog(al.value);
+      } catch(e) { console.error(e); }
+      finally { setLoading(false); }
+    };
+    load();
+  }, []);
+
+  const barData = {
+    labels: monthly.map(m=>m.month),
+    datasets: [{
+      label: "Collection",
+      data: monthly.map(m=>m.total),
+      backgroundColor: monthly.map((_,i)=>["#2e7d32","#4caf50","#81c784","#a5d6a7","#ffb74d","#ff8a65","#64b5f6","#ba68c8","#4dd0e1","#f06292","#aed581","#ffcc02"][i%12]),
+      borderRadius: 5,
+    }],
+  };
+  const barOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:"#f0f4f1"},ticks:{font:{size:10},callback:v=>"₱"+v.toLocaleString()}}} };
+
+  const donutLabels = Object.keys(payBehav);
+  const donutData = {
+    labels: donutLabels.length ? donutLabels : ["On time","Defaulted","Late"],
+    datasets: [{
+      data: donutLabels.length ? Object.values(payBehav) : [0,0,0],
+      backgroundColor: ["#f57c00","#e53935","#4caf50"],
+      borderWidth: 0,
+    }],
+  };
+  const donutOpts = { responsive:true, maintainAspectRatio:false, cutout:"60%", plugins:{legend:{position:"right",labels:{boxWidth:10,font:{size:10}}}} };
+
+  const OVERVIEW_CARDS = [
+    { icon:"💰", val:`₱${Number(overview.total_collection||0).toLocaleString()}`, label:"Total Collection (YTD)" },
+    { icon:"📋", val:`₱${Number(overview.total_releases||0).toLocaleString()}`,   label:"Total Loan Releases" },
+    { icon:"👥", val:`${overview.active_members||0} / ${overview.inactive_members||0}`, label:"Active / Inactive Members" },
+    { icon:"📈", val:`${overview.collection_rate||0}%`,                            label:"Collection Rate" },
+    { icon:"🏦", val:`${overview.total_loans||0}`,                                 label:"Loan Releases (YTD)" },
+    { icon:"⚠️", val:`${overview.overdue_loans||0}`,                              label:"Overdue Loans" },
+    { icon:"⏳", val:`${overview.pending_loans||0}`,                               label:"Pending Approvals" },
+    { icon:"💳", val:`₱${Number(overview.avg_loan_amount||0).toLocaleString()}`,  label:"Avg Loan Amount" },
+  ];
+
+  return (
+    <div className="rp-wrapper">
+      {showPreview && <ReportPreviewModal type={reportType} dateFrom={dateFrom} dateTo={dateTo} onClose={()=>setPreview(false)}/>}
+
+      {/* Tabs */}
+      <div className="rp-tabs">
+        {["overview","charts","generate","audit"].map(t=>(
+          <button key={t} className={`rp-tab ${activeTab===t?"active":""}`} onClick={()=>setTab(t)}>
+            {t==="overview"?"📊 Overview":t==="charts"?"📈 Charts":t==="generate"?"📄 Generate Report":"🔗 Audit Log"}
+          </button>
+        ))}
+      </div>
+
+      {/* Overview Tab */}
+      {activeTab==="overview" && (
+        <div className="rp-overview">
+          {loading ? (
+            <div className="rp-loading">Loading reports...</div>
+          ) : (
+            <div className="rp-kpi-grid">
+              {OVERVIEW_CARDS.map((c,i)=>(
+                <div key={i} className="rp-kpi-card">
+                  <div className="rp-kpi-icon">{c.icon}</div>
+                  <div className="rp-kpi-val">{c.val}</div>
+                  <div className="rp-kpi-label">{c.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Charts Tab */}
+      {activeTab==="charts" && (
+        <div className="rp-charts">
+          <div className="rp-chart-card rp-chart-wide">
+            <div className="rp-chart-title">Monthly Collection Trend</div>
+            <div style={{height:280}}>
+              {monthly.length===0
+                ? <div className="rp-no-data">No collection data yet.</div>
+                : <Bar data={barData} options={barOpts}/>
+              }
+            </div>
+          </div>
+          <div className="rp-chart-card">
+            <div className="rp-chart-title">Payment Behavior</div>
+            <div style={{height:220}}>
+              <Doughnut data={donutData} options={donutOpts}/>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Report Tab */}
+      {activeTab==="generate" && (
+        <div className="rp-generate">
+          <div className="rp-gen-card">
+            <div className="rp-gen-title">Generate Report</div>
+            <div className="rp-gen-form">
+              <div className="rp-gen-field">
+                <label className="rp-gen-label">Report Type</label>
+                <select className="rp-gen-select" value={reportType} onChange={e=>setReportType(e.target.value)}>
+                  <option value="">Select report type...</option>
+                  {REPORT_TYPES.map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="rp-gen-field">
+                <label className="rp-gen-label">Date From</label>
+                <input className="rp-gen-input" type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}/>
+              </div>
+              <div className="rp-gen-field">
+                <label className="rp-gen-label">Date To</label>
+                <input className="rp-gen-input" type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}/>
+              </div>
+            </div>
+            <div className="rp-gen-actions">
+              <button className="rp-gen-btn preview" onClick={()=>setPreview(true)} disabled={!reportType}>👁 Preview</button>
+              <button className="rp-gen-btn excel"   disabled={!reportType}>⬇ Export Excel</button>
+              <button className="rp-gen-btn pdf"     disabled={!reportType}>📄 Export PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Audit Log Tab */}
+      {activeTab==="audit" && (
+        <div className="rp-audit">
+          <div className="rp-audit-header">🔗 Blockchain Audit Log</div>
+          <div className="rp-audit-table-wrap">
+            <table className="rp-audit-table">
+              <thead><tr><th>Date</th><th>Member</th><th>Member ID</th><th>Loan ID</th><th>Amount</th><th>Balance</th><th>Hash</th><th>By</th></tr></thead>
+              <tbody>
+                {auditLog.length===0 ? (
+                  <tr><td colSpan={8} style={{textAlign:"center",padding:"20px",color:"#aaa"}}>No audit log yet.</td></tr>
+                ) : auditLog.map((row,i)=>(
+                  <tr key={i}>
+                    <td>{row.paid_at}</td>
+                    <td className="cell-name">{row.member}</td>
+                    <td className="mono">{row.member_id}</td>
+                    <td className="mono">{row.loan_id}</td>
+                    <td className="fw green">₱{Number(row.amount||0).toLocaleString()}</td>
+                    <td className="blue">₱{Number(row.balance||0).toLocaleString()}</td>
+                    <td><span className="hash-text">{row.hash}</span></td>
+                    <td>{row.recorded_by}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

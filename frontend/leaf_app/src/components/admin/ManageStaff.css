@@ -1,0 +1,289 @@
+/* ─── Wrapper ─────────────────────────────────────────────────────────────── */
+.ms-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────────── */
+.ms-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.ms-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1b5e20;
+}
+.ms-sub {
+  font-size: 13px;
+  color: #888;
+  margin-top: 3px;
+}
+.ms-add-btn {
+  background: #2e7d32;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.ms-add-btn:hover { background: #1b5e20; }
+
+/* ─── Stats ──────────────────────────────────────────────────────────────── */
+.ms-stats-row {
+  display: flex;
+  gap: 14px;
+}
+.ms-stat-card {
+  background: #fff;
+  border: 1px solid #e8f5e9;
+  border-radius: 10px;
+  padding: 14px 20px;
+  min-width: 100px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.ms-stat-val   { font-size: 24px; font-weight: 700; color: #1b5e20; }
+.ms-stat-label { font-size: 12px; color: #888; margin-top: 2px; }
+
+/* ─── Table Card ─────────────────────────────────────────────────────────── */
+.ms-table-card {
+  background: #fff;
+  border: 1px solid #e8f5e9;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.ms-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.ms-table thead tr {
+  background: #f1f8e9;
+}
+.ms-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid #e8f5e9;
+}
+.ms-table td {
+  padding: 14px 16px;
+  font-size: 13px;
+  color: #333;
+  border-bottom: 1px solid #f5f5f5;
+}
+.ms-table tbody tr:last-child td { border-bottom: none; }
+.ms-table tbody tr:hover { background: #fafff8; }
+
+.ms-td-num  { color: #aaa; font-size: 12px; width: 40px; }
+.ms-td-user { font-family: monospace; color: #555; }
+
+.ms-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ms-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #2e7d32;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ms-role-badge {
+  background: #e3f2fd;
+  color: #0d47a1;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+/* Action buttons */
+.ms-action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ms-action-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.ms-action-btn:hover { opacity: 0.8; }
+.ms-action-btn.edit  { background: #e8f5e9; color: #1b5e20; }
+.ms-action-btn.reset { background: #fff3e0; color: #e65100; }
+
+/* Empty state */
+.ms-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px;
+  gap: 12px;
+}
+.ms-empty-icon { font-size: 40px; }
+.ms-empty-text { font-size: 14px; color: #888; }
+
+/* ─── Modal ──────────────────────────────────────────────────────────────── */
+.ms-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.ms-modal {
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 440px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+.ms-modal-sm { max-width: 360px; }
+
+.ms-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+}
+.ms-modal-title { font-size: 15px; font-weight: 700; color: #1b5e20; }
+.ms-modal-sub   { font-size: 12px; color: #888; margin-top: 3px; }
+.ms-modal-close {
+  background: none; border: none; font-size: 16px;
+  cursor: pointer; color: #999; padding: 2px 6px; border-radius: 4px;
+}
+.ms-modal-close:hover { background: #f5f5f5; }
+
+.ms-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ms-modal-footer {
+  padding: 14px 24px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Form fields */
+.ms-field { display: flex; flex-direction: column; gap: 5px; }
+.ms-label { font-size: 12px; font-weight: 600; color: #444; }
+.ms-req   { color: #e53935; }
+.ms-input {
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  outline: none;
+  color: #333;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+  width: 100%;
+  background: #fff;
+}
+.ms-input:focus   { border-color: #2e7d32; }
+.ms-input-err     { border-color: #e53935 !important; }
+.ms-field-err     { font-size: 11px; color: #e53935; }
+
+.ms-pw-wrap { position: relative; }
+.ms-pw-wrap .ms-input { padding-right: 40px; }
+.ms-pw-toggle {
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none; cursor: pointer;
+  font-size: 15px; padding: 2px; line-height: 1;
+}
+
+/* Staff strip */
+.ms-staff-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f1f8e9;
+  border: 1px solid #c8e6c9;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.ms-staff-name { font-size: 13px; font-weight: 600; color: #1b5e20; }
+.ms-staff-meta { font-size: 11px; color: #888; margin-top: 2px; }
+
+/* Credentials box */
+.ms-cred-box {
+  background: #f8faf8;
+  border: 1px solid #c8e6c9;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.ms-cred-row   { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.ms-cred-label { font-size: 11px; color: #666; }
+.ms-cred-val   { font-size: 13px; font-weight: 600; color: #1b5e20; font-family: monospace; }
+
+/* Buttons */
+.ms-btn-cancel {
+  padding: 9px 18px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  cursor: pointer;
+}
+.ms-btn-cancel:hover { background: #ebebeb; }
+.ms-btn-save {
+  padding: 9px 18px;
+  background: #2e7d32;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ms-btn-save:hover { background: #1b5e20; }

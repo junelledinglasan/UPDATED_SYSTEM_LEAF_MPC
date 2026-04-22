@@ -1,0 +1,280 @@
+/* ─── Page ───────────────────────────────────────────────────────────────── */
+.lp-page {
+  min-height: 100vh;
+  display: flex;
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+}
+
+/* ─── Left Panel ─────────────────────────────────────────────────────────── */
+.lp-left {
+  width: 340px;
+  flex-shrink: 0;
+  background: #f5f5e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+}
+.lp-left-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+/*
+  ══════════════════════════════════════════════
+  LOGO — Para ilagay ang logo image:
+  1. I-save ang logo bilang logo.png
+  2. Ilagay sa frontend/public/logo.png
+  3. Sa Login.jsx, hanapin ang:
+       <div className="lp-logo-text">leafmpc</div>
+  4. Palitan ng:
+       <img src="/logo.png"
+            alt="LEAF MPC"
+            className="lp-logo-img" />
+  ══════════════════════════════════════════════
+*/
+.lp-logo-img {
+  width: 200px;
+  height: auto;
+  object-fit: contain;
+}
+.lp-logo-placeholder {
+  width: 200px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lp-logo-text {
+  font-size: 42px;
+  font-weight: 900;
+  color: #2e7d32;
+  letter-spacing: -1px;
+}
+
+.lp-left-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2e4a2e;
+  line-height: 1.5;
+}
+.lp-left-sub {
+  font-size: 13px;
+  font-weight: 500;
+  color: #2e4a2e;
+  opacity: 0.75;
+}
+
+/* ─── Right Panel ────────────────────────────────────────────────────────── */
+.lp-right {
+  flex: 1;
+  background: #c8e6c9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+
+/* ─── Card ───────────────────────────────────────────────────────────────── */
+.lp-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+.lp-card-icon  { font-size: 28px; margin-bottom: 2px; }
+.lp-card-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+.lp-card-sub {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 8px;
+}
+
+/* ─── Form ───────────────────────────────────────────────────────────────── */
+.lp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.lp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lp-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #222;
+}
+.lp-input {
+  border: 1.5px solid #d0d0d0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+  outline: none;
+  color: #222;
+  background: #fff;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.lp-input:focus { border-color: #2e7d32; }
+.lp-input-err   { border-color: #e53935 !important; }
+
+/* Password */
+.lp-pw-wrap { position: relative; }
+.lp-pw-wrap .lp-input { padding-right: 42px; }
+.lp-pw-eye {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #aaa;
+  padding: 2px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.lp-pw-eye:hover { color: #555; }
+
+/* Links */
+.lp-links-row {
+  display: flex;
+  justify-content: space-between;
+}
+.lp-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2e7d32;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+.lp-link:hover { color: #1b5e20; }
+
+/* Error */
+.lp-error {
+  background: #fff5f5;
+  border: 1px solid #ffcdd2;
+  border-radius: 8px;
+  padding: 9px 13px;
+  font-size: 13px;
+  color: #c62828;
+}
+
+/* Login Button */
+.lp-login-btn {
+  background: #2e7d32;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 13px;
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  width: 100%;
+  margin-top: 4px;
+  letter-spacing: 0.3px;
+}
+.lp-login-btn:hover:not(:disabled) { background: #1b5e20; }
+.lp-login-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* Spinner */
+.lp-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: lp-spin 0.7s linear infinite;
+}
+@keyframes lp-spin { to { transform: rotate(360deg); } }
+
+/* Notice */
+.lp-notice {
+  font-size: 12px;
+  color: #888;
+  text-align: center;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* ─── Info Modal ─────────────────────────────────────────────────────────── */
+.lp-msg-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.lp-msg-box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 32px 28px;
+  max-width: 320px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+.lp-msg-icon  { font-size: 36px; }
+.lp-msg-title { font-size: 16px; font-weight: 700; color: #1b5e20; }
+.lp-msg-text  { font-size: 13px; color: #555; line-height: 1.6; }
+.lp-msg-btn {
+  margin-top: 6px;
+  background: #2e7d32;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 28px;
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.lp-msg-btn:hover { background: #1b5e20; }
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .lp-left  { display: none; }
+  .lp-right { background: #f8fdf8; }
+  .lp-card  {
+    box-shadow: none;
+    border: 1px solid #e0e0e0;
+    padding: 28px 20px;
+  }
+}
