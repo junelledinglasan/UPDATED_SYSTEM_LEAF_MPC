@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getApplicationsAPI, updateApplicationStatusAPI } from "../../api/members";
+import { Search, ClipboardList, Clock, CheckCircle, XCircle } from "lucide-react";
 import "./OnlineApplications.css";
 
 const STATUS_TABS   = ["All", "Pending", "Approved", "Rejected"];
@@ -53,7 +54,7 @@ function ViewModal({ app, onClose, onApprove, onReject }) {
 
         <div className="oa-modal-body">
           <div className="oa-section">
-            <div className="oa-section-title">👤 Personal Information</div>
+            <div className="oa-section-title">Personal Information</div>
             <div className="oa-info-grid">
               <InfoRow label="Last Name"    value={app.lastname} />
               <InfoRow label="First Name"   value={app.firstname} />
@@ -69,7 +70,7 @@ function ViewModal({ app, onClose, onApprove, onReject }) {
           </div>
 
           <div className="oa-section">
-            <div className="oa-section-title">🪪 Valid Identification</div>
+            <div className="oa-section-title">Valid Identification</div>
             <div className="oa-info-grid">
               <InfoRow label="Type of ID" value={validId} />
               <InfoRow label="ID Number"  value={idNumber} mono />
@@ -77,7 +78,7 @@ function ViewModal({ app, onClose, onApprove, onReject }) {
           </div>
 
           <div className="oa-section">
-            <div className="oa-section-title">👥 Beneficiary / Emergency Contact</div>
+            <div className="oa-section-title">Beneficiary / Emergency Contact</div>
             <div className="oa-info-grid">
               <InfoRow label="Beneficiary Name" value={app.beneficiary} />
               <InfoRow label="Relationship"     value={app.relationship} />
@@ -240,20 +241,16 @@ export default function OnlineApplications() {
       {/* Summary Cards */}
       <div className="oa-summary-grid">
         <div className="oa-summary-card" onClick={() => { setFilter("All"); setPage(1); }}>
-          <div className="oa-sum-icon" style={{ background:"#e8f5e9" }}>📋</div>
-          <div><div className="oa-sum-val">{counts.total}</div><div className="oa-sum-label">Total Received</div></div>
+          <div className="oa-sum-val">{counts.total}</div><div className="oa-sum-label">Total Received</div>
         </div>
         <div className="oa-summary-card" onClick={() => { setFilter("Pending"); setPage(1); }}>
-          <div className="oa-sum-icon" style={{ background:"#fff8e1" }}>⏳</div>
-          <div><div className="oa-sum-val pending-val">{counts.pending}</div><div className="oa-sum-label">For Review</div></div>
+          <div className="oa-sum-val pending-val">{counts.pending}</div><div className="oa-sum-label">For Review</div>
         </div>
         <div className="oa-summary-card" onClick={() => { setFilter("Approved"); setPage(1); }}>
-          <div className="oa-sum-icon" style={{ background:"#e8f5e9" }}>✓</div>
-          <div><div className="oa-sum-val approved-val">{counts.approved}</div><div className="oa-sum-label">Approved</div></div>
+          <div className="oa-sum-val approved-val">{counts.approved}</div><div className="oa-sum-label">Approved</div>
         </div>
         <div className="oa-summary-card" onClick={() => { setFilter("Rejected"); setPage(1); }}>
-          <div className="oa-sum-icon" style={{ background:"#fce4ec" }}>✗</div>
-          <div><div className="oa-sum-val rejected-val">{counts.rejected}</div><div className="oa-sum-label">Rejected</div></div>
+          <div className="oa-sum-val rejected-val">{counts.rejected}</div><div className="oa-sum-label">Rejected</div>
         </div>
       </div>
 
@@ -261,7 +258,7 @@ export default function OnlineApplications() {
       <div className="oa-card">
         <div className="oa-toolbar">
           <div className="oa-search-wrap">
-            <span className="oa-search-icon">🔍</span>
+            <span className="oa-search-icon"><Search size={13} color="#aaa"/></span>
             <input
               className="oa-search-input"
               placeholder="Search by App ID, Name, Contact, or Email..."

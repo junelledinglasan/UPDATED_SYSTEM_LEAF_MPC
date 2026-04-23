@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getMembersAPI, getMemberStatsAPI, getMemberAPI, updateMemberAPI, deleteMemberAPI, getApplicationsAPI, updateApplicationStatusAPI, convertToMemberAPI } from "../../api/members";
+import { Users, Clock, Eye, Pencil, Trash2, Search } from "lucide-react";
 import "./ManageMember.css";
 
 const STATUS_OPTIONS = ["All","Active","Inactive","Suspended"];
@@ -500,10 +501,10 @@ export default function ManageMember() {
       {/* Main Tabs */}
       <div className="mm-main-tabs">
         <button className={`mm-main-tab ${mainTab==="official"?"active":""}`} onClick={() => setMainTab("official")}>
-          👥 Official Members <span className="mm-tab-count">{members.length}</span>
+          <Users size={14}/> Official Members <span className="mm-tab-count">{members.length}</span>
         </button>
         <button className={`mm-main-tab ${mainTab==="pending"?"active pending-tab":""}`} onClick={() => setMainTab("pending")}>
-          ⏳ Pending for Approval
+          <Clock size={14}/> Pending for Approval
           {pending.length > 0 && <span className="mm-tab-count pending-count">{pending.length}</span>}
         </button>
       </div>
@@ -513,7 +514,7 @@ export default function ManageMember() {
         <div className="mm-card">
           <div className="mm-toolbar">
             <div className="mm-search-wrap">
-              <span className="mm-search-icon">🔍</span>
+              <span className="mm-search-icon"><Search size={13} color="#aaa"/></span>
               <input
                 className="mm-search-input"
                 placeholder="Search by Name or Member ID..."
@@ -558,9 +559,9 @@ export default function ManageMember() {
                     <td><span className={`status-badge status-${(m.status||"").toLowerCase()}`}>{m.status}</span></td>
                     <td>
                       <div className="action-btns" onClick={e => e.stopPropagation()}>
-                        <button className="action-btn view-btn"   title="View"   onClick={() => setViewMember(m)}>👁</button>
-                        <button className="action-btn edit-btn"   title="Edit"   onClick={() => setViewMember(m)}>✏️</button>
-                        <button className="action-btn delete-btn" title="Delete" onClick={() => setDeleteMember(m)}>🗑</button>
+                        <button className="action-btn view-btn"   title="View"   onClick={() => setViewMember(m)}><Eye size={13}/></button>
+                        <button className="action-btn edit-btn"   title="Edit"   onClick={() => setViewMember(m)}><Pencil size={12}/></button>
+                        <button className="action-btn delete-btn" title="Delete" onClick={() => setDeleteMember(m)}><Trash2 size={12}/></button>
                       </div>
                     </td>
                   </tr>
@@ -625,7 +626,7 @@ export default function ManageMember() {
                       <td style={{fontSize:11,color:"#888"}}>{(p.submitted_at||"").slice(0,10)}</td>
                       <td>
                         <div className="action-btns" onClick={e => e.stopPropagation()}>
-                          <button className="action-btn view-btn" onClick={() => setViewPending(p)}>👁</button>
+                          <button className="action-btn view-btn" onClick={() => setViewPending(p)}><Eye size={13}/></button>
                           <button className="mm-convert-btn" onClick={() => handleConvert(p)}>✓</button>
                         </div>
                       </td>

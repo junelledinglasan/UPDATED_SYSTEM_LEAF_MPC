@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: #f0f4f1;
+  background: #d8e8cc;
   min-height: calc(100vh - 56px);
   box-sizing: border-box;
   width: 100%;
@@ -35,7 +35,7 @@
 
 /* ─── Page Header ─────────────────────────────────────────────────────────── */
 .oa-page-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-.oa-page-title  { font-size: 18px; font-weight: 700; color: #1b5e20; line-height: 1.2; }
+.oa-page-title  { font-size: 24px; font-weight: 800; color: #1b5e20; line-height: 1.2; letter-spacing: -0.3px; }
 .oa-page-sub    { font-size: 11px; color: #aaa; margin-top: 3px; }
 
 /* ─── Summary Cards ───────────────────────────────────────────────────────── */
@@ -48,17 +48,17 @@
 .oa-summary-card {
   background: #fff;
   border-radius: 12px;
-  border: 1px solid #e4f0e5;
-  padding: 14px 18px;
+  border: 1.5px solid #c8ddc8;
+  padding: 18px 22px;
   display: flex;
-  align-items: center;
-  gap: 14px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-  transition: box-shadow 0.2s;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: box-shadow 0.2s, transform 0.15s;
   min-width: 0;
   cursor: pointer;
 }
-.oa-summary-card:hover { box-shadow: 0 4px 12px rgba(46,125,50,0.10); }
+.oa-summary-card:hover { box-shadow: 0 6px 16px rgba(46,125,50,0.12); transform: translateY(-1px); }
 
 .oa-sum-icon {
   width: 40px;
@@ -72,18 +72,18 @@
   font-weight: 700;
 }
 
-.oa-sum-val          { font-size: 24px; font-weight: 700; color: #1b5e20; line-height: 1; }
+.oa-sum-val          { font-size: 28px; font-weight: 800; color: #1b5e20; line-height: 1; }
 .oa-sum-val.pending-val  { color: #e65100; }
 .oa-sum-val.approved-val { color: #2e7d32; }
 .oa-sum-val.rejected-val { color: #c62828; }
-.oa-sum-label        { font-size: 10px; color: #aaa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+.oa-sum-label        { font-size: 10px; color: #8a9a7a; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 2px; }
 
 /* ─── Table Card ──────────────────────────────────────────────────────────── */
 .oa-card {
   background: #fff;
-  border-radius: 14px;
-  border: 1px solid #e4f0e5;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  border-radius: 12px;
+  border: 1.5px solid #c8ddc8;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -105,7 +105,7 @@
   align-items: center;
   gap: 8px;
   background: #f8faf8;
-  border: 1px solid #e0e8e0;
+  border: 1.5px solid #c8ddc8;
   border-radius: 8px;
   padding: 7px 12px;
   flex: 1;
@@ -150,7 +150,7 @@
 }
 .oa-status-tab:hover { background: #f0f8f0; border-color: #a5d6a7; color: #2e7d32; }
 
-.oa-status-tab.active.tab-all      { background: #444; border-color: #444; color: #fff; }
+.oa-status-tab.active.tab-all      { background: #2e7d32; border-color: #2e7d32; color: #fff; }
 .oa-status-tab.active.tab-pending  { background: #e65100; border-color: #e65100; color: #fff; }
 .oa-status-tab.active.tab-approved { background: #2e7d32; border-color: #2e7d32; color: #fff; }
 .oa-status-tab.active.tab-rejected { background: #c62828; border-color: #c62828; color: #fff; }
@@ -174,7 +174,7 @@
   font-size: 12px;
 }
 
-.oa-table thead tr { background: #f7faf7; border-bottom: 2px solid #e8f0e8; }
+.oa-table thead tr { background: #f2f8f2; border-bottom: 2px solid #d8ecd8; }
 
 .oa-table th {
   padding: 10px 14px;

@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: #f0f4f1;
+  background: #d8e8cc;
   min-height: calc(100vh - 56px);
   box-sizing: border-box;
   width: 100%;
@@ -42,10 +42,11 @@
 }
 
 .mm-page-title {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
   color: #1b5e20;
   line-height: 1.2;
+  letter-spacing: -0.3px;
 }
 
 .mm-page-sub {
@@ -63,20 +64,20 @@
 
 .mm-mini-stat {
   background: #fff;
-  border: 1px solid #e4f0e5;
+  border: 1.5px solid #e0ead8;
   border-radius: 10px;
-  padding: 8px 16px;
+  padding: 8px 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-  min-width: 64px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  gap: 2px;
+  min-width: 68px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
 }
 
 .mm-mini-val {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   color: #2e7d32;
   line-height: 1;
 }
@@ -95,9 +96,9 @@
 /* ─── Table Card ──────────────────────────────────────────────────────────── */
 .mm-card {
   background: #fff;
-  border-radius: 14px;
-  border: 1px solid #e4f0e5;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  border-radius: 12px;
+  border: 1px solid #c8ddc8;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -118,8 +119,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #f8faf8;
-  border: 1px solid #e0e8e0;
+  background: #f5faf5;
+  border: 1.5px solid #c8ddc8;
   border-radius: 8px;
   padding: 7px 12px;
   flex: 1;
@@ -203,8 +204,8 @@
 }
 
 .mm-table thead tr {
-  background: #f7faf7;
-  border-bottom: 2px solid #e8f0e8;
+  background: #f2f8f2;
+  border-bottom: 2px solid #d8ecd8;
 }
 
 .mm-table th {
@@ -275,13 +276,13 @@
 .action-btn {
   width: 28px;
   height: 28px;
-  border: 1px solid;
-  border-radius: 7px;
+  border: 1.5px solid;
+  border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 12px;
   transition: all 0.15s;
   background: #fff;
   line-height: 1;
@@ -666,10 +667,10 @@
 .mm-main-tabs {
   display: flex; gap: 0;
   background: #fff;
-  border: 1px solid #e4f0e5;
+  border: 1px solid #c8ddc8;
   border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
 }
 .mm-main-tab {
   flex: 1; padding: 11px 16px;
@@ -713,12 +714,13 @@
 
 /* ─── Convert button ──────────────────────────────────────────────────────── */
 .mm-convert-btn {
-  padding: 4px 10px;
+  width: 28px; height: 28px;
   background: #2e7d32; color: #fff;
-  border: none; border-radius: 6px;
-  font-size: 11px; font-weight: 700;
+  border: none; border-radius: 50%;
+  font-size: 13px; font-weight: 700;
   cursor: pointer; font-family: inherit;
-  transition: all 0.15s; white-space: nowrap;
+  transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
 }
 .mm-convert-btn:hover { background: #1b5e20; }
 

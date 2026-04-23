@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getStaffListAPI, addStaffAPI, editStaffAPI, resetStaffPasswordAPI } from "../../api/auth";
+import { Pencil, KeyRound, Eye, EyeOff, UserPlus } from "lucide-react";
 import "./ManageStaff.css";
 
 // ─── Add Staff Modal ──────────────────────────────────────────────────────────
@@ -90,7 +91,7 @@ function AddStaffModal({ onClose, onSuccess }) {
             <label className="ms-label">Password <span className="ms-req">*</span></label>
             <div className="ms-pw-wrap">
               <input className={`ms-input ${errors.password?"ms-input-err":""}`} type={showPw?"text":"password"} name="password" value={form.password} onChange={handle} placeholder="At least 6 characters" />
-              <button className="ms-pw-toggle" onClick={() => setShowPw(p=>!p)} type="button" tabIndex={-1}>{showPw?"🙈":"👁️"}</button>
+              <button className="ms-pw-toggle" onClick={() => setShowPw(p=>!p)} type="button" tabIndex={-1}>{showPw ? <EyeOff size={14}/> : <Eye size={14}/>}</button>
             </div>
             {errors.password && <div className="ms-field-err">{errors.password}</div>}
           </div>
@@ -258,7 +259,7 @@ function ResetPasswordModal({ staff, onClose }) {
             <label className="ms-label">New Password <span className="ms-req">*</span></label>
             <div className="ms-pw-wrap">
               <input className={`ms-input ${errors.password?"ms-input-err":""}`} type={showPw?"text":"password"} name="password" value={form.password} onChange={handle} placeholder="At least 6 characters" autoFocus />
-              <button className="ms-pw-toggle" onClick={() => setShowPw(p=>!p)} type="button" tabIndex={-1}>{showPw?"🙈":"👁️"}</button>
+              <button className="ms-pw-toggle" onClick={() => setShowPw(p=>!p)} type="button" tabIndex={-1}>{showPw ? <EyeOff size={14}/> : <Eye size={14}/>}</button>
             </div>
             {errors.password && <div className="ms-field-err">{errors.password}</div>}
           </div>
@@ -314,7 +315,7 @@ export default function ManageStaff() {
           <div className="ms-title">Manage Staff</div>
           <div className="ms-sub">View, add, and manage staff accounts for office personnel.</div>
         </div>
-        <button className="ms-add-btn" onClick={() => setShowAdd(true)}>+ Add Staff</button>
+        <button className="ms-add-btn" onClick={() => setShowAdd(true)}><UserPlus size={14}/> Add Staff</button>
       </div>
 
       {/* Stats */}
@@ -337,9 +338,9 @@ export default function ManageStaff() {
           </div>
         ) : staffList.length === 0 ? (
           <div className="ms-empty">
-            <div className="ms-empty-icon">👤</div>
+            <div className="ms-empty-icon" style={{fontSize:36,opacity:0.3}}>👤</div>
             <div className="ms-empty-text">No staff accounts yet.</div>
-            <button className="ms-add-btn" onClick={() => setShowAdd(true)}>+ Add First Staff</button>
+            <button className="ms-add-btn" onClick={() => setShowAdd(true)}><UserPlus size={14}/> Add First Staff</button>
           </div>
         ) : (
           <table className="ms-table">
@@ -366,8 +367,8 @@ export default function ManageStaff() {
                   <td><span className="ms-role-badge">Staff</span></td>
                   <td>
                     <div className="ms-action-row">
-                      <button className="ms-action-btn edit"  onClick={() => setEditTarget(s)}>✏️ Edit</button>
-                      <button className="ms-action-btn reset" onClick={() => setResetTarget(s)}>🔑 Reset Password</button>
+                      <button className="ms-action-btn edit"  onClick={() => setEditTarget(s)}><Pencil size={11}/> Edit</button>
+                      <button className="ms-action-btn reset" onClick={() => setResetTarget(s)}><KeyRound size={11}/> Reset Password</button>
                     </div>
                   </td>
                 </tr>

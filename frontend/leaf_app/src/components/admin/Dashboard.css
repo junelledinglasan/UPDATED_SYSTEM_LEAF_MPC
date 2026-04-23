@@ -11,6 +11,26 @@
   min-width: 0;
 }
 
+
+/* ─── Page Header ─────────────────────────────────────────────────────────── */
+.dash-page-header {
+  padding: 0 0 4px;
+}
+
+.dash-page-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1b5e20;
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+}
+
+.dash-page-sub {
+  font-size: 11px;
+  color: #8a9a7a;
+  margin-top: 3px;
+}
+
 /* ─── Stat Cards ──────────────────────────────────────────────────────────── */
 .stat-grid {
   display: grid;

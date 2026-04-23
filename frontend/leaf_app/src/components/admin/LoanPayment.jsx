@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getLoansAPI } from "../../api/loans";
 import { getPaymentsAPI, getPaymentStatsAPI, recordPaymentAPI } from "../../api/payments";
+import { Search, Eye } from "lucide-react";
 import "./LoanPayment.css";
 
 const ROWS_PER_PAGE = 8;
@@ -215,10 +216,10 @@ export default function LoanPayment() {
       </div>
 
       <div className="lp-summary-grid">
-        <div className="lp-summary-card"><div className="lp-sum-icon" style={{background:"#e8f5e9"}}>💰</div><div><div className="lp-sum-val">₱{totalCollected.toLocaleString()}</div><div className="lp-sum-label">Total Collected</div></div></div>
-        <div className="lp-summary-card clickable" onClick={()=>{switchTab("loans");setFilter("Overdue");}}><div className="lp-sum-icon" style={{background:"#fce4ec"}}>⚠</div><div><div className="lp-sum-val danger">{overdueCount}</div><div className="lp-sum-label">Overdue Loans</div></div></div>
-        <div className="lp-summary-card"><div className="lp-sum-icon" style={{background:"#e3f2fd"}}>📊</div><div><div className="lp-sum-val blue">₱{totalOutstanding.toLocaleString()}</div><div className="lp-sum-label">Total Outstanding</div></div></div>
-        <div className="lp-summary-card clickable" onClick={()=>switchTab("history")}><div className="lp-sum-icon" style={{background:"#f3e5f5"}}>🧾</div><div><div className="lp-sum-val purple">{transactions.length}</div><div className="lp-sum-label">Transactions Recorded</div></div></div>
+        <div className="lp-summary-card"><div className="lp-sum-val">₱{totalCollected.toLocaleString()}</div><div className="lp-sum-label">Total Collected</div></div>
+        <div className="lp-summary-card clickable" onClick={()=>{switchTab("loans");setFilter("Overdue");}}><div className="lp-sum-val danger">{overdueCount}</div><div className="lp-sum-label">Overdue Loans</div></div>
+        <div className="lp-summary-card"><div className="lp-sum-val blue">₱{totalOutstanding.toLocaleString()}</div><div className="lp-sum-label">Total Outstanding</div></div>
+        <div className="lp-summary-card clickable" onClick={()=>switchTab("history")}><div className="lp-sum-val purple">{transactions.length}</div><div className="lp-sum-label">Transactions Recorded</div></div>
       </div>
 
       <div className="lp-card">
@@ -229,7 +230,7 @@ export default function LoanPayment() {
           </div>
           <div className="lp-toolbar-right">
             <div className="lp-search-wrap">
-              <span className="lp-search-icon">🔍</span>
+              <span className="lp-search-icon"><Search size={13} color="#aaa"/></span>
               <input className="lp-search-input" placeholder="Search..." value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
               {search && <button className="lp-clear-btn" onClick={()=>{setSearch("");setPage(1);}}>✕</button>}
             </div>
@@ -305,7 +306,7 @@ export default function LoanPayment() {
                     <td className="blue">₱{Number(t.balance||0).toLocaleString()}</td>
                     <td className="cell-date">{t.paid_at}</td>
                     <td><span className="hash-text">{t.hash}</span></td>
-                    <td style={{textAlign:"center"}}><button className="lp-view-btn" onClick={()=>setViewTx(t)}>👁</button></td>
+                    <td style={{textAlign:"center"}}><button className="lp-view-btn" onClick={()=>setViewTx(t)}><Eye size={12}/></button></td>
                   </tr>
                 ))}
               </tbody>

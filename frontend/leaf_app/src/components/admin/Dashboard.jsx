@@ -211,6 +211,10 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-content">
+      <div className="dash-page-header">
+        <div className="dash-page-title">Office Operations Dashboard</div>
+        <div className="dash-page-sub">Manage LEAF MPC member records and financial audit.</div>
+      </div>
       <div className="stat-grid">
         {/* ── Lucide icons used below: TrendingUp, Users, Clock, Globe ──────────
             These are real SVG icons from the lucide-react package.

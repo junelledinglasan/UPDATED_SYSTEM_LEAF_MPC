@@ -807,10 +807,6 @@ export default function AdminLayout() {
           </div>
         </header>
         <main className="page-content">
-          <div className="page-header">
-            <div className="page-title">{config.title}</div>
-            <div className="page-sub">{config.sub}</div>
-          </div>
           <Outlet />
         </main>
       </div>
