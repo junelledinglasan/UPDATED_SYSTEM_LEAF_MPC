@@ -18,6 +18,4 @@ export const updateApplicationStatusAPI = async (id, status, rejectReason="") =>
 export const getMyApplicationAPI        = async ()                             => (await api.get("/members/my-application/")).data;
 
 // ─── Convert Application → Official Member ────────────────────────────────────
-// Kapag na-approve ang application at bumisita na sa opisina,
-// i-call ito para ma-convert sa official member na may full access.
 export const convertToMemberAPI = async (appId) => (await api.post(`/members/applications/${appId}/convert/`)).data;

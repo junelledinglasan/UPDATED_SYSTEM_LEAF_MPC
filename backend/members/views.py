@@ -68,13 +68,11 @@ def application_detail_view(request, pk):
         if new_status == 'Rejected':
             app.reject_reason = request.data.get('reject_reason', '')
         app.save()
-
         log_activity(
             'application',
             f'Application {app.app_id} ({app.fullname}) was {new_status.lower()} by {request.user.name}',
             request.user
         )
-
     return Response(MembershipApplicationSerializer(app).data)
 
 
@@ -103,26 +101,39 @@ def convert_to_member_view(request, pk):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
+    # Get the application — must be Approved
     try:
-        app = MembershipApplication.objects.get(pk=pk, status='Approved')
+        app = MembershipApplication.objects.get(pk=pk)
     except MembershipApplication.DoesNotExist:
-        return Response({'error': 'Approved application not found.'}, status=404)
+        return Response({'error': 'Application not found.'}, status=404)
 
-    # Check if already converted
-    if hasattr(app, 'converted_member'):
-        return Response({'error': 'Already converted to official member.'}, status=400)
+    if app.status != 'Approved':
+        return Response({'error': 'Application must be Approved first.'}, status=400)
 
+    # Check if already converted — using Member model query (safer than hasattr)
+    already_converted = Member.objects.filter(application=app).exists()
+    if already_converted:
+        existing = Member.objects.get(application=app)
+        return Response({
+            'error':     'Already converted to official member.',
+            'member_id': existing.member_id,
+        }, status=400)
+
+    import random, string
+
+    # Get or create user account
     user = app.user
 
     if not user:
-        import random, string
+        # Create user account if they applied without one
         fn    = app.firstname.lower().strip()
         ln    = app.lastname.lower().strip()
         base  = f'{fn}.{ln}'
         uname = base
         i = 1
         while User.objects.filter(username=uname).exists():
-            uname = f'{base}{i}'; i += 1
+            uname = f'{base}{i}'
+            i    += 1
 
         plain_pw = 'leaf' + ''.join(random.choices(string.digits, k=4))
         name     = f'{app.firstname} {app.lastname}'.strip()
@@ -135,38 +146,41 @@ def convert_to_member_view(request, pk):
         app.user = user
         app.save()
     else:
-        # Grant full member access
+        # Update existing user — grant full member access
+        plain_pw       = request.data.get('plain_password', '')
         user.role      = 'member'
         user.name      = f'{app.firstname} {app.lastname}'.strip()
         user.is_active = True
         user.save()
-        plain_pw = request.data.get('plain_password', '')
 
     # Create official Member record
-    member = Member.objects.create(
-        user          = user,
-        application   = app,
-        firstname     = app.firstname,
-        lastname      = app.lastname,
-        middlename    = app.middlename,
-        birthdate     = app.birthdate,
-        gender        = app.gender,
-        civil_status  = app.civil_status,
-        contact       = app.contact,
-        email         = app.email,
-        address       = app.address,
-        occupation    = app.occupation,
-        valid_id      = app.valid_id,
-        id_number     = app.id_number,
-        beneficiary   = app.beneficiary,
-        relationship  = app.relationship,
-        plain_password= plain_pw,
-        status        = 'Active',
-    )
+    try:
+        member = Member.objects.create(
+            user           = user,
+            application    = app,
+            firstname      = app.firstname,
+            lastname       = app.lastname,
+            middlename     = app.middlename,
+            birthdate      = app.birthdate,
+            gender         = app.gender,
+            civil_status   = app.civil_status,
+            contact        = app.contact,
+            email          = app.email,
+            address        = app.address,
+            occupation     = app.occupation,
+            valid_id       = app.valid_id,
+            id_number      = app.id_number,
+            beneficiary    = app.beneficiary,
+            relationship   = app.relationship,
+            plain_password = plain_pw,
+            status         = 'Active',
+        )
+    except Exception as e:
+        return Response({'error': f'Failed to create member record: {str(e)}'}, status=500)
 
     log_activity(
         'member',
-        f'Member registered: {member.fullname} ({member.member_id}) — converted from application {app.app_id}',
+        f'Member registered: {member.fullname} ({member.member_id}) — converted from {app.app_id}',
         request.user
     )
 
@@ -199,7 +213,7 @@ def member_list_view(request):
         return Response({'error': 'Unauthorized.'}, status=403)
 
     import random, string
-    data = request.data.copy()
+    data           = request.data.copy()
     plain_password = data.get('plain_password', '')
     if not plain_password:
         plain_password = 'leaf' + ''.join(random.choices(string.digits, k=4))
@@ -210,7 +224,8 @@ def member_list_view(request):
     uname = base
     i = 1
     while User.objects.filter(username=uname).exists():
-        uname = f'{base}{i}'; i += 1
+        uname = f'{base}{i}'
+        i    += 1
 
     name = f"{data.get('firstname','')} {data.get('lastname','')}".strip()
     user = User.objects.create_user(
