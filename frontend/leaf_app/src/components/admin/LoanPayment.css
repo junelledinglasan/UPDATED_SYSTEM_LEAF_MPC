@@ -9,6 +9,8 @@
   width: 100%;
   min-width: 0;
   position: relative;
+  flex: 1 1 auto;
+  align-items: stretch;
 }
 
 /* Toast */
@@ -43,10 +45,10 @@
   background: #fff;
   border-radius: 12px;
   border: 1.5px solid #c8ddc8;
-  padding: 18px 22px;
+  padding: 16px 20px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 14px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   transition: box-shadow 0.2s, transform 0.15s;
   min-width: 0;
@@ -59,11 +61,11 @@
   display:flex; align-items:center; justify-content:center;
   font-size:16px;
 }
-.lp-sum-val        { font-size:28px; font-weight:800; color:#1b5e20; line-height:1; }
+.lp-sum-val        { font-size:26px; font-weight:800; color:#1b5e20; line-height:1; }
 .lp-sum-val.danger { color:#c62828; }
 .lp-sum-val.blue   { color:#1565c0; }
 .lp-sum-val.purple { color:#6a1b9a; }
-.lp-sum-label      { font-size:10px; color:#8a9a7a; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; margin-top:2px; }
+.lp-sum-label      { font-size:10px; color:#8a9a7a; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; margin-top:4px; }
 
 /* Card */
 .lp-card {
@@ -76,6 +78,7 @@
   flex-direction: column;
   width: 100%;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Toolbar */

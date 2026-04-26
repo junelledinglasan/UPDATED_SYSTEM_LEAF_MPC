@@ -392,3 +392,77 @@
   .chart-card { padding: 12px 14px; }
   .ledger-card { padding: 12px 14px; }
 }
+
+/* ─── Clickable calendar days ──────────────────────────────────────────────── */
+.cal-day.clickable        { cursor: pointer; position: relative; }
+.cal-day.clickable:hover  { background: #e8f5e9; border-radius: 6px; }
+.cal-day.has-overdue      { background: #fce4ec !important; color: #c62828 !important; font-weight: 700; border-radius: 6px; cursor: pointer; }
+.cal-due-dot {
+  position: absolute; top: 1px; right: 2px;
+  background: #2e7d32; color: #fff;
+  font-size: 8px; font-weight: 700;
+  width: 14px; height: 14px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+.has-overdue .cal-due-dot { background: #c62828; }
+
+/* ─── Due Date Modal ───────────────────────────────────────────────────────── */
+.cal-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-modal-box {
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  max-height: 85vh;
+}
+.cal-modal-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #f0f4f1;
+}
+.cal-modal-title  { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+.cal-modal-sub    { font-size: 12px; color: #888; margin-top: 2px; }
+.cal-modal-close  { background: none; border: none; font-size: 16px; cursor: pointer; color: #aaa; padding: 0; }
+.cal-modal-close:hover { color: #333; }
+.cal-modal-body   { padding: 14px 20px; overflow-y: auto; flex: 1; }
+.cal-modal-empty  { text-align: center; color: #aaa; font-size: 13px; padding: 20px 0; }
+.cal-modal-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; border-top: 1px solid #f0f4f1;
+  background: #fafafa;
+}
+.cal-modal-total  { font-size: 13px; color: #555; }
+.cal-modal-done   { background: #2e7d32; color: #fff; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cal-modal-done:hover { background: #1b5e20; }
+
+/* ─── Due list items ───────────────────────────────────────────────────────── */
+.cal-due-list    { display: flex; flex-direction: column; gap: 8px; }
+.cal-due-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 8px;
+  background: #f9fafb; border: 1px solid #e8f5e9;
+}
+.cal-due-item.overdue { border-color: #ffcdd2; background: #fff8f8; }
+.cal-due-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #2e7d32; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; flex-shrink: 0;
+}
+.cal-due-item.overdue .cal-due-avatar { background: #c62828; }
+.cal-due-info   { flex: 1; }
+.cal-due-name   { font-size: 13px; font-weight: 600; color: #1a1a1a; }
+.cal-due-meta   { font-size: 11px; color: #888; margin-top: 2px; }
+.cal-due-amount { text-align: right; }
+.cal-due-monthly{ font-size: 14px; font-weight: 700; color: #2e7d32; }
+.cal-due-label  { font-size: 10px; color: #aaa; }
+.cal-overdue-tag{ font-size: 9px; font-weight: 700; color: #c62828; margin-top: 2px; }

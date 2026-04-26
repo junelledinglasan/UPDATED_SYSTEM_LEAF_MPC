@@ -13,6 +13,7 @@
 /* ─── Layout Shell ────────────────────────────────────────────────────────── */
 .admin-layout {
   display: flex;
+  width: 100%;
   min-height: 100vh;
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 13px;
@@ -158,12 +159,13 @@
 /* ─── Main Area ───────────────────────────────────────────────────────────── */
 .admin-main {
   margin-left: var(--sidebar-width);
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   overflow-x: hidden;
+  align-items: stretch;
 }
 
 /* ─── Topbar ──────────────────────────────────────────────────────────────── */
@@ -264,7 +266,7 @@
 .user-role { font-size: 10px; color: #9a9070; display: block; }
 
 /* ─── Page Content ────────────────────────────────────────────────────────── */
-.page-content { flex: 1; min-width: 0; overflow-x: hidden; }
+.page-content { flex: 1 1 auto; min-width: 0; overflow-x: hidden; display: flex; flex-direction: column; align-items: stretch; min-height: 0; background: #d8e8cc; }
 
 /* ─── Modal Overlay ───────────────────────────────────────────────────────── */
 .al-overlay {

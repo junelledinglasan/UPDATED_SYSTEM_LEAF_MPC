@@ -5,6 +5,9 @@ import {
   LayoutDashboard, Users, UserCog, FileText,
   CreditCard, CheckSquare, Megaphone, BarChart2, Leaf
 } from "lucide-react";
+import { getLoansAPI, createLoanAPI } from "../api/loans";
+import { getMembersAPI, registerMemberAPI } from "../api/members";
+import { recordPaymentAPI } from "../api/payments";
 import "./AdminLayout.css";
 
 const NAV_ITEMS = [
@@ -76,36 +79,45 @@ const PAGE_CONFIG = {
 const DEFAULT_CONFIG = { title: "LEAF MPC Admin", sub: "Cooperative Information System", actions: [] };
 
 // ─── Quick F2F Payment Modal ──────────────────────────────────────────────────
-const LOAN_OPTIONS = [
-  { loanId:"LN-2026-001", memberId:"LEAF-100-01", fullname:"Junelle Dinglasan",      balance:12500, monthlyDue:1500 },
-  { loanId:"LN-2026-002", memberId:"LEAF-100-02", fullname:"MarkVincent Castillano", balance:8000,  monthlyDue:900  },
-  { loanId:"LN-2026-003", memberId:"LEAF-100-03", fullname:"Hillery Verastigue",     balance:42000, monthlyDue:4500 },
-  { loanId:"LN-2026-004", memberId:"LEAF-100-05", fullname:"Maria Santos",           balance:3000,  monthlyDue:1200 },
-  { loanId:"LN-2026-006", memberId:"LEAF-100-09", fullname:"Rosa Mendoza",           balance:10000, monthlyDue:1000 },
-];
-
+// ─── Quick F2F Payment Modal ─────────────────────────────────────────────────
 function F2FModal({ onClose }) {
-  const [step,     setStep]    = useState(1);
-  const [selected, setSelect]  = useState(null);
-  const [amount,   setAmount]  = useState("");
-  const [note,     setNote]    = useState("");
-  const [error,    setError]   = useState("");
-  const [done,     setDone]    = useState(false);
-  const [search,   setSearch]  = useState("");
+  const [step,     setStep]   = useState(1);
+  const [loans,    setLoans]  = useState([]);
+  const [selected, setSelect] = useState(null);
+  const [amount,   setAmount] = useState("");
+  const [note,     setNote]   = useState("");
+  const [error,    setError]  = useState("");
+  const [done,     setDone]   = useState(false);
+  const [loading,  setLoad]   = useState(false);
+  const [fetching, setFetch]  = useState(true);
+  const [search,   setSearch] = useState("");
 
-  const filtered = LOAN_OPTIONS.filter(l =>
-    l.fullname.toLowerCase().includes(search.toLowerCase()) ||
-    l.memberId.toLowerCase().includes(search.toLowerCase()) ||
-    l.loanId.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    getLoansAPI({ status: "Active" })
+      .then(data => setLoans(data))
+      .catch(e => console.error(e))
+      .finally(() => setFetch(false));
+  }, []);
+
+  const filtered = loans.filter(l =>
+    (l.member_name||"").toLowerCase().includes(search.toLowerCase()) ||
+    (l.member_code||"").toLowerCase().includes(search.toLowerCase()) ||
+    (l.loan_id||"").toLowerCase().includes(search.toLowerCase())
   );
 
   const parsed  = parseFloat(amount) || 0;
-  const isValid = parsed > 0 && selected && parsed <= selected.balance;
+  const balance = parseFloat(selected?.balance || 0);
+  const isValid = parsed > 0 && selected && parsed <= balance;
 
-  const handlePay = () => {
-    if (!parsed || parsed <= 0)           { setError("Enter a valid amount."); return; }
-    if (parsed > selected.balance)        { setError(`Exceeds remaining balance ₱${selected.balance.toLocaleString()}.`); return; }
-    setDone(true);
+  const handlePay = async () => {
+    if (!parsed || parsed <= 0) { setError("Enter a valid amount."); return; }
+    if (parsed > balance)       { setError(`Exceeds remaining balance ₱${balance.toLocaleString()}.`); return; }
+    setLoad(true);
+    try {
+      await recordPaymentAPI({ loan: selected.id, member: selected.member, amount: parsed, note });
+      setDone(true);
+    } catch { setError("Failed to record payment. Please try again."); }
+    finally { setLoad(false); }
   };
 
   if (done) return (
@@ -115,10 +127,7 @@ function F2FModal({ onClose }) {
           <div style={{fontSize:40}}>✅</div>
           <div style={{fontSize:15,fontWeight:700,color:"#1b5e20"}}>Payment Recorded!</div>
           <div style={{fontSize:12,color:"#888"}}>
-            ₱{parsed.toLocaleString()} payment for <strong>{selected.fullname}</strong> has been saved to the blockchain ledger.
-          </div>
-          <div style={{fontSize:10,color:"#bbb",fontFamily:"monospace"}}>
-            Hash: hx{Math.random().toString(36).slice(2,14)}-j{Math.floor(Math.random()*9)}
+            ₱{parsed.toLocaleString()} payment for <strong>{selected.member_name}</strong> has been saved.
           </div>
         </div>
         <div className="al-modal-footer">
@@ -138,7 +147,6 @@ function F2FModal({ onClose }) {
           </div>
           <button className="al-modal-close" onClick={onClose}>✕</button>
         </div>
-
         {step === 1 && (
           <>
             <div className="al-modal-body">
@@ -148,19 +156,18 @@ function F2FModal({ onClose }) {
                 <input className="al-search-in" placeholder="Search by name, member ID, loan ID..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
               <div className="al-loan-list">
-                {filtered.map(l => (
-                  <div
-                    key={l.loanId}
-                    className={`al-loan-item ${selected?.loanId === l.loanId ? "selected" : ""}`}
-                    onClick={() => { setSelect(l); setAmount(String(l.monthlyDue)); setError(""); }}
-                  >
-                    <div className="al-loan-avatar">{l.fullname.charAt(0)}</div>
+                {fetching ? <div style={{textAlign:"center",padding:20,color:"#aaa"}}>Loading loans...</div>
+                : filtered.length === 0 ? <div style={{textAlign:"center",padding:20,color:"#aaa"}}>No active loans found.</div>
+                : filtered.map(l => (
+                  <div key={l.id} className={`al-loan-item ${selected?.id === l.id ? "selected" : ""}`}
+                    onClick={() => { setSelect(l); setAmount(String(l.monthly_due||"")); setError(""); }}>
+                    <div className="al-loan-avatar">{(l.member_name||"M")[0]}</div>
                     <div className="al-loan-info">
-                      <div className="al-loan-name">{l.fullname}</div>
-                      <div className="al-loan-meta">{l.memberId} · {l.loanId}</div>
+                      <div className="al-loan-name">{l.member_name}</div>
+                      <div className="al-loan-meta">{l.member_code} · {l.loan_id}</div>
                     </div>
                     <div className="al-loan-bal">
-                      <div className="al-bal-val">₱{l.balance.toLocaleString()}</div>
+                      <div className="al-bal-val">₱{Number(l.balance).toLocaleString()}</div>
                       <div className="al-bal-label">balance</div>
                     </div>
                   </div>
@@ -173,56 +180,43 @@ function F2FModal({ onClose }) {
             </div>
           </>
         )}
-
         {step === 2 && (
           <>
             <div className="al-modal-body">
-              {/* Selected borrower strip */}
               <div className="al-borrower-strip">
-                <div className="al-loan-avatar">{selected.fullname.charAt(0)}</div>
+                <div className="al-loan-avatar">{(selected.member_name||"M")[0]}</div>
                 <div>
-                  <div className="al-loan-name">{selected.fullname}</div>
-                  <div className="al-loan-meta">{selected.memberId} · {selected.loanId} · Balance: ₱{selected.balance.toLocaleString()}</div>
+                  <div className="al-loan-name">{selected.member_name}</div>
+                  <div className="al-loan-meta">{selected.member_code} · {selected.loan_id} · Balance: ₱{balance.toLocaleString()}</div>
                 </div>
               </div>
-
-              {/* Amount */}
               <div className="al-field">
                 <label className="al-label">Payment Amount (₱) <span className="al-req">*</span></label>
                 <div className="al-amount-wrap">
                   <span className="al-peso">₱</span>
-                  <input
-                    className="al-amount-in"
-                    type="number" min="1" max={selected.balance}
-                    value={amount}
-                    onChange={e => { setAmount(e.target.value); setError(""); }}
-                    autoFocus
-                  />
+                  <input className="al-amount-in" type="number" min="1" max={balance}
+                    value={amount} onChange={e => { setAmount(e.target.value); setError(""); }} autoFocus />
                 </div>
                 <div className="al-quick-row">
-                  <button className="al-quick" onClick={() => { setAmount(String(selected.monthlyDue)); setError(""); }}>Monthly ₱{selected.monthlyDue.toLocaleString()}</button>
-                  <button className="al-quick" onClick={() => { setAmount(String(selected.balance)); setError(""); }}>Full ₱{selected.balance.toLocaleString()}</button>
+                  <button className="al-quick" onClick={() => { setAmount(String(selected.monthly_due||"")); setError(""); }}>Monthly ₱{Number(selected.monthly_due||0).toLocaleString()}</button>
+                  <button className="al-quick" onClick={() => { setAmount(String(balance)); setError(""); }}>Full ₱{balance.toLocaleString()}</button>
                 </div>
               </div>
-
               <div className="al-field">
                 <label className="al-label">Note (optional)</label>
                 <input className="al-input" type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Partial payment, advance..." maxLength={80} />
               </div>
-
               {error && <div className="al-error">⚠ {error}</div>}
-
-              {/* Preview */}
               {isValid && (
                 <div className="al-preview">
-                  <div className="al-prev-row"><span>Current balance</span><span>₱{selected.balance.toLocaleString()}</span></div>
+                  <div className="al-prev-row"><span>Current balance</span><span>₱{balance.toLocaleString()}</span></div>
                   <div className="al-prev-row deduct"><span>Payment</span><span>− ₱{parsed.toLocaleString()}</span></div>
                   <div className="al-prev-divider"/>
                   <div className="al-prev-row result">
                     <span>New balance</span>
-                    <span className={(selected.balance - parsed) === 0 ? "paid-green" : ""}>
-                      ₱{(selected.balance - parsed).toLocaleString()}
-                      {(selected.balance - parsed) === 0 && " 🎉 FULLY PAID"}
+                    <span className={(balance-parsed)===0?"paid-green":""}>
+                      ₱{(balance-parsed).toLocaleString()}
+                      {(balance-parsed)===0 && " 🎉 FULLY PAID"}
                     </span>
                   </div>
                 </div>
@@ -230,7 +224,7 @@ function F2FModal({ onClose }) {
             </div>
             <div className="al-modal-footer">
               <button className="al-btn-cancel" onClick={() => setStep(1)}>← Back</button>
-              <button className="al-btn-save" onClick={handlePay} disabled={!isValid}>Save Payment Record</button>
+              <button className="al-btn-save" onClick={handlePay} disabled={!isValid||loading}>{loading?"Saving...":"Save Payment Record"}</button>
             </div>
           </>
         )}
@@ -239,19 +233,15 @@ function F2FModal({ onClose }) {
   );
 }
 
-// ─── Quick Register Member Modal ──────────────────────────────────────────────
+// ─── Quick Register Member Modal ───
 function RegisterModal({ onClose }) {
   const [form, setForm] = useState({ firstname:"", lastname:"", middlename:"", birthdate:"", gender:"Male", civilStatus:"Single", contact:"", email:"", address:"", occupation:"", validId:"UMID", idNumber:"", beneficiary:"", relationship:"" });
   const [errors, setErrors] = useState({});
   const [done,   setDone]   = useState(false);
   const [tab,    setTab]    = useState("personal");
-  const [copied, setCopied] = useState("");
-
-  // Generate Member ID + default credentials (stable across renders)
-  const [creds] = useState(() => {
-    const seq = String(Math.floor(Math.random()*900)+100);
-    return { memberId:`LEAF-100-${seq}`, username:`leaf${seq}`, password:`leaf${seq}` };
-  });
+  const [copied,  setCopied]  = useState("");
+  const [loading, setLoading] = useState(false);
+  const [creds,   setCreds]   = useState({ memberId: "", username: "", password: "" });
 
   const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
 
@@ -266,10 +256,33 @@ function RegisterModal({ onClose }) {
     return e;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); setTab("personal"); return; }
-    setDone(true);
+    setLoading(true);
+    try {
+      const result = await registerMemberAPI({
+        firstname:    form.firstname,
+        lastname:     form.lastname,
+        middlename:   form.middlename,
+        birthdate:    form.birthdate,
+        gender:       form.gender,
+        civil_status: form.civilStatus,
+        contact:      form.contact,
+        email:        form.email,
+        address:      form.address,
+        occupation:   form.occupation,
+        valid_id:     form.validId,
+        id_number:    form.idNumber,
+        beneficiary:  form.beneficiary,
+        relationship: form.relationship,
+      });
+      setCreds({ memberId: result.member_id, username: result.username, password: result.plain_password });
+      setDone(true);
+    } catch(err) {
+      const msg = err.response?.data?.detail || "Failed to register member.";
+      setErrors({ firstname: msg });
+    } finally { setLoading(false); }
   };
 
   const copyText = (text, key) => {
@@ -413,19 +426,6 @@ function RegisterModal({ onClose }) {
 }
 
 // ─── New F2F Loan Application Modal ──────────────────────────────────────────
-const MEMBERS_LIST = [
-  { memberId:"LEAF-100-01", fullname:"Junelle Dinglasan",      shareCapital:9500  },
-  { memberId:"LEAF-100-02", fullname:"MarkVincent Castillano", shareCapital:12000 },
-  { memberId:"LEAF-100-03", fullname:"Hillery Verastigue",     shareCapital:7500  },
-  { memberId:"LEAF-100-04", fullname:"Syke Hufana",            shareCapital:5000  },
-  { memberId:"LEAF-100-05", fullname:"Maria Santos",           shareCapital:8500  },
-  { memberId:"LEAF-100-07", fullname:"Ana Gonzales",           shareCapital:11000 },
-  { memberId:"LEAF-100-09", fullname:"Rosa Mendoza",           shareCapital:4500  },
-  { memberId:"LEAF-100-11", fullname:"Lina Villanueva",        shareCapital:6000  },
-  { memberId:"LEAF-100-12", fullname:"Ramon Aquino",           shareCapital:8000  },
-  { memberId:"LEAF-100-13", fullname:"Nena Pascual",           shareCapital:9000  },
-];
-
 const LOAN_TYPES_LIST = ["Regular Loan","Emergency Loan","Salary Loan","Housing Loan","Business Loan"];
 const MAX_TERM = { "Regular Loan":24,"Emergency Loan":12,"Salary Loan":12,"Housing Loan":48,"Business Loan":36 };
 
@@ -439,12 +439,22 @@ function NewLoanModal({ onClose }) {
 
   const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
 
-  const filtered = MEMBERS_LIST.filter(m =>
-    m.fullname.toLowerCase().includes(search.toLowerCase()) ||
-    m.memberId.toLowerCase().includes(search.toLowerCase())
+  const [members,  setMembers]  = useState([]);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    getMembersAPI()
+      .then(data => setMembers(data))
+      .catch(e => console.error(e))
+      .finally(() => setFetching(false));
+  }, []);
+
+  const filtered = members.filter(m =>
+    (m.fullname||"").toLowerCase().includes(search.toLowerCase()) ||
+    (m.member_id||"").toLowerCase().includes(search.toLowerCase())
   );
 
-  const maxLoanable = selMember ? selMember.shareCapital * 3 : 0;
+  const maxLoanable = selMember ? parseFloat(selMember.share_capital||0) * 3 : 0;
   const maxForType  = selMember ? Math.min(maxLoanable, { "Regular Loan":50000,"Emergency Loan":20000,"Salary Loan":30000,"Housing Loan":100000,"Business Loan":80000 }[form.loanType] || 50000) : 0;
 
   const monthly = form.amount && form.term
@@ -459,13 +469,28 @@ function NewLoanModal({ onClose }) {
     return e;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
-    setDone(true);
+    setLoadingSubmit(true);
+    try {
+      const result = await createLoanAPI({
+        member:    selMember.id,
+        loan_type: form.loanType,
+        amount:    parseFloat(form.amount),
+        term_months: parseInt(form.term),
+        purpose:   form.purpose,
+        collateral:form.collateral,
+      });
+      setRefNo(result.loan_id);
+      setMonthlyResult(result.monthly_due);
+      setDone(true);
+    } catch(err) {
+      setErrors({ amount: err.response?.data?.detail || "Failed to submit loan." });
+    } finally { setLoadingSubmit(false); }
   };
 
-  const refNo = `LA-2026-${String(Math.floor(Math.random()*900)+100)}`;
+
 
   if (done) return (
     <div className="al-overlay" onClick={onClose}>
@@ -480,11 +505,11 @@ function NewLoanModal({ onClose }) {
           </div>
           <div className="al-cred-card">
             <div className="al-cred-title">📋 Application Details</div>
-            <div className="al-cred-row"><span className="al-cred-label">Ref No.</span><span className="al-cred-val">{refNo}</span></div>
-            <div className="al-cred-row"><span className="al-cred-label">Member</span><span className="al-cred-val">{selMember.memberId}</span></div>
+            <div className="al-cred-row"><span className="al-cred-label">Loan ID</span><span className="al-cred-val">{refNo}</span></div>
+            <div className="al-cred-row"><span className="al-cred-label">Member</span><span className="al-cred-val">{selMember.member_id}</span></div>
             <div className="al-cred-row"><span className="al-cred-label">Loan Type</span><span className="al-cred-val">{form.loanType}</span></div>
             <div className="al-cred-row"><span className="al-cred-label">Amount</span><span className="al-cred-val">₱{parseFloat(form.amount).toLocaleString()}</span></div>
-            <div className="al-cred-row"><span className="al-cred-label">Monthly</span><span className="al-cred-val">₱{parseFloat(monthly).toLocaleString()}</span></div>
+            <div className="al-cred-row"><span className="al-cred-label">Monthly</span><span className="al-cred-val">₱{parseFloat(monthlyResult||monthly).toLocaleString()}</span></div>
           </div>
           <div className="al-cred-notice">Go to Loan Approval page to process this application.</div>
         </div>
@@ -516,19 +541,21 @@ function NewLoanModal({ onClose }) {
                 <input className="al-search-in" placeholder="Search by name or member ID..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
               <div className="al-loan-list">
-                {filtered.map(m => (
+                {fetching ? <div style={{textAlign:"center",padding:20,color:"#aaa"}}>Loading members...</div>
+                : filtered.length===0 ? <div style={{textAlign:"center",padding:20,color:"#aaa"}}>No members found.</div>
+                : filtered.map(m => (
                   <div
                     key={m.memberId}
-                    className={`al-loan-item ${selMember?.memberId===m.memberId?"selected":""}`}
+                    className={`al-loan-item ${selMember?.id===m.id?"selected":""}`}
                     onClick={() => setMember(m)}
                   >
                     <div className="al-loan-avatar">{m.fullname.charAt(0)}</div>
                     <div className="al-loan-info">
                       <div className="al-loan-name">{m.fullname}</div>
-                      <div className="al-loan-meta">{m.memberId}</div>
+                      <div className="al-loan-meta">{m.member_id}</div>
                     </div>
                     <div className="al-loan-bal">
-                      <div className="al-bal-val" style={{color:"#2e7d32"}}>₱{(m.shareCapital*3).toLocaleString()}</div>
+                      <div className="al-bal-val" style={{color:"#2e7d32"}}>₱{(parseFloat(m.share_capital||0)*3).toLocaleString()}</div>
                       <div className="al-bal-label">max loanable</div>
                     </div>
                   </div>
@@ -714,7 +741,7 @@ export default function AdminLayout() {
 
   const handleLogout = () => {
     logout();
-    navigate("/admin-login");
+    navigate("/login");
   };
 
   return (

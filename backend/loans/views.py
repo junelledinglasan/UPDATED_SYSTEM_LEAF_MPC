@@ -28,11 +28,7 @@ def loan_list_view(request):
     s = CreateLoanSerializer(data=request.data)
     if s.is_valid():
         loan = s.save()
-        log_activity(
-            'loan',
-            f'Loan application submitted: {loan.loan_id} — {loan.member.fullname} — ₱{loan.amount:,.2f} ({loan.loan_type})',
-            request.user if request.user.is_authenticated else None
-        )
+        log_activity('loan', f'Loan application submitted: {loan.loan_id} — {loan.member.fullname} — P{loan.amount:,.2f} ({loan.loan_type})', request.user if request.user.is_authenticated else None)
         return Response(LoanSerializer(loan).data, status=201)
     return Response(s.errors, status=400)
 
@@ -53,25 +49,58 @@ def loan_detail_view(request, pk):
 
     new_status = request.data.get('status')
     if new_status:
-        loan.status = new_status
         if new_status == 'Approved':
+            loan.status        = 'Active'
             loan.approved_at   = timezone.now()
             loan.approved_by   = request.user.username
             loan.next_due_date = datetime.date.today() + relativedelta(months=1)
-            log_activity(
-                'loan',
-                f'Loan approved: {loan.loan_id} — {loan.member.fullname} — ₱{loan.amount:,.2f}',
-                request.user
-            )
-        if new_status == 'Declined':
+            log_activity('loan', f'Loan approved & activated: {loan.loan_id} — {loan.member.fullname} — P{loan.amount:,.2f}', request.user)
+        elif new_status == 'Declined':
+            loan.status         = 'Declined'
             loan.decline_reason = request.data.get('decline_reason', '')
-            log_activity(
-                'loan',
-                f'Loan declined: {loan.loan_id} — {loan.member.fullname} — Reason: {loan.decline_reason}',
-                request.user
-            )
+            log_activity('loan', f'Loan declined: {loan.loan_id} — {loan.member.fullname}', request.user)
+        else:
+            loan.status = new_status
         if request.data.get('remarks'):
             loan.remarks = request.data.get('remarks')
         loan.save()
 
     return Response(LoanSerializer(loan).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def due_dates_view(request):
+    """Returns active loans grouped by next_due_date for the collection calendar."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    loans = Loan.objects.filter(
+        status__in=['Active', 'Overdue'],
+        next_due_date__isnull=False
+    ).select_related('member')
+
+    month_str = request.query_params.get('month', '')
+    if month_str:
+        try:
+            year, month = map(int, month_str.split('-'))
+            loans = loans.filter(next_due_date__year=year, next_due_date__month=month)
+        except Exception:
+            pass
+
+    grouped = {}
+    for loan in loans:
+        key = loan.next_due_date.strftime('%Y-%m-%d')
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append({
+            'loan_id':     loan.loan_id,
+            'member_name': loan.member.fullname,
+            'member_id':   loan.member.member_id,
+            'loan_type':   loan.loan_type,
+            'balance':     float(loan.balance),
+            'monthly_due': float(loan.monthly_due),
+            'status':      loan.status,
+        })
+
+    return Response(grouped)

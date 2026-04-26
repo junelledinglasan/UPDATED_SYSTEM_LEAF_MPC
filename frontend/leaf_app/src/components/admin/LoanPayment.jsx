@@ -216,10 +216,10 @@ export default function LoanPayment() {
       </div>
 
       <div className="lp-summary-grid">
-        <div className="lp-summary-card"><div className="lp-sum-val">₱{totalCollected.toLocaleString()}</div><div className="lp-sum-label">Total Collected</div></div>
-        <div className="lp-summary-card clickable" onClick={()=>{switchTab("loans");setFilter("Overdue");}}><div className="lp-sum-val danger">{overdueCount}</div><div className="lp-sum-label">Overdue Loans</div></div>
-        <div className="lp-summary-card"><div className="lp-sum-val blue">₱{totalOutstanding.toLocaleString()}</div><div className="lp-sum-label">Total Outstanding</div></div>
-        <div className="lp-summary-card clickable" onClick={()=>switchTab("history")}><div className="lp-sum-val purple">{transactions.length}</div><div className="lp-sum-label">Transactions Recorded</div></div>
+        <div className="lp-summary-card"><div className="lp-sum-icon" style={{background:"#e8f5e9"}}>💰</div><div><div className="lp-sum-val">₱{totalCollected.toLocaleString()}</div><div className="lp-sum-label">Total Collected</div></div></div>
+        <div className="lp-summary-card clickable" onClick={()=>{switchTab("loans");setFilter("Overdue");}}><div className="lp-sum-icon" style={{background:"#fce4ec"}}>⚠</div><div><div className="lp-sum-val danger">{overdueCount}</div><div className="lp-sum-label">Overdue Loans</div></div></div>
+        <div className="lp-summary-card"><div className="lp-sum-icon" style={{background:"#e3f2fd"}}>📊</div><div><div className="lp-sum-val blue">₱{totalOutstanding.toLocaleString()}</div><div className="lp-sum-label">Total Outstanding</div></div></div>
+        <div className="lp-summary-card clickable" onClick={()=>switchTab("history")}><div className="lp-sum-icon" style={{background:"#f3e5f5"}}>🧾</div><div><div className="lp-sum-val purple">{transactions.length}</div><div className="lp-sum-label">Transactions Recorded</div></div></div>
       </div>
 
       <div className="lp-card">

@@ -5,24 +5,17 @@ import {
   Title, Tooltip, Legend, Filler,
 } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
-
-// ─── Lucide React Icons (real SVG icons, replaces emoji icons) ─────────────
-// Make sure lucide-react is installed: npm install lucide-react
-import { TrendingUp, Users, Clock, Globe } from "lucide-react";
-
 import { getOverviewAPI, getMonthlyCollectionAPI, getLoanStatusAPI, getLoanTypeAPI, getAuditLogAPI } from "../../api/reports";
 import { getMemberStatsAPI, getApplicationsAPI } from "../../api/members";
+import { getDueDatesAPI } from "../../api/loans";
 import { getActivityLogAPI } from "../../api/activity";
 import "./Dashboard.css";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler);
 
-const COLLECTION_DAYS = [3, 7, 10, 14, 17, 20, 24, 28];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const ACTIVITY_DOT_COLORS = { payment:"#4caf50", application:"#1565c0", pending:"#f57c00", register:"#4caf50", declined:"#e53935" };
 
-// ─── StatCard — now uses real Lucide icon components ──────────────────────
-// The `icon` prop should be a JSX element, e.g. icon={<TrendingUp size={17} />}
 function StatCard({ label, value, icon }) {
   return (
     <div className="stat-card">
@@ -35,43 +28,139 @@ function StatCard({ label, value, icon }) {
   );
 }
 
+// ─── Due Date Modal ────────────────────────────────────────────────────────────
+function DueDateModal({ date, members, onClose }) {
+  if (!date) return null;
+  const formatted = new Date(date + "T00:00:00").toLocaleDateString("en-PH", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+  return (
+    <div className="cal-modal-overlay" onClick={onClose}>
+      <div className="cal-modal-box" onClick={e=>e.stopPropagation()}>
+        <div className="cal-modal-header">
+          <div>
+            <div className="cal-modal-title">📅 Collection Due</div>
+            <div className="cal-modal-sub">{formatted}</div>
+          </div>
+          <button className="cal-modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="cal-modal-body">
+          {members.length===0 ? (
+            <div className="cal-modal-empty">No members due on this date.</div>
+          ) : (
+            <div className="cal-due-list">
+              {members.map((m,i)=>(
+                <div key={i} className={`cal-due-item ${m.status==="Overdue"?"overdue":""}`}>
+                  <div className="cal-due-avatar">{(m.member_name||"M")[0]}</div>
+                  <div className="cal-due-info">
+                    <div className="cal-due-name">{m.member_name}</div>
+                    <div className="cal-due-meta">{m.member_id} · {m.loan_type}</div>
+                  </div>
+                  <div className="cal-due-amount">
+                    <div className="cal-due-monthly">₱{Number(m.monthly_due).toLocaleString()}</div>
+                    <div className="cal-due-label">monthly due</div>
+                    {m.status==="Overdue" && <div className="cal-overdue-tag">OVERDUE</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="cal-modal-footer">
+          <div className="cal-modal-total">
+            Total: <strong>₱{members.reduce((s,m)=>s+Number(m.monthly_due),0).toLocaleString()}</strong> from <strong>{members.length}</strong> member{members.length!==1?"s":""}
+          </div>
+          <button className="cal-modal-done" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Collection Calendar ───────────────────────────────────────────────────────
 function CollectionCalendar() {
   const today = new Date();
-  const [year, setYear]   = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
+  const [year,    setYear]    = useState(today.getFullYear());
+  const [month,   setMonth]   = useState(today.getMonth());
+  const [dueDates,setDueDates]= useState({});
+  const [selDate, setSelDate] = useState(null);
+  const [loading, setLoading] = useState(false);
+
   const firstDay      = new Date(year, month, 1).getDay();
   const totalDays     = new Date(year, month + 1, 0).getDate();
   const prevMonthDays = new Date(year, month, 0).getDate();
-  const prev = () => { if (month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1); };
-  const next = () => { if (month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1); };
+
+  const prev = () => { if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1); };
+  const next = () => { if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1); };
+
+  // Fetch due dates when month/year changes
+  useEffect(() => {
+    setLoading(true);
+    const mm = String(month+1).padStart(2,"0");
+    getDueDatesAPI(`${year}-${mm}`)
+      .then(data => setDueDates(data))
+      .catch(e => console.error(e))
+      .finally(() => setLoading(false));
+  }, [year, month]);
+
   const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  const handleDayClick = (d) => {
+    const mm  = String(month+1).padStart(2,"0");
+    const dd  = String(d).padStart(2,"0");
+    const key = `${year}-${mm}-${dd}`;
+    if (dueDates[key]?.length > 0) setSelDate(key);
+  };
+
   return (
-    <div className="chart-card">
-      <div className="card-header">
-        <div><div className="card-title">Collection Calendar</div><div className="card-sub">{MONTHS[month]} {year}</div></div>
-        <div className="legend">
-          <div className="legend-item"><div className="legend-dot" style={{background:"#2e7d32"}}/>Today</div>
-          <div className="legend-item"><div className="legend-dot" style={{background:"#c8e6c9"}}/>Collection</div>
+    <>
+      {selDate && (
+        <DueDateModal
+          date={selDate}
+          members={dueDates[selDate]||[]}
+          onClose={()=>setSelDate(null)}
+        />
+      )}
+      <div className="chart-card">
+        <div className="card-header">
+          <div><div className="card-title">Collection Calendar</div><div className="card-sub">{MONTHS[month]} {year}</div></div>
+          <div className="legend">
+            <div className="legend-item"><div className="legend-dot" style={{background:"#2e7d32"}}/>Today</div>
+            <div className="legend-item"><div className="legend-dot" style={{background:"#c8e6c9"}}/>Due Date</div>
+          </div>
         </div>
+        <div className="cal-nav">
+          <button className="cal-nav-btn" onClick={prev}>◀</button>
+          <span className="cal-month-label">{MONTHS[month]} {year}</span>
+          <button className="cal-nav-btn" onClick={next}>▶</button>
+        </div>
+        <div className="cal-grid">
+          {days.map(d=><div key={d} className="cal-day-label">{d}</div>)}
+          {Array.from({length:firstDay},(_,i)=>(
+            <div key={`prev-${i}`} className="cal-day other-month">{prevMonthDays-firstDay+1+i}</div>
+          ))}
+          {Array.from({length:totalDays},(_,i)=>{
+            const d   = i+1;
+            const mm  = String(month+1).padStart(2,"0");
+            const dd  = String(d).padStart(2,"0");
+            const key = `${year}-${mm}-${dd}`;
+            const isToday    = d===today.getDate()&&month===today.getMonth()&&year===today.getFullYear();
+            const hasDue     = dueDates[key]?.length > 0;
+            const hasOverdue = dueDates[key]?.some(m=>m.status==="Overdue");
+            let cls = "cal-day";
+            if (isToday)       cls += " today";
+            else if (hasOverdue) cls += " has-overdue";
+            else if (hasDue)   cls += " has-event clickable";
+            if (hasDue && !isToday) cls += " clickable";
+            return (
+              <div key={d} className={cls} onClick={()=>handleDayClick(d)} title={hasDue?`${dueDates[key].length} member(s) due`:""}>
+                {d}
+                {hasDue && <span className="cal-due-dot">{dueDates[key].length}</span>}
+              </div>
+            );
+          })}
+        </div>
+        {loading && <div style={{textAlign:"center",fontSize:11,color:"#aaa",padding:"4px 0"}}>Loading due dates...</div>}
       </div>
-      <div className="cal-nav">
-        <button className="cal-nav-btn" onClick={prev}>◀</button>
-        <span className="cal-month-label">{MONTHS[month]} {year}</span>
-        <button className="cal-nav-btn" onClick={next}>▶</button>
-      </div>
-      <div className="cal-grid">
-        {days.map(d=><div key={d} className="cal-day-label">{d}</div>)}
-        {Array.from({length:firstDay},(_,i)=><div key={`prev-${i}`} className="cal-day other-month">{prevMonthDays-firstDay+1+i}</div>)}
-        {Array.from({length:totalDays},(_,i)=>{
-          const d=i+1;
-          const isToday=d===today.getDate()&&month===today.getMonth()&&year===today.getFullYear();
-          const hasEvent=COLLECTION_DAYS.includes(d);
-          let cls="cal-day";
-          if(isToday)cls+=" today"; else if(hasEvent)cls+=" has-event";
-          return <div key={d} className={cls}>{d}</div>;
-        })}
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -133,16 +222,14 @@ export default function Dashboard() {
   const [loanStat, setLoanStat] = useState({});
   const [loanType, setLoanType] = useState({});
   const [ledger,   setLedger]   = useState([]);
-  const [actLog,   setActLog]   = useState([]);
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [overview, mon, ls, lt, audit, memberStats, apps, activity] = await Promise.allSettled([
+        const [overview, mon, ls, lt, audit, memberStats, apps] = await Promise.allSettled([
           getOverviewAPI(), getMonthlyCollectionAPI(), getLoanStatusAPI(),
           getLoanTypeAPI(), getAuditLogAPI(), getMemberStatsAPI(), getApplicationsAPI(),
-          getActivityLogAPI(7),
         ]);
         if (overview.status==="fulfilled") {
           const d = overview.value;
@@ -153,11 +240,10 @@ export default function Dashboard() {
             onlineApplicants:     apps.status==="fulfilled" ? apps.value.filter(a=>a.status==="Pending").length : 0,
           });
         }
-        if (mon.status==="fulfilled")      setMonthly(mon.value);
-        if (ls.status==="fulfilled")       setLoanStat(ls.value);
-        if (lt.status==="fulfilled")       setLoanType(lt.value);
-        if (audit.status==="fulfilled")    setLedger(audit.value.slice(0,12));
-        if (activity.status==="fulfilled") setActLog(activity.value);
+        if (mon.status==="fulfilled")    setMonthly(mon.value);
+        if (ls.status==="fulfilled")     setLoanStat(ls.value);
+        if (lt.status==="fulfilled")     setLoanType(lt.value);
+        if (audit.status==="fulfilled")  setLedger(audit.value.slice(0,12));
       } catch(e) { console.error(e); }
       finally { setLoading(false); }
     };
@@ -202,27 +288,20 @@ export default function Dashboard() {
   const barOptions  = { responsive:true, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f0f4f1"}} } };
   const doughnutOptions = { responsive:true, cutout:"68%", plugins:{ legend:{position:"bottom",labels:{boxWidth:8,padding:8,font:{size:10}}} } };
 
-  // Build activity log from real API
-  const activityLog = actLog.map(l => ({
-    type: l.action_type,
-    text: l.description,
-    time: new Date(l.created_at).toLocaleString('en-PH', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }),
+  // Build activity log from ledger data
+  const activityLog = ledger.slice(0,7).map(l=>({
+    type: "payment",
+    text: `Member ${l.member_id} made a payment of ₱${Number(l.amount).toLocaleString()}`,
+    time: l.paid_at,
   }));
 
   return (
     <div className="dashboard-content">
-      <div className="dash-page-header">
-        <div className="dash-page-title">Office Operations Dashboard</div>
-        <div className="dash-page-sub">Manage LEAF MPC member records and financial audit.</div>
-      </div>
       <div className="stat-grid">
-        {/* ── Lucide icons used below: TrendingUp, Users, Clock, Globe ──────────
-            These are real SVG icons from the lucide-react package.
-            size={17} controls icon size inside the stat-icon box.           */}
-        <StatCard label="Total Share Capital"    value={`₱${stats.totalShareCapital.toLocaleString()}`} icon={<TrendingUp size={17} strokeWidth={2} />}/>
-        <StatCard label="Active Members"         value={stats.activeMembers}                            icon={<Users size={17} strokeWidth={2} />}/>
-        <StatCard label="Pending Loan Approvals" value={stats.pendingLoanApprovals}                     icon={<Clock size={17} strokeWidth={2} />}/>
-        <StatCard label="Online Applicants"      value={stats.onlineApplicants}                         icon={<Globe size={17} strokeWidth={2} />}/>
+        <StatCard label="Total Share Capital"    value={`₱${stats.totalShareCapital.toLocaleString()}`} icon="📈"/>
+        <StatCard label="Active Members"         value={stats.activeMembers}                            icon="👤"/>
+        <StatCard label="Pending Loan Approvals" value={stats.pendingLoanApprovals}                     icon="⏳"/>
+        <StatCard label="Online Applicants"      value={stats.onlineApplicants}                         icon="🌐"/>
       </div>
 
       <div className="chart-row">
@@ -254,58 +333,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-/*
-════════════════════════════════════════════════════════════
-  📌 HOW TO ADD YOUR LOGO IMAGE (leaFmpc)
-════════════════════════════════════════════════════════════
-
-  This Dashboard does NOT contain the sidebar/header —
-  those are in a parent layout component (e.g. Layout.jsx
-  or Sidebar.jsx). Find that file and follow these steps:
-
-  STEP 1 — Save your logo file
-  ─────────────────────────────
-  Place your logo image inside:
-    src/assets/logo.png     ← recommended location
-  (PNG with transparent background works best)
-
-  STEP 2 — Import it in your layout/sidebar file
-  ──────────────────────────────────────────────
-  At the top of the file add:
-
-    import logo from "../../assets/logo.png";
-    // Adjust the path depending on where your file is located
-
-  STEP 3 — Render it where the logo currently appears
-  ────────────────────────────────────────────────────
-  Replace any existing text/placeholder logo with:
-
-    <img
-      src={logo}
-      alt="LEAF MPC Logo"
-      style={{ height: "40px", width: "auto", objectFit: "contain" }}
-    />
-
-  STEP 4 — Control the size
-  ──────────────────────────
-  Adjust height: "40px" to match your sidebar design.
-  Use objectFit: "contain" so the logo never gets cropped.
-
-  EXAMPLE (inside your Sidebar component):
-  ─────────────────────────────────────────
-    import logo from "../../assets/logo.png";
-
-    function Sidebar() {
-      return (
-        <aside className="sidebar">
-          <div className="sidebar-logo">
-            <img src={logo} alt="LEAF MPC" style={{ height: "44px", width: "auto" }} />
-          </div>
-          ... rest of sidebar
-        </aside>
-      );
-    }
-
-════════════════════════════════════════════════════════════
-*/

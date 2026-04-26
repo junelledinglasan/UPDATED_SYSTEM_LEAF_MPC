@@ -1,5 +1,6 @@
 /* ─── Wrapper ─────────────────────────────────────────────────────────────── */
 .ms-wrap {
+  flex: 1 1 auto;
   padding: 20px 24px 32px;
   display: flex;
   flex-direction: column;
@@ -62,8 +63,18 @@
   min-width: 120px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
-.ms-stat-val   { font-size: 28px; font-weight: 800; color: #1b5e20; line-height: 1; }
-.ms-stat-label { font-size: 12px; color: #8a9a7a; margin-top: 6px; font-weight: 500; }
+.ms-stat-val   { 
+  font-size: 28px; 
+  font-weight: 800; 
+  color: #1b5e20; 
+  line-height: 1; 
+}
+.ms-stat-label { 
+  font-size: 12px; 
+  color: #8a9a7a; 
+  margin-top: 6px; 
+  font-weight: 500; 
+}
 
 /* ─── Table Card ─────────────────────────────────────────────────────────── */
 .ms-table-card {
@@ -96,11 +107,25 @@
   color: #333;
   border-bottom: 1px solid #f0f5f0;
 }
-.ms-table tbody tr:last-child td { border-bottom: none; }
-.ms-table tbody tr:hover { background: #f5faf5; }
+.ms-table tbody tr:last-child td {
+  border-bottom: none; 
+}
 
-.ms-td-num  { color: #bbb; font-size: 12px; width: 44px; }
-.ms-td-user { font-family: 'Courier New', monospace; font-size: 12px; color: #666; }
+.ms-table tbody tr:hover { 
+  background: #f5faf5; 
+}
+
+.ms-td-num  { 
+  color: #bbb; 
+  font-size: 12px; 
+  width: 44px; 
+}
+
+.ms-td-user { 
+  font-family: 'Courier New', monospace; 
+  font-size: 12px; 
+  color: #666; 
+}
 
 .ms-name-cell {
   display: flex;
@@ -157,13 +182,18 @@
   border-color: #c8e6c9;
   color: #1b5e20;
 }
-.ms-action-btn.edit:hover  { background: #c8e6c9; }
+.ms-action-btn.edit:hover  { 
+  background: #c8e6c9; 
+}
+
 .ms-action-btn.reset {
   background: #fff3e0;
   border-color: #ffcc80;
   color: #e65100;
 }
-.ms-action-btn.reset:hover { background: #ffe0b2; }
+.ms-action-btn.reset:hover { 
+  background: #ffe0b2; 
+}
 
 /* Empty state */
 .ms-empty {
@@ -173,8 +203,14 @@
   padding: 48px 24px;
   gap: 12px;
 }
-.ms-empty-icon { font-size: 36px; }
-.ms-empty-text { font-size: 13px; color: #aaa; }
+.ms-empty-icon { 
+  font-size: 36px; 
+}
+
+.ms-empty-text { 
+  font-size: 13px; 
+  color: #aaa; 
+}
 
 /* ─── Modal ──────────────────────────────────────────────────────────────── */
 .ms-overlay {
@@ -188,7 +224,10 @@
   padding: 16px;
   animation: msOverlayIn 0.18s ease;
 }
-@keyframes msOverlayIn { from{opacity:0} to{opacity:1} }
+@keyframes msOverlayIn { 
+  from{opacity:0} 
+  to{opacity:1} 
+}
 
 .ms-modal {
   background: #fff;
@@ -202,9 +241,15 @@
   overflow: hidden;
   animation: msModalIn 0.2s ease;
 }
-@keyframes msModalIn { from{opacity:0;transform:scale(0.96) translateY(8px)} to{opacity:1;transform:none} }
 
-.ms-modal-sm { max-width: 360px; }
+@keyframes msModalIn { 
+  from{opacity:0;transform:scale(0.96) translateY(8px)} 
+  to{opacity:1;transform:none} 
+}
+
+.ms-modal-sm { 
+  max-width: 360px; 
+}
 
 .ms-modal-header {
   display: flex;
@@ -214,14 +259,33 @@
   border-bottom: 1px solid #f0f0f0;
   flex-shrink: 0;
 }
-.ms-modal-title { font-size: 14px; font-weight: 700; color: #1b5e20; }
-.ms-modal-sub   { font-size: 11px; color: #aaa; margin-top: 3px; }
+.ms-modal-title { 
+  font-size: 14px; 
+  font-weight: 700; 
+  color: #1b5e20; 
+}
+
+.ms-modal-sub   { 
+  font-size: 11px; 
+  color: #aaa; 
+  margin-top: 3px; 
+}
+
 .ms-modal-close {
-  background: none; border: none; font-size: 14px;
-  cursor: pointer; color: #aaa; padding: 2px 6px; border-radius: 4px;
+  background: none; 
+  border: none; 
+  font-size: 14px;
+  cursor: pointer; 
+  color: #aaa; 
+  padding: 2px 6px; 
+  border-radius: 4px;
   line-height: 1;
 }
-.ms-modal-close:hover { background: #f5f5f5; color: #555; }
+
+.ms-modal-close:hover { 
+  background: #f5f5f5; 
+  color: #555; 
+}
 
 .ms-modal-body {
   flex: 1;
@@ -241,9 +305,24 @@
 }
 
 /* Form fields */
-.ms-field { display: flex; flex-direction: column; gap: 5px; }
-.ms-label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
-.ms-req   { color: #e53935; }
+.ms-field { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 5px; 
+}
+
+.ms-label { 
+  font-size: 11px; 
+  font-weight: 700; 
+  color: #888; 
+  text-transform: uppercase; 
+  letter-spacing: 0.5px; 
+}
+
+.ms-req   { 
+  color: #e53935; 
+}
+
 .ms-input {
   border: 1.5px solid #e0e0e0;
   border-radius: 8px;
@@ -257,20 +336,47 @@
   background: #fff;
   font-family: inherit;
 }
-.ms-input:focus   { border-color: #4caf50; }
-.ms-input-err     { border-color: #e53935 !important; }
-.ms-field-err     { font-size: 10px; color: #e53935; font-weight: 600; }
 
-.ms-pw-wrap { position: relative; }
-.ms-pw-wrap .ms-input { padding-right: 40px; }
-.ms-pw-toggle {
-  position: absolute; right: 10px; top: 50%;
-  transform: translateY(-50%);
-  background: none; border: none; cursor: pointer;
-  font-size: 13px; padding: 2px; line-height: 1;
-  color: #aaa; display: flex; align-items: center;
+.ms-input:focus   { 
+  border-color: #4caf
+  50; 
 }
-.ms-pw-toggle:hover { color: #555; }
+.ms-input-err     { 
+  border-color: #e53935 !important; 
+}
+
+.ms-field-err     { 
+  font-size: 10px; 
+  color: #e53935; 
+  font-weight: 600; 
+}
+
+.ms-pw-wrap { 
+  position: relative; 
+}
+
+.ms-pw-wrap .ms-input { 
+  padding-right: 40px; 
+}
+
+.ms-pw-toggle {
+  position: absolute; 
+  right: 10px; 
+  top: 50%;
+  transform: translateY(-50%);
+  background: none; 
+  border: none; 
+  cursor: pointer;
+  font-size: 13px; 
+  padding: 2px; 
+  line-height: 1;
+  color: #aaa; 
+  display: flex; 
+  align-items: center;
+}
+.ms-pw-toggle:hover { 
+  color: #555; 
+}
 
 /* Staff strip */
 .ms-staff-strip {
@@ -283,13 +389,30 @@
   padding: 10px 14px;
 }
 .ms-staff-avatar {
-  width: 36px; height: 36px; border-radius: 50%;
-  background: #2e7d32; color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 700; flex-shrink: 0;
+  width: 36px; 
+  height: 36px; 
+  border-radius: 50%;
+  background: #2e7d32; 
+  color: #fff;
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  font-size: 14px; 
+  font-weight: 700; 
+  flex-shrink: 0;
 }
-.ms-staff-name { font-size: 13px; font-weight: 600; color: #1b5e20; }
-.ms-staff-meta { font-size: 11px; color: #888; margin-top: 2px; }
+
+.ms-staff-name { 
+  font-size: 13px; 
+  font-weight: 600; 
+  color: #1b5e20; 
+}
+
+.ms-staff-meta { 
+  font-size: 11px; 
+  color: #888; 
+  margin-top: 2px; 
+}
 
 /* Credentials box */
 .ms-cred-box {
@@ -303,9 +426,24 @@
   width: 100%;
   box-sizing: border-box;
 }
-.ms-cred-row   { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.ms-cred-label { font-size: 11px; color: #888; }
-.ms-cred-val   { font-size: 12px; font-weight: 700; color: #1b5e20; font-family: 'Courier New', monospace; }
+.ms-cred-row   { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  gap: 12px; 
+}
+
+.ms-cred-label { 
+  font-size: 11px; 
+  color: #888; 
+}
+
+.ms-cred-val   { 
+  font-size: 12px; 
+  font-weight: 700; 
+  color: #1b5e20; 
+  font-family: 'Courier New', monospace; 
+}
 
 /* Buttons */
 .ms-btn-cancel {
@@ -320,7 +458,10 @@
   font-family: inherit;
   transition: all 0.15s;
 }
-.ms-btn-cancel:hover { background: #ebebeb; }
+.ms-btn-cancel:hover { 
+  background: #ebebeb; 
+}
+
 .ms-btn-save {
   padding: 8px 18px;
   background: #2e7d32;
@@ -333,13 +474,32 @@
   transition: background 0.15s;
   font-family: inherit;
 }
-.ms-btn-save:hover:not(:disabled) { background: #1b5e20; }
-.ms-btn-save:disabled { opacity: 0.5; cursor: default; }
+.ms-btn-save:hover:not(:disabled) { 
+  background: #1b5e20; 
+}
+
+.ms-btn-save:disabled { 
+  opacity: 0.5; 
+  cursor: default; 
+}
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .ms-wrap { padding: 12px 12px 24px; }
-  .ms-header { flex-direction: column; }
-  .ms-stats-row { flex-wrap: wrap; }
-  .ms-action-row { flex-direction: column; align-items: flex-start; }
+  .ms-wrap { 
+    padding: 12px 12px 24px; 
+  }
+
+  .ms-header { 
+    flex-direction: column;
+  }
+
+  .ms-stats-row { 
+    flex-wrap: wrap; 
+  }
+
+  .ms-action-row { 
+    flex-direction: column; 
+    align-items: flex-start; 
+  }
+  
 }
