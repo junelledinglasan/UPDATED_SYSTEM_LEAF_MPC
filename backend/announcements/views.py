@@ -2,6 +2,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from activity_log.utils import log_activity
 from .models import Announcement, AnnouncementComment
 from .serializers import (
     AnnouncementSerializer,
@@ -18,7 +19,6 @@ def announcement_list_view(request):
             anns = anns.filter(type=t)
         return Response(AnnouncementListSerializer(anns, many=True).data)
 
-    # POST — admin/staff only
     if not request.user.is_authenticated:
         return Response({'error': 'Authentication required.'}, status=401)
     if request.user.role not in ['admin', 'staff']:
@@ -26,7 +26,8 @@ def announcement_list_view(request):
 
     s = AnnouncementSerializer(data=request.data)
     if s.is_valid():
-        s.save(posted_by=request.user)
+        ann = s.save(posted_by=request.user)
+        log_activity('announcement', f'Announcement posted: "{ann.title}" ({ann.type}) by {request.user.name}', request.user)
         return Response(s.data, status=201)
     return Response(s.errors, status=400)
 
@@ -50,12 +51,14 @@ def announcement_detail_view(request, pk):
         s = AnnouncementSerializer(ann, data=request.data, partial=True)
         if s.is_valid():
             s.save()
+            log_activity('announcement', f'Announcement updated: "{ann.title}" by {request.user.name}', request.user)
             return Response(s.data)
         return Response(s.errors, status=400)
 
     if request.method == 'DELETE':
         if request.user.role != 'admin':
             return Response({'error': 'Unauthorized.'}, status=403)
+        log_activity('announcement', f'Announcement deleted: "{ann.title}" by {request.user.name}', request.user)
         ann.delete()
         return Response({'message': 'Deleted.'})
 
@@ -70,7 +73,8 @@ def add_comment_view(request, pk):
 
     s = CommentSerializer(data=request.data)
     if s.is_valid():
-        s.save(announcement=ann, posted_by=request.user)
+        comment = s.save(announcement=ann, posted_by=request.user)
+        log_activity('announcement', f'{request.user.name} commented on: "{ann.title}"', request.user)
         return Response(s.data, status=201)
     return Response(s.errors, status=400)
 
@@ -86,5 +90,6 @@ def delete_comment_view(request, pk, comment_pk):
     if request.user != c.posted_by and request.user.role != 'admin':
         return Response({'error': 'Unauthorized.'}, status=403)
 
+    log_activity('announcement', f'Comment deleted on: "{c.announcement.title}" by {request.user.name}', request.user)
     c.delete()
     return Response({'message': 'Deleted.'})

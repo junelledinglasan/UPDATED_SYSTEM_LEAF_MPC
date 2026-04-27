@@ -9,6 +9,7 @@ import { getLoansAPI, createLoanAPI } from "../api/loans";
 import { getMembersAPI, registerMemberAPI } from "../api/members";
 import { recordPaymentAPI } from "../api/payments";
 import "./AdminLayout.css";
+import logo from '../assets/logo.png';
 
 const NAV_ITEMS = [
   { to: "/admin/dashboard",    icon: <LayoutDashboard size={15} />, label: "Dashboard"          },
@@ -782,12 +783,16 @@ export default function AdminLayout() {
           That's it! The logo will appear in the sidebar header.
           ════════════════════════════════════════════════════
           */}
+
+
           <div className="logo-icon">
-            <Leaf size={18} color="#fff" />
+            <img
+                    src={logo}
+                    alt="LEAF MPC Logo"
+                    style={{ height: "35px", width: "300px", objectFit: "contain" }}
+                  />
           </div>
           <div>
-            <div className="logo-text">Leaf MPC</div>
-            <div className="logo-sub">ADMIN</div>
           </div>
         </div>
         <nav className="sidebar-nav">

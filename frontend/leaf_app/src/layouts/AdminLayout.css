@@ -46,10 +46,9 @@
 }
 
 .logo-icon {
-  width: 36px;
+  width: 200px;
   height: 36px;
   min-width: 36px;
-  background: #4caf50;
   border-radius: 9px;
   display: flex;
   align-items: center;

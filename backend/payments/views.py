@@ -25,7 +25,7 @@ def payment_list_view(request):
         payment = s.save()
         log_activity(
             'payment',
-            f'Payment of ₱{payment.amount:,.2f} recorded for {payment.member.fullname} ({payment.member.member_id}) — Loan: {payment.loan.loan_id}',
+            f'Payment recorded: ₱{payment.amount:,.2f} from {payment.member.fullname} ({payment.member.member_id}) — Loan: {payment.loan.loan_id} — by {request.user.name}',
             request.user
         )
         return Response(PaymentSerializer(payment).data, status=201)

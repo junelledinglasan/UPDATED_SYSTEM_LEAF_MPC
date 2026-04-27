@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from activity_log.utils import log_activity
 from .models import User
 from .serializers import (
     CustomTokenObtainPairSerializer,
@@ -17,12 +18,24 @@ from .serializers import (
 class LoginView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            user_data = response.data.get('user', {})
+            try:
+                user = User.objects.get(username=user_data.get('username'))
+                log_activity('login', f'{user.name} ({user.role}) logged in', user)
+            except Exception:
+                pass
+        return response
+
 
 # ─── Logout ────────────────────────────────────────────────────────────────────
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
     try:
+        log_activity('login', f'{request.user.name} ({request.user.role}) logged out', request.user)
         token = RefreshToken(request.data.get('refresh'))
         token.blacklist()
     except Exception:
@@ -51,6 +64,7 @@ def staff_list_view(request):
     s = CreateStaffSerializer(data=request.data)
     if s.is_valid():
         staff = s.save()
+        log_activity('staff', f'New staff added: {staff.name} (@{staff.username})', request.user)
         return Response(UserSerializer(staff).data, status=201)
     return Response(s.errors, status=400)
 
@@ -71,8 +85,10 @@ def staff_detail_view(request, pk):
         staff.name     = request.data.get('name',     staff.name)
         staff.username = request.data.get('username', staff.username)
         staff.save()
+        log_activity('staff', f'Staff updated: {staff.name} (@{staff.username})', request.user)
         return Response(UserSerializer(staff).data)
 
+    log_activity('staff', f'Staff deleted: {staff.name} (@{staff.username})', request.user)
     staff.delete()
     return Response({'message': 'Staff deleted.'})
 
@@ -93,5 +109,6 @@ def reset_staff_password_view(request, pk):
     if s.is_valid():
         staff.set_password(s.validated_data['new_password'])
         staff.save()
+        log_activity('staff', f'Password reset for staff: {staff.name} (@{staff.username})', request.user)
         return Response({'message': 'Password reset successfully.'})
     return Response(s.errors, status=400)
