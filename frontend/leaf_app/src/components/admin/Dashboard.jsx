@@ -222,14 +222,16 @@ export default function Dashboard() {
   const [loanStat, setLoanStat] = useState({});
   const [loanType, setLoanType] = useState({});
   const [ledger,   setLedger]   = useState([]);
+  const [actLog,   setActLog]   = useState([]);
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [overview, mon, ls, lt, audit, memberStats, apps] = await Promise.allSettled([
+        const [overview, mon, ls, lt, audit, memberStats, apps, activity] = await Promise.allSettled([
           getOverviewAPI(), getMonthlyCollectionAPI(), getLoanStatusAPI(),
           getLoanTypeAPI(), getAuditLogAPI(), getMemberStatsAPI(), getApplicationsAPI(),
+          getActivityLogAPI(7),
         ]);
         if (overview.status==="fulfilled") {
           const d = overview.value;
@@ -240,10 +242,11 @@ export default function Dashboard() {
             onlineApplicants:     apps.status==="fulfilled" ? apps.value.filter(a=>a.status==="Pending").length : 0,
           });
         }
-        if (mon.status==="fulfilled")    setMonthly(mon.value);
-        if (ls.status==="fulfilled")     setLoanStat(ls.value);
-        if (lt.status==="fulfilled")     setLoanType(lt.value);
-        if (audit.status==="fulfilled")  setLedger(audit.value.slice(0,12));
+        if (mon.status==="fulfilled")      setMonthly(mon.value);
+        if (ls.status==="fulfilled")       setLoanStat(ls.value);
+        if (lt.status==="fulfilled")       setLoanType(lt.value);
+        if (audit.status==="fulfilled")    setLedger(audit.value.slice(0,12));
+        if (activity.status==="fulfilled") setActLog(activity.value);
       } catch(e) { console.error(e); }
       finally { setLoading(false); }
     };
@@ -288,12 +291,8 @@ export default function Dashboard() {
   const barOptions  = { responsive:true, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f0f4f1"}} } };
   const doughnutOptions = { responsive:true, cutout:"68%", plugins:{ legend:{position:"bottom",labels:{boxWidth:8,padding:8,font:{size:10}}} } };
 
-  // Build activity log from ledger data
-  const activityLog = ledger.slice(0,7).map(l=>({
-    type: "payment",
-    text: `Member ${l.member_id} made a payment of ₱${Number(l.amount).toLocaleString()}`,
-    time: l.paid_at,
-  }));
+  // Real activity log from API
+  const activityLog = actLog;
 
   return (
     <div className="dashboard-content">

@@ -2,21 +2,22 @@
 .rp-wrapper {
   padding: 20px 24px 40px;
   display: flex; flex-direction: column; gap: 16px;
-  background: #f0f4f1; min-height: calc(100vh - 56px);
+  background: #d8e8cc;
+  min-height: 100%;
   box-sizing: border-box; width: 100%; min-width: 0;
 }
 
 /* ─── Page Header ─────────────────────────────────────────────────────────── */
 .rp-page-header { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; }
-.rp-page-title  { font-size:18px; font-weight:700; color:#1b5e20; line-height:1.2; }
+.rp-page-title  { font-size:24px; font-weight:800; color:#1b5e20; line-height:1.2; letter-spacing:-0.3px; }
 .rp-page-sub    { font-size:11px; color:#aaa; margin-top:3px; }
 
 /* ─── Main Tabs ───────────────────────────────────────────────────────────── */
 .rp-main-tabs {
   display: flex; gap: 0;
-  background: #fff; border: 1px solid #e4f0e5;
+  background: #fff; border: 1.5px solid #c8ddc8;
   border-radius: 10px; overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
   flex-wrap: wrap;
 }
 .rp-main-tab {
@@ -38,14 +39,14 @@
   gap: 12px;
 }
 .rp-kpi-card {
-  background: #fff; border-radius: 12px; border: 1px solid #e4f0e5;
-  padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-  transition: box-shadow 0.2s; display: flex; flex-direction: column; gap: 6px;
+  background: #fff; border-radius: 12px; border: 1.5px solid #c8ddc8;
+  padding: 18px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: box-shadow 0.2s, transform 0.15s; display: flex; flex-direction: column; gap: 8px;
 }
-.rp-kpi-card:hover { box-shadow: 0 4px 12px rgba(46,125,50,0.08); }
-.rp-kpi-icon  { font-size: 20px; }
-.rp-kpi-val   { font-size: 22px; font-weight: 700; line-height: 1; }
-.rp-kpi-label { font-size: 10px; color: #aaa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.rp-kpi-card:hover { box-shadow: 0 6px 18px rgba(46,125,50,0.12); transform: translateY(-1px); }
+.rp-kpi-icon  { font-size: 32px; }
+.rp-kpi-val   { font-size: 28px; font-weight: 800; line-height: 1; }
+.rp-kpi-label { font-size: 10px; color: #8a9a7a; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 2px; }
 .rp-kpi-card.green  .rp-kpi-val { color: #2e7d32; }
 .rp-kpi-card.blue   .rp-kpi-val { color: #1565c0; }
 .rp-kpi-card.teal   .rp-kpi-val { color: #00796b; }
@@ -56,8 +57,8 @@
 
 /* ─── Chart Cards ─────────────────────────────────────────────────────────── */
 .rp-chart-card {
-  background: #fff; border-radius: 12px; border: 1px solid #e4f0e5;
-  padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  background: #fff; border-radius: 12px; border: 1.5px solid #c8ddc8;
+  padding: 16px 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
   min-width: 0;
 }
 .rp-chart-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; gap:8px; flex-wrap:wrap; }
@@ -82,8 +83,8 @@
 
 /* ─── Generate Report Card ────────────────────────────────────────────────── */
 .rp-generate-card {
-  background: #fff; border-radius: 14px; border: 1px solid #e4f0e5;
-  padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  background: #fff; border-radius: 12px; border: 1.5px solid #c8ddc8;
+  padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
 }
 .rp-generate-title { font-size:16px; font-weight:700; color:#1b5e20; margin-bottom:4px; }
 .rp-generate-sub   { font-size:11px; color:#aaa; margin-bottom:20px; }

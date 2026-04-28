@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Bar, Doughnut } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend } from "chart.js";
 import { getOverviewAPI, getMonthlyCollectionAPI, getLoanStatusAPI, getLoanTypeAPI, getPaymentBehaviorAPI, getAuditLogAPI } from "../../api/reports";
+import { BarChart2, TrendingUp, FileText, Link2 } from "lucide-react";
 import "./Reports.css";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
@@ -84,39 +85,71 @@ export default function Reports() {
   };
   const barOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:"#f0f4f1"},ticks:{font:{size:10},callback:v=>"₱"+v.toLocaleString()}}} };
 
+  // Loan Status Bar Chart
+  const loanStatLabels = Object.keys(loanStat);
+  const loanStatData = {
+    labels: loanStatLabels.length ? loanStatLabels : ["For Review","Active","Declined","Completed","Overdue"],
+    datasets: [{
+      label: "Loans",
+      data: loanStatLabels.length ? Object.values(loanStat) : [0,0,0,0,0],
+      backgroundColor: ["#f57c00","#2e7d32","#e53935","#1565c0","#c62828"],
+      borderRadius: 5,
+    }],
+  };
+  const loanStatOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:"#f0f4f1"},ticks:{font:{size:10}}}} };
+
+  // Loan Type Doughnut Chart
+  const loanTypeLabels = Object.keys(loanType);
+  const loanTypeData = {
+    labels: loanTypeLabels.length ? loanTypeLabels : ["Regular","Emergency","Salary","Housing","Business"],
+    datasets: [{
+      data: loanTypeLabels.length ? Object.values(loanType) : [0,0,0,0,0],
+      backgroundColor: ["#2e7d32","#4caf50","#f57c00","#1565c0","#a5d6a7"],
+      borderWidth: 0,
+    }],
+  };
+  const loanTypeOpts = { responsive:true, maintainAspectRatio:false, cutout:"60%", plugins:{legend:{position:"right",labels:{boxWidth:10,font:{size:10}}}} };
+
   const donutLabels = Object.keys(payBehav);
   const donutData = {
     labels: donutLabels.length ? donutLabels : ["On time","Defaulted","Late"],
     datasets: [{
       data: donutLabels.length ? Object.values(payBehav) : [0,0,0],
-      backgroundColor: ["#f57c00","#e53935","#4caf50"],
+      backgroundColor: ["#4caf50","#e53935","#f57c00"],
       borderWidth: 0,
     }],
   };
   const donutOpts = { responsive:true, maintainAspectRatio:false, cutout:"60%", plugins:{legend:{position:"right",labels:{boxWidth:10,font:{size:10}}}} };
 
   const OVERVIEW_CARDS = [
-    { icon:"💰", val:`₱${Number(overview.total_collection||0).toLocaleString()}`, label:"Total Collection (YTD)" },
-    { icon:"📋", val:`₱${Number(overview.total_releases||0).toLocaleString()}`,   label:"Total Loan Releases" },
-    { icon:"👥", val:`${overview.active_members||0} / ${overview.inactive_members||0}`, label:"Active / Inactive Members" },
-    { icon:"📈", val:`${overview.collection_rate||0}%`,                            label:"Collection Rate" },
-    { icon:"🏦", val:`${overview.total_loans||0}`,                                 label:"Loan Releases (YTD)" },
-    { icon:"⚠️", val:`${overview.overdue_loans||0}`,                              label:"Overdue Loans" },
-    { icon:"⏳", val:`${overview.pending_loans||0}`,                               label:"Pending Approvals" },
-    { icon:"💳", val:`₱${Number(overview.avg_loan_amount||0).toLocaleString()}`,  label:"Avg Loan Amount" },
+    { icon:"💰", val:`₱${Number(overview.total_collection||0).toLocaleString()}`, label:"Total Collection (YTD)", color:"green" },
+    { icon:"📋", val:`₱${Number(overview.total_releases||0).toLocaleString()}`,   label:"Total Loan Releases", color:"blue" },
+    { icon:"👥", val:`${overview.active_members||0} / ${overview.inactive_members||0}`, label:"Active / Inactive Members", color:"teal" },
+    { icon:"📈", val:`${overview.collection_rate||0}%`,                            label:"Collection Rate", color:"green" },
+    { icon:"🏦", val:`${overview.total_loans||0}`,                                 label:"Loan Releases (YTD)", color:"blue" },
+    { icon:"⚠️", val:`${overview.overdue_loans||0}`,                              label:"Overdue Loans", color:"red" },
+    { icon:"⏳", val:`${overview.pending_loans||0}`,                               label:"Pending Approvals", color:"orange" },
+    { icon:"💳", val:`₱${Number(overview.avg_loan_amount||0).toLocaleString()}`,  label:"Avg Loan Amount", color:"purple" },
   ];
 
   return (
     <div className="rp-wrapper">
       {showPreview && <ReportPreviewModal type={reportType} dateFrom={dateFrom} dateTo={dateTo} onClose={()=>setPreview(false)}/>}
 
+      {/* Page Header */}
+      <div className="rp-page-header">
+        <div>
+          <div className="rp-page-title">Reports &amp; Analytics</div>
+          <div className="rp-page-sub">Financial summaries , loan analytics, and payment behavior reports. Export Excel or PDF.</div>
+        </div>
+      </div>
+
       {/* Tabs */}
-      <div className="rp-tabs">
-        {["overview","charts","generate","audit"].map(t=>(
-          <button key={t} className={`rp-tab ${activeTab===t?"active":""}`} onClick={()=>setTab(t)}>
-            {t==="overview"?"📊 Overview":t==="charts"?"📈 Charts":t==="generate"?"📄 Generate Report":"🔗 Audit Log"}
-          </button>
-        ))}
+      <div className="rp-main-tabs">
+        <button className={`rp-main-tab ${activeTab==="overview"?"active":""}`} onClick={()=>setTab("overview")}><BarChart2 size={13}/> Overview</button>
+        <button className={`rp-main-tab ${activeTab==="charts"?"active":""}`}   onClick={()=>setTab("charts")}><TrendingUp size={13}/> Charts</button>
+        <button className={`rp-main-tab ${activeTab==="generate"?"active":""}`} onClick={()=>setTab("generate")}><FileText size={13}/> Generate Report</button>
+        <button className={`rp-main-tab ${activeTab==="audit"?"active":""}`}    onClick={()=>setTab("audit")}><Link2 size={13}/> Audit Log</button>
       </div>
 
       {/* Overview Tab */}
@@ -127,7 +160,7 @@ export default function Reports() {
           ) : (
             <div className="rp-kpi-grid">
               {OVERVIEW_CARDS.map((c,i)=>(
-                <div key={i} className="rp-kpi-card">
+                <div key={i} className={`rp-kpi-card ${c.color||""}`}>
                   <div className="rp-kpi-icon">{c.icon}</div>
                   <div className="rp-kpi-val">{c.val}</div>
                   <div className="rp-kpi-label">{c.label}</div>
@@ -140,7 +173,7 @@ export default function Reports() {
 
       {/* Charts Tab */}
       {activeTab==="charts" && (
-        <div className="rp-charts">
+        <div className="rp-quick-charts">
           <div className="rp-chart-card rp-chart-wide">
             <div className="rp-chart-title">Monthly Collection Trend</div>
             <div style={{height:280}}>
@@ -154,6 +187,21 @@ export default function Reports() {
             <div className="rp-chart-title">Payment Behavior</div>
             <div style={{height:220}}>
               <Doughnut data={donutData} options={donutOpts}/>
+            </div>
+          </div>
+          <div className="rp-chart-card">
+            <div className="rp-chart-title">Loan Status Distribution</div>
+            <div style={{height:220}}>
+              {loanStatLabels.length===0
+                ? <div className="rp-no-data">No loan data yet.</div>
+                : <Bar data={loanStatData} options={loanStatOpts}/>
+              }
+            </div>
+          </div>
+          <div className="rp-chart-card">
+            <div className="rp-chart-title">Loan Type Breakdown</div>
+            <div style={{height:220}}>
+              <Doughnut data={loanTypeData} options={loanTypeOpts}/>
             </div>
           </div>
         </div>
