@@ -79,10 +79,56 @@ def loan_type_view(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def payment_behavior_view(request):
+    """
+    Computes payment behavior based on real payment records vs loan due dates.
+
+    Logic:
+    - ON TIME  = payment was recorded on or before next_due_date
+    - LATE     = payment was recorded after next_due_date (but loan not overdue)
+    - OVERDUE  = loan status is Overdue (no payment made when due)
+    """
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
-    # Placeholder — real logic needs due date tracking
-    return Response({'on_time': 18.2, 'late': 51.1, 'defaulted': 30.7})
+
+    import datetime
+
+    # Count overdue loans (no payment made on time)
+    overdue_count = Loan.objects.filter(status='Overdue').count()
+
+    # Get all payments with their loan's due date
+    payments = Payment.objects.select_related('loan').all()
+
+    on_time_count = 0
+    late_count    = 0
+
+    for payment in payments:
+        loan = payment.loan
+        if loan.next_due_date:
+            # Compare payment date vs loan due date
+            pay_date = payment.paid_at.date()
+            due_date = loan.next_due_date
+            if pay_date <= due_date:
+                on_time_count += 1
+            else:
+                late_count += 1
+        else:
+            # No due date set — count as on time
+            on_time_count += 1
+
+    total = on_time_count + late_count + overdue_count
+
+    if total == 0:
+        return Response({
+            'On Time':  0,
+            'Late':     0,
+            'Overdue':  0,
+        })
+
+    return Response({
+        'On Time': round((on_time_count / total) * 100, 1),
+        'Late':    round((late_count    / total) * 100, 1),
+        'Overdue': round((overdue_count / total) * 100, 1),
+    })
 
 
 @api_view(['GET'])

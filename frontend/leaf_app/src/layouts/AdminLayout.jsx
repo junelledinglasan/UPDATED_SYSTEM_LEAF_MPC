@@ -235,6 +235,29 @@ function F2FModal({ onClose }) {
 }
 
 // ─── Quick Register Member Modal ───
+// ─── Field component — OUTSIDE modal to prevent re-mount on every keystroke ───
+function FormField({ name, label, type="text", options=null, required=false, value, onChange, error, onErrorClear }) {
+  return (
+    <div className="al-field">
+      <label className="al-label">{label}{required && <span className="al-req"> *</span>}</label>
+      {options ? (
+        <select className={`al-input ${error ? "al-input-err" : ""}`} name={name} value={value} onChange={onChange}>
+          {options.map(o => <option key={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input
+          className={`al-input ${error ? "al-input-err" : ""}`}
+          type={type}
+          name={name}
+          value={value}
+          onChange={e => { onChange(e); if(onErrorClear) onErrorClear(name); }}
+        />
+      )}
+      {error && <div className="al-field-err">{error}</div>}
+    </div>
+  );
+}
+
 function RegisterModal({ onClose }) {
   const [form, setForm] = useState({ firstname:"", lastname:"", middlename:"", birthdate:"", gender:"Male", civilStatus:"Single", contact:"", email:"", address:"", occupation:"", validId:"UMID", idNumber:"", beneficiary:"", relationship:"" });
   const [errors, setErrors] = useState({});
@@ -245,6 +268,7 @@ function RegisterModal({ onClose }) {
   const [creds,   setCreds]   = useState({ memberId: "", username: "", password: "" });
 
   const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+  const clearErr = name => setErrors(p => ({ ...p, [name]: "" }));
 
   const validate = () => {
     const e = {};
@@ -305,36 +329,28 @@ function RegisterModal({ onClose }) {
             Please give the member their credentials below so they can log in.
           </div>
 
-          {/* Credentials card */}
           <div className="al-cred-card">
             <div className="al-cred-title">🔑 Login Credentials</div>
             <div className="al-cred-sub">Give this slip to the member</div>
-
             <div className="al-cred-row">
               <span className="al-cred-label">Member ID</span>
               <div className="al-cred-val-wrap">
                 <span className="al-cred-val">{creds.memberId}</span>
-                <button className="al-copy-btn" onClick={() => copyText(creds.memberId,"id")}>
-                  {copied==="id" ? "✓ Copied" : "Copy"}
-                </button>
+                <button className="al-copy-btn" onClick={() => copyText(creds.memberId,"id")}>{copied==="id" ? "✓ Copied" : "Copy"}</button>
               </div>
             </div>
             <div className="al-cred-row">
               <span className="al-cred-label">Username</span>
               <div className="al-cred-val-wrap">
                 <span className="al-cred-val">{creds.username}</span>
-                <button className="al-copy-btn" onClick={() => copyText(creds.username,"user")}>
-                  {copied==="user" ? "✓ Copied" : "Copy"}
-                </button>
+                <button className="al-copy-btn" onClick={() => copyText(creds.username,"user")}>{copied==="user" ? "✓ Copied" : "Copy"}</button>
               </div>
             </div>
             <div className="al-cred-row">
               <span className="al-cred-label">Password</span>
               <div className="al-cred-val-wrap">
                 <span className="al-cred-val">{creds.password}</span>
-                <button className="al-copy-btn" onClick={() => copyText(creds.password,"pass")}>
-                  {copied==="pass" ? "✓ Copied" : "Copy"}
-                </button>
+                <button className="al-copy-btn" onClick={() => copyText(creds.password,"pass")}>{copied==="pass" ? "✓ Copied" : "Copy"}</button>
               </div>
             </div>
           </div>
@@ -347,20 +363,6 @@ function RegisterModal({ onClose }) {
           <button className="al-btn-save" onClick={onClose}>Done</button>
         </div>
       </div>
-    </div>
-  );
-
-  const Field = ({ name, label, type="text", options=null, required=false }) => (
-    <div className="al-field">
-      <label className="al-label">{label}{required && <span className="al-req"> *</span>}</label>
-      {options ? (
-        <select className={`al-input ${errors[name] ? "al-input-err" : ""}`} name={name} value={form[name]} onChange={handle}>
-          {options.map(o => <option key={o}>{o}</option>)}
-        </select>
-      ) : (
-        <input className={`al-input ${errors[name] ? "al-input-err" : ""}`} type={type} name={name} value={form[name]} onChange={e => { handle(e); setErrors(p => ({...p,[name]:""})); }} />
-      )}
-      {errors[name] && <div className="al-field-err">{errors[name]}</div>}
     </div>
   );
 
@@ -385,18 +387,24 @@ function RegisterModal({ onClose }) {
         <div className="al-modal-body">
           {tab === "personal" && (
             <div className="al-form-grid">
-              <Field name="lastname"    label="Last Name"    required />
-              <Field name="firstname"   label="First Name"   required />
-              <Field name="middlename"  label="Middle Name" />
-              <Field name="birthdate"   label="Birthdate"    type="date" required />
-              <Field name="gender"      label="Gender"       options={["Male","Female","Other"]} />
-              <Field name="civilStatus" label="Civil Status" options={["Single","Married","Widowed","Separated"]} />
-              <Field name="contact"     label="Contact No."  required />
-              <Field name="email"       label="Email"        type="email" />
-              <Field name="occupation"  label="Occupation" />
+              <FormField name="lastname"    label="Last Name"    required value={form.lastname}    onChange={handle} error={errors.lastname}    onErrorClear={clearErr}/>
+              <FormField name="firstname"   label="First Name"   required value={form.firstname}   onChange={handle} error={errors.firstname}   onErrorClear={clearErr}/>
+              <FormField name="middlename"  label="Middle Name"           value={form.middlename}  onChange={handle} error={errors.middlename}/>
+              <FormField name="birthdate"   label="Birthdate"    required type="date" value={form.birthdate} onChange={handle} error={errors.birthdate} onErrorClear={clearErr}/>
+              <FormField name="gender"      label="Gender"       options={["Male","Female","Other"]} value={form.gender} onChange={handle}/>
+              <FormField name="civilStatus" label="Civil Status" options={["Single","Married","Widowed","Separated"]} value={form.civilStatus} onChange={handle}/>
+              <FormField name="contact"     label="Contact No."  required value={form.contact}     onChange={handle} error={errors.contact}     onErrorClear={clearErr}/>
+              <FormField name="email"       label="Email"        type="email" value={form.email}   onChange={handle} error={errors.email}/>
+              <FormField name="occupation"  label="Occupation"             value={form.occupation} onChange={handle} error={errors.occupation}/>
               <div className="al-field al-full">
                 <label className="al-label">Address <span className="al-req">*</span></label>
-                <input className={`al-input ${errors.address ? "al-input-err" : ""}`} name="address" value={form.address} onChange={e => { handle(e); setErrors(p => ({...p,address:""})); }} placeholder="Full address" />
+                <input
+                  className={`al-input ${errors.address ? "al-input-err" : ""}`}
+                  name="address"
+                  value={form.address}
+                  onChange={e => { handle(e); clearErr("address"); }}
+                  placeholder="Full address"
+                />
                 {errors.address && <div className="al-field-err">{errors.address}</div>}
               </div>
             </div>
@@ -404,22 +412,22 @@ function RegisterModal({ onClose }) {
 
           {tab === "id" && (
             <div className="al-form-grid">
-              <Field name="validId"  label="Type of Valid ID" options={["UMID","Philippine Passport","Driver's License","SSS ID","PhilHealth ID","Voter's ID","PRC ID","Postal ID"]} />
-              <Field name="idNumber" label="ID Number" required />
+              <FormField name="validId"  label="Type of Valid ID" options={["UMID","Philippine Passport","Driver's License","SSS ID","PhilHealth ID","Voter's ID","PRC ID","Postal ID"]} value={form.validId} onChange={handle}/>
+              <FormField name="idNumber" label="ID Number" required value={form.idNumber} onChange={handle} error={errors.idNumber} onErrorClear={clearErr}/>
             </div>
           )}
 
           {tab === "beneficiary" && (
             <div className="al-form-grid">
-              <Field name="beneficiary"  label="Beneficiary Name" />
-              <Field name="relationship" label="Relationship"     options={["Spouse","Parent","Child","Sibling","Other"]} />
+              <FormField name="beneficiary"  label="Beneficiary Name" value={form.beneficiary}  onChange={handle}/>
+              <FormField name="relationship" label="Relationship"     options={["Spouse","Parent","Child","Sibling","Other"]} value={form.relationship} onChange={handle}/>
             </div>
           )}
         </div>
 
         <div className="al-modal-footer">
           <button className="al-btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="al-btn-save" onClick={handleSubmit}>Register Member</button>
+          <button className="al-btn-save" onClick={handleSubmit} disabled={loading}>{loading ? "Registering..." : "Register Member"}</button>
         </div>
       </div>
     </div>

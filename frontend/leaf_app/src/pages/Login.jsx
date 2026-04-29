@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { Leaf, Eye, EyeOff, Lock } from "lucide-react";
 import "./Login.css";
 
 export default function Login() {
@@ -45,7 +46,7 @@ export default function Login() {
       {showMsg && (
         <div className="lp-msg-overlay" onClick={() => setShowMsg(false)}>
           <div className="lp-msg-box" onClick={e => e.stopPropagation()}>
-            <div className="lp-msg-icon">🔒</div>
+            <div className="lp-msg-icon"><Lock size={32} color="#2e7d32"/></div>
             <div className="lp-msg-title">Forgot Password?</div>
             <div className="lp-msg-text">
               Para sa password reset, mangyaring bumisita sa opisina o makipag-ugnayan sa LEAF MPC administrator.
@@ -70,8 +71,7 @@ export default function Login() {
             ╚══════════════════════════════════════╝
           */}
           <div className="lp-logo-placeholder">
-            <span className="lp-logo-emoji">🌿</span>
-            <span className="lp-logo-text">leafmpc</span>
+            <img src="/logo.png" alt="LEAF MPC" className="lp-logo-img" />
           </div>
           <div className="lp-left-title">Cooperative Management System</div>
           <div className="lp-left-sub">Admin, Staff and Member Portal</div>
@@ -82,7 +82,7 @@ export default function Login() {
       <div className="lp-right">
         <div className="lp-card">
 
-          <div className="lp-card-icon">🌿</div>
+          <div className="lp-card-icon"><Leaf size={24} color="#4caf50" fill="#4caf50"/></div>
           <div className="lp-card-title">Login</div>
           <div className="lp-card-sub">Enter your credentials to continue</div>
 
@@ -122,7 +122,7 @@ export default function Login() {
                   tabIndex={-1}
                   type="button"
                 >
-                  {showPw ? "🙈" : "👁"}
+                  {showPw ? <EyeOff size={16}/> : <Eye size={16}/>}
                 </button>
               </div>
             </div>
@@ -149,7 +149,7 @@ export default function Login() {
           </div>
 
           <div className="lp-notice">
-            🔒 Your account will automatically be directed to the correct portal
+            <Lock size={12}/> Your account will automatically be directed to the correct portal
           </div>
 
         </div>

@@ -115,7 +115,7 @@ export default function Reports() {
     labels: donutLabels.length ? donutLabels : ["On time","Defaulted","Late"],
     datasets: [{
       data: donutLabels.length ? Object.values(payBehav) : [0,0,0],
-      backgroundColor: ["#4caf50","#e53935","#f57c00"],
+      backgroundColor: ["#2e7d32","#f57c00","#e53935"],
       borderWidth: 0,
     }],
   };
