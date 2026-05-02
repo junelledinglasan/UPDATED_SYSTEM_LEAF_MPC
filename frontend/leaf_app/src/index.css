@@ -15,12 +15,10 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── ROOT FIX — ensures full width layout ───────────────────────────────── */
+/* ─── ROOT — neutral container, let each page control its own layout ─────── */
 #root {
   width: 100%;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
 a { text-decoration: none; color: inherit; }
