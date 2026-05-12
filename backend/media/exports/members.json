@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-05-12 11:52:28",
+  "total": 1,
+  "members": [
+    {
+      "member_id": "LEAF-001",
+      "firstname": "Junelle",
+      "lastname": "Dinglasan",
+      "middlename": "Calapit",
+      "birthdate": "2026-04-28",
+      "gender": "Male",
+      "civil_status": "Single",
+      "contact": "003246872367823",
+      "email": "junelledinglasan@gmail.com",
+      "address": "Lucena City",
+      "occupation": "teacher",
+      "valid_id": "",
+      "id_number": "",
+      "beneficiary": "",
+      "relationship": "",
+      "share_capital": 0.0,
+      "status": "Active",
+      "username": "junelle.dinglasan",
+      "date_registered": "2026-05-12 11:52"
+    }
+  ]
+}

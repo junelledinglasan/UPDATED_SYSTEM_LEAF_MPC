@@ -1,0 +1,468 @@
+/* ─── Dashboard Layout ────────────────────────────────────────────────────── */
+.dashboard-content {
+  padding: 20px 22px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #d8e8cc;
+  min-height: calc(100vh - 62px);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+
+/* ─── Page Header ─────────────────────────────────────────────────────────── */
+.dash-page-header {
+  padding: 0 0 4px;
+}
+
+.dash-page-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1b5e20;
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+}
+
+.dash-page-sub {
+  font-size: 11px;
+  color: #8a9a7a;
+  margin-top: 3px;
+}
+
+/* ─── Stat Cards ──────────────────────────────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+.stat-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #ddeedd;
+  padding: 20px 22px 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  transition: box-shadow 0.2s, transform 0.2s;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.stat-card:hover {
+  box-shadow: 0 6px 18px rgba(46,125,50,0.12);
+  transform: translateY(-1px);
+}
+
+.stat-label {
+  font-size: 10px;
+  color: #8aaa8a;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #1b5e20;
+  line-height: 1;
+}
+
+.stat-icon {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  border-radius: 10px;
+  background: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2e7d32;
+}
+
+/* ─── Chart Cards ─────────────────────────────────────────────────────────── */
+.chart-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #ddeedd;
+  padding: 18px 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b3a1b;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.card-sub {
+  font-size: 10px;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #888;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.legend-dot {
+  width: 7px;
+  height: 7px;
+  min-width: 7px;
+  border-radius: 50%;
+}
+
+/* ─── Chart Rows ──────────────────────────────────────────────────────────── */
+.chart-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  gap: 14px;
+  width: 100%;
+}
+
+.bottom-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 14px;
+  width: 100%;
+}
+
+/* ─── Calendar ────────────────────────────────────────────────────────────── */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.cal-month-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1b3a1b;
+}
+
+.cal-nav-btn {
+  background: none;
+  border: 1px solid #c8e6c9;
+  cursor: pointer;
+  color: #2e7d32;
+  font-size: 9px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  transition: all 0.15s;
+  line-height: 1.4;
+}
+
+.cal-nav-btn:hover {
+  background: #e8f5e9;
+  border-color: #81c784;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.cal-day-label {
+  font-size: 9px;
+  color: #aaa;
+  text-align: center;
+  padding: 4px 0 5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.cal-day {
+  aspect-ratio: 1;
+  max-height: 28px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-weight: 500;
+}
+
+.cal-day:hover           { background: #e8f5e9; }
+.cal-day.today           { background: #2e7d32; color: #fff; font-weight: 700; border-radius: 6px; }
+.cal-day.has-event       { background: #c8e6c9; color: #1b5e20; font-weight: 700; border-radius: 6px; }
+.cal-day.has-event:hover { background: #a5d6a7; }
+.cal-day.other-month     { color: #ddd; }
+
+/* ─── Activity Log ────────────────────────────────────────────────────────── */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.activity-list::-webkit-scrollbar       { width: 3px; }
+.activity-list::-webkit-scrollbar-track { background: transparent; }
+.activity-list::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 2px; }
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f5f0;
+}
+
+.activity-item:last-child { border-bottom: none; }
+
+.activity-dot {
+  width: 7px;
+  height: 7px;
+  min-width: 7px;
+  border-radius: 50%;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.activity-text {
+  font-size: 11px;
+  color: #333;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.activity-time {
+  font-size: 10px;
+  color: #bbb;
+  margin-top: 2px;
+}
+
+/* ─── Blockchain Ledger ───────────────────────────────────────────────────── */
+.ledger-card {
+  background: #0f1923;
+  border-radius: 12px;
+  padding: 18px 20px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.ledger-title {
+  color: #e8f5e9;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ledger-badge {
+  background: #1b5e20;
+  color: #69f0ae;
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  border: 1px solid rgba(105,240,174,0.25);
+}
+
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.ledger-table th {
+  text-align: left;
+  font-size: 9px;
+  color: #3d5a6a;
+  padding: 6px 10px;
+  border-bottom: 1px solid #1e2d3a;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-table td {
+  padding: 7px 10px;
+  font-size: 11px;
+  color: #7a8fa0;
+  border-bottom: 1px solid #131f28;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-table th:nth-child(1), .ledger-table td:nth-child(1) { width: 14%; }
+.ledger-table th:nth-child(2), .ledger-table td:nth-child(2) { width: 16%; }
+.ledger-table th:nth-child(3), .ledger-table td:nth-child(3) { width: 12%; }
+.ledger-table th:nth-child(4), .ledger-table td:nth-child(4) { width: 48%; }
+.ledger-table th:nth-child(5), .ledger-table td:nth-child(5) { width: 10%; text-align: center; }
+
+.ledger-table tr:last-child td { border-bottom: none; }
+.ledger-table tr:hover td { background: rgba(255,255,255,0.02); color: #aabbcc; }
+
+.amount-green { color: #69f0ae; font-weight: 700; }
+
+.hash-text {
+  font-size: 10px;
+  color: #3d5a6a;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.3px;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-btn {
+  background: #c62828;
+  color: #fff;
+  border: none;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+  letter-spacing: 0.3px;
+}
+.pdf-btn:hover { background: #9a0007; }
+
+/* ─── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 1280px) { .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .chart-row { grid-template-columns: minmax(0, 1fr); } .bottom-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@media (max-width: 760px)  { .dashboard-content { padding: 12px 12px 24px; } .stat-grid { grid-template-columns: minmax(0, 1fr); } .bottom-row { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 768px)  {
+  .dashboard-content { padding: 12px 12px 24px; gap: 12px; }
+  .stat-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+  .chart-row { grid-template-columns: minmax(0,1fr); }
+  .bottom-row { grid-template-columns: minmax(0,1fr); }
+  .stat-value { font-size: 22px; }
+  .ledger-table th:nth-child(4), .ledger-table td:nth-child(4) { display: none; }
+}
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns: minmax(0,1fr); }
+  .stat-card { padding: 14px 16px; }
+  .chart-card { padding: 12px 14px; }
+  .ledger-card { padding: 12px 14px; }
+}
+
+/* ─── Clickable calendar days ──────────────────────────────────────────────── */
+.cal-day.clickable        { cursor: pointer; position: relative; }
+.cal-day.clickable:hover  { background: #e8f5e9; border-radius: 6px; }
+.cal-day.has-overdue      { background: #fce4ec !important; color: #c62828 !important; font-weight: 700; border-radius: 6px; cursor: pointer; }
+.cal-due-dot {
+  position: absolute; top: 1px; right: 2px;
+  background: #2e7d32; color: #fff;
+  font-size: 8px; font-weight: 700;
+  width: 14px; height: 14px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+.has-overdue .cal-due-dot { background: #c62828; }
+
+/* ─── Due Date Modal ───────────────────────────────────────────────────────── */
+.cal-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-modal-box {
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  max-height: 85vh;
+}
+.cal-modal-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #f0f4f1;
+}
+.cal-modal-title  { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+.cal-modal-sub    { font-size: 12px; color: #888; margin-top: 2px; }
+.cal-modal-close  { background: none; border: none; font-size: 16px; cursor: pointer; color: #aaa; padding: 0; }
+.cal-modal-close:hover { color: #333; }
+.cal-modal-body   { padding: 14px 20px; overflow-y: auto; flex: 1; }
+.cal-modal-empty  { text-align: center; color: #aaa; font-size: 13px; padding: 20px 0; }
+.cal-modal-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; border-top: 1px solid #f0f4f1;
+  background: #fafafa;
+}
+.cal-modal-total  { font-size: 13px; color: #555; }
+.cal-modal-done   { background: #2e7d32; color: #fff; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cal-modal-done:hover { background: #1b5e20; }
+
+/* ─── Due list items ───────────────────────────────────────────────────────── */
+.cal-due-list    { display: flex; flex-direction: column; gap: 8px; }
+.cal-due-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 8px;
+  background: #f9fafb; border: 1px solid #e8f5e9;
+}
+.cal-due-item.overdue { border-color: #ffcdd2; background: #fff8f8; }
+.cal-due-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #2e7d32; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; flex-shrink: 0;
+}
+.cal-due-item.overdue .cal-due-avatar { background: #c62828; }
+.cal-due-info   { flex: 1; }
+.cal-due-name   { font-size: 13px; font-weight: 600; color: #1a1a1a; }
+.cal-due-meta   { font-size: 11px; color: #888; margin-top: 2px; }
+.cal-due-amount { text-align: right; }
+.cal-due-monthly{ font-size: 14px; font-weight: 700; color: #2e7d32; }
+.cal-due-label  { font-size: 10px; color: #aaa; }
+.cal-overdue-tag{ font-size: 9px; font-weight: 700; color: #c62828; margin-top: 2px; }

@@ -1,0 +1,401 @@
+/* ─── Dashboard Layout ────────────────────────────────────────────────────── */
+.dashboard-content {
+  padding: 18px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #f0f4f1;
+  min-height: calc(100vh - 56px);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+/* ─── Stat Cards ──────────────────────────────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.stat-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e4f0e5;
+  padding: 16px 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 12px rgba(46,125,50,0.08);
+}
+
+.stat-label {
+  font-size: 10px;
+  color: #999;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1b5e20;
+  line-height: 1;
+}
+
+.stat-icon {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 10px;
+  background: #e8f5e9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+
+/* ─── Chart Cards ─────────────────────────────────────────────────────────── */
+.chart-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e4f0e5;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b5e20;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.card-sub {
+  font-size: 11px;
+  color: #bbb;
+  margin-top: 2px;
+}
+
+.legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #888;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  border-radius: 50%;
+}
+
+/* ─── Chart Rows ──────────────────────────────────────────────────────────── */
+.chart-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.bottom-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 12px;
+  width: 100%;
+}
+
+/* ─── Calendar ────────────────────────────────────────────────────────────── */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.cal-month-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+}
+
+.cal-nav-btn {
+  background: none;
+  border: 1px solid #e0e0e0;
+  cursor: pointer;
+  color: #666;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.cal-nav-btn:hover {
+  background: #f0f4f1;
+  border-color: #a5d6a7;
+  color: #1b5e20;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.cal-day-label {
+  font-size: 9px;
+  color: #bbb;
+  text-align: center;
+  padding: 4px 0 5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.cal-day {
+  aspect-ratio: 1;
+  max-height: 30px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-weight: 500;
+}
+
+.cal-day:hover           { background: #e8f5e9; }
+.cal-day.today           { background: #2e7d32; color: #fff; font-weight: 700; }
+.cal-day.has-event       { background: #c8e6c9; color: #1b5e20; font-weight: 700; }
+.cal-day.has-event:hover { background: #a5d6a7; }
+.cal-day.other-month     { color: #ddd; }
+
+/* ─── Activity Log ────────────────────────────────────────────────────────── */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.activity-list::-webkit-scrollbar       { width: 3px; }
+.activity-list::-webkit-scrollbar-track { background: transparent; }
+.activity-list::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 2px; }
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.activity-item:last-child { border-bottom: none; }
+
+.activity-dot {
+  width: 7px;
+  height: 7px;
+  min-width: 7px;
+  border-radius: 50%;
+  margin-top: 3px;
+}
+
+.activity-text {
+  font-size: 11px;
+  color: #444;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.activity-time {
+  font-size: 10px;
+  color: #bbb;
+  margin-top: 2px;
+}
+
+/* ─── Blockchain Ledger ───────────────────────────────────────────────────── */
+.ledger-card {
+  background: #0f1923;
+  border-radius: 12px;
+  padding: 18px 20px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.ledger-title {
+  color: #e8f5e9;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ledger-badge {
+  background: #2e7d32;
+  color: #69f0ae;
+  font-size: 9px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  border: 1px solid rgba(105,240,174,0.3);
+}
+
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.ledger-table th {
+  text-align: left;
+  font-size: 9px;
+  color: #445566;
+  padding: 6px 10px;
+  border-bottom: 1px solid #1e2d3a;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-table td {
+  padding: 7px 10px;
+  font-size: 11px;
+  color: #8899aa;
+  border-bottom: 1px solid #131f28;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Column widths — fixed so they don't dance around */
+.ledger-table th:nth-child(1),
+.ledger-table td:nth-child(1) { width: 14%; }
+.ledger-table th:nth-child(2),
+.ledger-table td:nth-child(2) { width: 16%; }
+.ledger-table th:nth-child(3),
+.ledger-table td:nth-child(3) { width: 12%; }
+.ledger-table th:nth-child(4),
+.ledger-table td:nth-child(4) { width: 48%; }
+.ledger-table th:nth-child(5),
+.ledger-table td:nth-child(5) { width: 10%; text-align: center; }
+
+.ledger-table tr:last-child td { border-bottom: none; }
+
+.ledger-table tr:hover td {
+  background: rgba(255,255,255,0.02);
+  color: #aabbcc;
+}
+
+.amount-green {
+  color: #69f0ae;
+  font-weight: 700;
+}
+
+.hash-text {
+  font-size: 10px;
+  color: #445566;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.3px;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-btn {
+  background: #c62828;
+  color: #fff;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.pdf-btn:hover { background: #7f0000; }
+
+/* ─── Responsive breakpoints ──────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .stat-grid  { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1100px) {
+  .chart-row  { grid-template-columns: minmax(0, 1fr); }
+  .bottom-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .dashboard-content { padding: 12px 12px 24px; }
+  .stat-grid  { grid-template-columns: minmax(0, 1fr); }
+  .bottom-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .dashboard-content { padding: 12px 12px 24px; gap: 12px; }
+  .stat-grid  { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+  .chart-row  { grid-template-columns: minmax(0,1fr); }
+  .bottom-row { grid-template-columns: minmax(0,1fr); }
+  .stat-value { font-size: 20px; }
+  .ledger-table th:nth-child(4), .ledger-table td:nth-child(4) { display: none; }
+}
+@media (max-width: 480px) {
+  .stat-grid  { grid-template-columns: minmax(0,1fr); }
+  .stat-card  { padding: 12px 14px; }
+  .chart-card { padding: 12px 14px; }
+  .ledger-card { padding: 12px 14px; }
+  .ledger-table th:nth-child(1), .ledger-table td:nth-child(1) { width: 20%; }
+  .ledger-table th:nth-child(2), .ledger-table td:nth-child(2) { width: 22%; }
+  .ledger-table th:nth-child(3), .ledger-table td:nth-child(3) { width: 18%; }
+  .ledger-table th:nth-child(5), .ledger-table td:nth-child(5) { width: 10%; }
+}

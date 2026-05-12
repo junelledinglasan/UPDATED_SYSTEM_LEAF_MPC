@@ -1,0 +1,79 @@
+.ml-wrapper {
+  padding: 20px 24px 40px;
+  display: flex; flex-direction: column; gap: 16px;
+  background: #d8e8cc;
+  min-height: 100%;
+  box-sizing: border-box; width: 100%; min-width: 0;
+}
+.ml-page-title { font-size: 24px; font-weight: 800; color: #1b5e20; letter-spacing: -0.3px; }
+.ml-page-sub   { font-size: 11px; color: #aaa; margin-top: 3px; }
+
+.ml-loan-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+.ml-loan-card {
+  background: #fff; border: 1.5px solid #c8ddc8; border-radius: 14px;
+  padding: 18px 20px; cursor: pointer; min-width: 220px; max-width: 320px;
+  transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.ml-loan-card:hover  { border-color: #a5d6a7; box-shadow: 0 4px 12px rgba(46,125,50,0.08); }
+.ml-loan-card.selected { border-color: #2e7d32; box-shadow: 0 4px 16px rgba(46,125,50,0.15); }
+.ml-lc-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.ml-lc-type   { font-size:11px; font-weight:700; color:#2e7d32; }
+.ml-lc-status { font-size:9px; font-weight:700; padding:2px 8px; border-radius:10px; }
+.ml-lc-status.current { background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9; }
+.ml-lc-status.overdue { background:#fce4ec; color:#c62828; border:1px solid #f8bbd0; }
+.ml-lc-id      { font-size:10px; color:#aaa; font-family:'Courier New',monospace; margin-bottom:10px; }
+.ml-lc-balance { font-size:28px; font-weight:800; color:#c62828; letter-spacing:-0.5px; }
+.ml-lc-label   { font-size:9px; color:#bbb; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:10px; }
+.ml-lc-bar     { height:6px; border-radius:6px; background:#e8f5e9; overflow:hidden; margin-bottom:4px; }
+.ml-lc-fill    { height:100%; background:linear-gradient(90deg,#2e7d32,#4caf50); border-radius:6px; }
+.ml-lc-pct     { font-size:10px; color:#2e7d32; font-weight:600; }
+
+.ml-detail-card {
+  background: #fff; border-radius: 14px; border: 1.5px solid #c8ddc8;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.06); overflow: hidden;
+}
+.ml-tabs { display:flex; border-bottom:2px solid #e8f0e8; gap:2px; padding:8px 8px 0; background:#f8faf8; }
+.ml-tab {
+  flex:1; padding:12px; font-size:12px; font-weight:600; cursor:pointer;
+  background:transparent; color:#888; border:none; font-family:inherit;
+  transition:all 0.15s; border-bottom:2px solid transparent;
+}
+.ml-tab:hover  { color:#2e7d32; background:#fafcfa; }
+.ml-tab.active { color:#fff; border-bottom-color:#2e7d32; background:#2e7d32; border-radius:8px 8px 0 0; }
+
+.ml-details-grid {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:0;
+  padding:4px 0;
+}
+.ml-detail-item {
+  display:flex; flex-direction:column; gap:6px;
+  padding:18px 24px; border-bottom:1px solid #f0f5f0;
+}
+.ml-detail-item:nth-child(3n+1):nth-last-child(-n+3),
+.ml-detail-item:nth-child(3n+2):nth-last-child(-n+2),
+.ml-detail-item:nth-child(3n+3):last-child { border-bottom:none; }
+.ml-dk { font-size:10px; font-weight:700; color:#9aaa9a; text-transform:uppercase; letter-spacing:0.6px; }
+.ml-dv { font-size:15px; font-weight:700; color:#1a2e1a; }
+.ml-dv.red   { color:#c62828; }
+.ml-dv.green { color:#2e7d32; }
+.status-badge { color:#2e7d32; }
+
+.ml-payments-table-wrap { overflow-x:auto; padding:4px 0; }
+.ml-payments-table { width:100%; border-collapse:collapse; font-size:12px; }
+.ml-payments-table thead tr { background:#f2f8f2; border-bottom:2px solid #d8ecd8; }
+.ml-payments-table th { padding:10px 16px; text-align:left; font-size:10px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.5px; }
+.ml-payments-table td { padding:10px 16px; border-bottom:1px solid #f5f5f5; }
+.ml-payments-table tr:last-child td { border-bottom:none; }
+.ml-payments-table tr:hover td { background:#f7faf7; }
+.cell-date   { font-size:11px; color:#888; }
+.cell-center { text-align:center; color:#aaa; }
+.green { color:#2e7d32; }
+.blue  { color:#1565c0; }
+.fw    { font-weight:700; }
+.hash-text { font-family:'Courier New',monospace; font-size:10px; color:#aaa; }
+.ml-sched-badge { display:inline-flex; align-items:center; padding:2px 9px; border-radius:20px; font-size:10px; font-weight:700; }
+.ml-sched-badge.paid     { background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9; }
+.ml-sched-badge.upcoming { background:#f5f5f5; color:#aaa; border:1px solid #e0e0e0; }
+
+@media (max-width:900px)  { .ml-details-grid { grid-template-columns:1fr 1fr; } }
+@media (max-width:600px)  { .ml-wrapper { padding:12px 12px 24px; } .ml-details-grid { grid-template-columns:1fr; } }
