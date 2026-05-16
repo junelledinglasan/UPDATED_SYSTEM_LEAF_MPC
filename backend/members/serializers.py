@@ -1,66 +1,102 @@
 from rest_framework import serializers
-from .models import Member, MembershipApplication
+from .models import LeafMemberInfo, Member, StudentProfile, SeniorProfile, JobProfile
 
 
-class MembershipApplicationSerializer(serializers.ModelSerializer):
+class StudentProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = StudentProfile
+        fields = ['id', 'school_name', 'year_level', 'allowance']
+
+
+class SeniorProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = SeniorProfile
+        fields = ['id', 'educational_attainment', 'pension_income']
+
+
+class JobProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = JobProfile
+        fields = ['id', 'occupation', 'job_type', 'monthly_income']
+
+
+# ── LeafMemberInfo Serializers ─────────────────────────────────────────────────
+class LeafMemberInfoSerializer(serializers.ModelSerializer):
     fullname     = serializers.ReadOnlyField()
-    username     = serializers.CharField(source='user.username', read_only=True)
     is_converted = serializers.SerializerMethodField()
 
     class Meta:
-        model  = MembershipApplication
+        model  = LeafMemberInfo
         fields = '__all__'
-        read_only_fields = ['app_id', 'submitted_at', 'reviewed_at', 'reviewed_by']
+        read_only_fields = ['app_id', 'created_at', 'reviewed_at', 'reviewed_by']
 
     def get_is_converted(self, obj):
         return hasattr(obj, 'converted_member')
 
 
-class MembershipApplicationListSerializer(serializers.ModelSerializer):
+class LeafMemberInfoListSerializer(serializers.ModelSerializer):
     fullname     = serializers.ReadOnlyField()
-    username     = serializers.CharField(source='user.username', read_only=True)
     is_converted = serializers.SerializerMethodField()
 
     class Meta:
-        model  = MembershipApplication
+        model  = LeafMemberInfo
         fields = [
-            'id', 'app_id', 'firstname', 'lastname', 'fullname',
-            'contact', 'email', 'occupation', 'birthdate',
-            'status', 'submitted_at', 'username', 'is_converted',
+            'id', 'app_id', 'first_name', 'last_name', 'middle_name',
+            'fullname', 'contact_number', 'classification',
+            'application_status', 'created_at', 'is_converted',
         ]
 
     def get_is_converted(self, obj):
         return hasattr(obj, 'converted_member')
 
 
+# ── Member Serializers ─────────────────────────────────────────────────────────
 class MemberSerializer(serializers.ModelSerializer):
-    fullname       = serializers.ReadOnlyField()
-    max_loanable   = serializers.ReadOnlyField()
-    username       = serializers.CharField(source='user.username', read_only=True)
-    # ← Kailangan ito para ma-filter ng frontend ang converted na applications
-    application_id = serializers.SerializerMethodField()
+    fullname        = serializers.ReadOnlyField()
+    first_name      = serializers.ReadOnlyField()
+    last_name       = serializers.ReadOnlyField()
+    contact         = serializers.ReadOnlyField()
+    email           = serializers.ReadOnlyField()
+    status          = serializers.ReadOnlyField()
+    classification  = serializers.ReadOnlyField()
+    max_loanable    = serializers.ReadOnlyField()
+    application_id  = serializers.ReadOnlyField()
+    user_username   = serializers.SerializerMethodField()
+
+    student_profile = StudentProfileSerializer(read_only=True)
+    senior_profile  = SeniorProfileSerializer(read_only=True)
+    job_profile     = JobProfileSerializer(read_only=True)
+    pre_member_info = LeafMemberInfoSerializer(source='pre_member', read_only=True)
 
     class Meta:
         model  = Member
-        fields = '__all__'
+        fields = [
+            'id', 'member_id', 'fullname', 'first_name', 'last_name',
+            'contact', 'email', 'status', 'classification',
+            'membership_status', 'membership_date', 'share_capital',
+            'max_loanable', 'application_id', 'plain_password',
+            'student_profile', 'senior_profile', 'job_profile',
+            'pre_member_info', 'user', 'pre_member', 'date_registered',
+            'user_username',
+        ]
 
-    def get_application_id(self, obj):
-        return obj.application.id if obj.application else None
+    def get_user_username(self, obj):
+        return obj.user.username if obj.user else None
 
 
 class MemberListSerializer(serializers.ModelSerializer):
     fullname       = serializers.ReadOnlyField()
-    username       = serializers.CharField(source='user.username', read_only=True)
-    # ← Kailangan ito para ma-filter ng frontend ang converted na applications
-    application_id = serializers.SerializerMethodField()
+    first_name     = serializers.ReadOnlyField()
+    last_name      = serializers.ReadOnlyField()
+    contact        = serializers.ReadOnlyField()
+    status         = serializers.ReadOnlyField()
+    classification = serializers.ReadOnlyField()
+    application_id = serializers.ReadOnlyField()
 
     class Meta:
         model  = Member
         fields = [
-            'id', 'member_id', 'firstname', 'lastname', 'fullname',
-            'contact', 'email', 'status', 'share_capital',
-            'date_registered', 'username', 'application_id',
+            'id', 'member_id', 'fullname', 'first_name', 'last_name',
+            'contact', 'share_capital', 'status', 'membership_status',
+            'classification', 'membership_date', 'application_id',
         ]
-
-    def get_application_id(self, obj):
-        return obj.application.id if obj.application else None

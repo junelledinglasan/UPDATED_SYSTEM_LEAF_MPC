@@ -256,49 +256,89 @@ function RegField({ name, label, type="text", options=null, required=false, form
 }
 
 function RegisterModal({ onClose }) {
-  const [form, setForm] = useState({ firstname:"", lastname:"", middlename:"", birthdate:"", gender:"Male", civilStatus:"Single", contact:"", email:"", address:"", occupation:"" });
-  const [errors, setErrors] = useState({});
-  const [done,   setDone]   = useState(false);
-  const [tab,    setTab]    = useState("personal");
+  const TABS = [
+    { key: "personal",       label: "👤 Personal Info"  },
+    { key: "classification", label: "📋 Classification" },
+    { key: "account",        label: "🔐 Account Info"   },
+  ];
+
+  const [form, setForm] = useState({
+    // Personal
+    first_name: "", last_name: "", middle_name: "", birth_date: "",
+    civil_status: "Single", educational_attainment: "",
+    contact_number: "", email: "", address: "", occupation: "",
+    income: "", birth_certificate: false, marriage_certificate: false,
+    // Classification
+    classification: "Employed",
+    school_name: "", year_level: "", allowance: "",
+    pension_income: "", job_type: "Employed", monthly_income: "",
+  });
+  const [errors,  setErrors]  = useState({});
+  const [done,    setDone]    = useState(false);
+  const [tab,     setTab]     = useState("personal");
   const [copied,  setCopied]  = useState("");
   const [loading, setLoading] = useState(false);
   const [creds,   setCreds]   = useState({ memberId: "", username: "", password: "" });
 
-  const handle   = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
-  const clearErr = name => setErrors(p => ({ ...p, [name]: "" }));
+  const handle = e => {
+    const val = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setForm(p => ({ ...p, [e.target.name]: val }));
+    setErrors(p => ({ ...p, [e.target.name]: "" }));
+  };
 
   const validate = () => {
     const e = {};
-    if (!form.firstname.trim()) e.firstname = "Required";
-    if (!form.lastname.trim())  e.lastname  = "Required";
-    if (!form.birthdate)        e.birthdate = "Required";
-    if (!form.contact.trim())   e.contact   = "Required";
-    if (!form.address.trim())   e.address   = "Required";
+    if (!form.first_name.trim())     e.first_name     = "Required";
+    if (!form.last_name.trim())      e.last_name      = "Required";
+    if (!form.birth_date)            e.birth_date     = "Required";
+    if (!form.contact_number.trim()) e.contact_number = "Required";
+    if (!form.address.trim())        e.address        = "Required";
+    if (form.classification === "Student" && !form.school_name.trim()) e.school_name = "Required";
+    if (form.classification === "Student" && !form.year_level.trim())  e.year_level  = "Required";
     return e;
   };
 
   const handleSubmit = async () => {
     const e = validate();
-    if (Object.keys(e).length) { setErrors(e); setTab("personal"); return; }
+    if (Object.keys(e).length) {
+      setErrors(e);
+      const personalFields = ["first_name","last_name","birth_date","contact_number","address"];
+      const classFields    = ["school_name","year_level"];
+      if (personalFields.some(f => e[f])) { setTab("personal");        return; }
+      if (classFields.some(f => e[f]))    { setTab("classification");   return; }
+      return;
+    }
     setLoading(true);
     try {
       const result = await registerMemberAPI({
-        firstname:    form.firstname,
-        lastname:     form.lastname,
-        middlename:   form.middlename,
-        birthdate:    form.birthdate,
-        gender:       form.gender,
-        civil_status: form.civilStatus,
-        contact:      form.contact,
-        email:        form.email,
-        address:      form.address,
-        occupation:   form.occupation,
+        first_name:             form.first_name,
+        last_name:              form.last_name,
+        middle_name:            form.middle_name,
+        birth_date:             form.birth_date,
+        civil_status:           form.civil_status,
+        educational_attainment: form.educational_attainment,
+        contact_number:         form.contact_number,
+        email:                  form.email,
+        address:                form.address,
+        occupation:             form.occupation,
+        income:                 form.income || 0,
+        birth_certificate:      form.birth_certificate,
+        marriage_certificate:   form.marriage_certificate,
+        classification:         form.classification,
+        school_name:            form.school_name,
+        year_level:             form.year_level,
+        allowance:              form.allowance || 0,
+        pension_income:         form.pension_income || 0,
+        job_type:               form.job_type,
+        monthly_income:         form.monthly_income || 0,
       });
       setCreds({ memberId: result.member_id, username: result.username, password: result.plain_password });
       setDone(true);
+      setTab("account");
     } catch(err) {
-      const msg = err.response?.data?.detail || "Failed to register member.";
-      setErrors({ firstname: msg });
+      const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to register member.";
+      setErrors({ first_name: msg });
+      setTab("personal");
     } finally { setLoading(false); }
   };
 
@@ -307,66 +347,6 @@ function RegisterModal({ onClose }) {
     setCopied(key);
     setTimeout(() => setCopied(""), 1800);
   };
-
-  if (done) return (
-    <div className="al-overlay" onClick={onClose}>
-      <div className="al-modal" onClick={e => e.stopPropagation()}>
-        <div className="al-modal-header">
-          <div className="al-modal-title">🎉 Member Registered!</div>
-          <button className="al-modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="al-modal-body" style={{gap:14}}>
-          <div style={{fontSize:12,color:"#666",lineHeight:1.6}}>
-            <strong>{form.firstname} {form.lastname}</strong> has been successfully registered.
-            Please give the member their credentials below so they can log in.
-          </div>
-
-          {/* Credentials card */}
-          <div className="al-cred-card">
-            <div className="al-cred-title">🔑 Login Credentials</div>
-            <div className="al-cred-sub">Give this slip to the member</div>
-
-            <div className="al-cred-row">
-              <span className="al-cred-label">Member ID</span>
-              <div className="al-cred-val-wrap">
-                <span className="al-cred-val">{creds.memberId}</span>
-                <button className="al-copy-btn" onClick={() => copyText(creds.memberId,"id")}>
-                  {copied==="id" ? "✓ Copied" : "Copy"}
-                </button>
-              </div>
-            </div>
-            <div className="al-cred-row">
-              <span className="al-cred-label">Username</span>
-              <div className="al-cred-val-wrap">
-                <span className="al-cred-val">{creds.username}</span>
-                <button className="al-copy-btn" onClick={() => copyText(creds.username,"user")}>
-                  {copied==="user" ? "✓ Copied" : "Copy"}
-                </button>
-              </div>
-            </div>
-            <div className="al-cred-row">
-              <span className="al-cred-label">Password</span>
-              <div className="al-cred-val-wrap">
-                <span className="al-cred-val">{creds.password}</span>
-                <button className="al-copy-btn" onClick={() => copyText(creds.password,"pass")}>
-                  {copied==="pass" ? "✓ Copied" : "Copy"}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="al-cred-notice">
-            💡 The member can change their username and password anytime in <strong>My Profile → Account Settings</strong> after logging in.
-          </div>
-        </div>
-        <div className="al-modal-footer">
-          <button className="al-btn-save" onClick={onClose}>Done</button>
-        </div>
-      </div>
-    </div>
-  );
-
-
 
   return (
     <div className="al-overlay" onClick={onClose}>
@@ -379,37 +359,161 @@ function RegisterModal({ onClose }) {
           <button className="al-modal-close" onClick={onClose}>✕</button>
         </div>
 
-        {/* Tabs */}
+        {/* 3 Tabs */}
         <div className="al-reg-tabs">
-          {[["personal","👤 Personal Info"]].map(([k,l]) => (
-            <button key={k} className={`al-reg-tab ${tab===k?"active":""}`} onClick={() => setTab(k)}>{l}</button>
+          {TABS.map((t, i) => (
+            <button
+              key={t.key}
+              className={`al-reg-tab ${tab === t.key ? "active" : ""}`}
+              onClick={() => !done && setTab(t.key)}
+              style={{ cursor: done ? "default" : "pointer" }}
+            >
+              <span className="al-reg-tab-num">{i + 1}</span> {t.label}
+            </button>
           ))}
         </div>
 
         <div className="al-modal-body">
+
+          {/* ── Personal Info ── */}
           {tab === "personal" && (
             <div className="al-form-grid">
-              <RegField name="lastname"    label="Last Name"    required form={form} errors={errors} handle={handle} clearErr={clearErr}/>
-              <RegField name="firstname"   label="First Name"   required form={form} errors={errors} handle={handle} clearErr={clearErr}/>
-              <RegField name="middlename"  label="Middle Name" form={form} errors={errors} handle={handle}/>
-              <RegField name="birthdate"   label="Birthdate"   type="date" required form={form} errors={errors} handle={handle} clearErr={clearErr}/>
-              <RegField name="gender"      label="Gender"      options={["Male","Female","Other"]} form={form} errors={errors} handle={handle}/>
-              <RegField name="civilStatus" label="Civil Status" options={["Single","Married","Widowed","Separated"]} form={form} errors={errors} handle={handle}/>
-              <RegField name="contact"     label="Contact No."  required form={form} errors={errors} handle={handle} clearErr={clearErr}/>
-              <RegField name="email"       label="Email"        type="email" form={form} errors={errors} handle={handle}/>
-              <RegField name="occupation"  label="Occupation"  form={form} errors={errors} handle={handle}/>
+              <RegField name="last_name"              label="Last Name"              required form={form} errors={errors} handle={handle} clearErr={n => setErrors(p=>({...p,[n]:""})) }/>
+              <RegField name="first_name"             label="First Name"             required form={form} errors={errors} handle={handle} clearErr={n => setErrors(p=>({...p,[n]:""})) }/>
+              <RegField name="middle_name"            label="Middle Name"                     form={form} errors={errors} handle={handle}/>
+              <RegField name="birth_date"             label="Birthdate"              required type="date" form={form} errors={errors} handle={handle} clearErr={n => setErrors(p=>({...p,[n]:""})) }/>
+              <RegField name="civil_status"           label="Civil Status"           options={["Single","Married","Widowed","Separated"]} form={form} errors={errors} handle={handle}/>
+              <RegField name="educational_attainment" label="Educational Attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} form={form} errors={errors} handle={handle}/>
+              <RegField name="contact_number"         label="Contact No."            required form={form} errors={errors} handle={handle} clearErr={n => setErrors(p=>({...p,[n]:""})) }/>
+              <RegField name="email"                  label="Email"                  type="email" form={form} errors={errors} handle={handle}/>
+              <RegField name="occupation"             label="Occupation"                      form={form} errors={errors} handle={handle}/>
+              <RegField name="income"                 label="Monthly Income (₱)"     type="number" form={form} errors={errors} handle={handle}/>
               <div className="al-field al-full">
                 <label className="al-label">Address <span className="al-req">*</span></label>
-                <input className={`al-input ${errors.address ? "al-input-err" : ""}`} name="address" value={form.address} onChange={e => { handle(e); setErrors(p => ({...p,address:""})); }} placeholder="Full address" />
+                <input className={`al-input ${errors.address ? "al-input-err" : ""}`} name="address" value={form.address} onChange={handle} placeholder="Full address"/>
                 {errors.address && <div className="al-field-err">{errors.address}</div>}
+              </div>
+              <div className="al-field">
+                <label className="al-label">Birth Certificate Submitted</label>
+                <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
+                  <input type="checkbox" name="birth_certificate" checked={form.birth_certificate} onChange={handle}/> Yes
+                </label>
+              </div>
+              <div className="al-field">
+                <label className="al-label">Marriage Certificate Submitted</label>
+                <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
+                  <input type="checkbox" name="marriage_certificate" checked={form.marriage_certificate} onChange={handle}/> Yes (if married)
+                </label>
               </div>
             </div>
           )}
-</div>
+
+          {/* ── Classification ── */}
+          {tab === "classification" && (
+            <div className="al-form-grid">
+              <div className="al-field al-full">
+                <label className="al-label">Member Classification <span className="al-req">*</span></label>
+                <div style={{display:"flex",gap:12,marginTop:8}}>
+                  {["Student","Senior","Employed"].map(c => (
+                    <div key={c}
+                      onClick={() => setForm(p => ({...p, classification: c}))}
+                      style={{
+                        flex:1, border:`2px solid ${form.classification===c?"#2e7d32":"#e0e0e0"}`,
+                        borderRadius:10, padding:"16px 10px", textAlign:"center", cursor:"pointer",
+                        background: form.classification===c ? "#e8f5e9" : "#fafafa", transition:"all 0.2s",
+                      }}>
+                      <div style={{fontSize:26,marginBottom:6}}>{c==="Student"?"🎓":c==="Senior"?"👴":"💼"}</div>
+                      <div style={{fontSize:12,fontWeight:700,color:"#2e7d32"}}>{c}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {form.classification === "Student" && (<>
+                <RegField name="school_name" label="School Name" required form={form} errors={errors} handle={handle} clearErr={n => setErrors(p=>({...p,[n]:""})) }/>
+                <RegField name="year_level"  label="Year Level"  required form={form} errors={errors} handle={handle}
+                  options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]}/>
+                <RegField name="allowance"   label="Monthly Allowance (₱)" type="number" form={form} errors={errors} handle={handle}/>
+              </>)}
+
+              {form.classification === "Senior" && (<>
+                <RegField name="educational_attainment" label="Educational Attainment"
+                  options={["Elementary","High School","Vocational","College","Post Graduate"]}
+                  form={form} errors={errors} handle={handle}/>
+                <RegField name="pension_income" label="Monthly Pension Income (₱)" type="number" form={form} errors={errors} handle={handle}/>
+              </>)}
+
+              {form.classification === "Employed" && (<>
+                <RegField name="occupation"     label="Occupation/Job Title" form={form} errors={errors} handle={handle}/>
+                <RegField name="job_type"       label="Employment Type"
+                  options={["Employed","Self-Employed","Business","Freelance","Other"]}
+                  form={form} errors={errors} handle={handle}/>
+                <RegField name="monthly_income" label="Monthly Income (₱)" type="number" form={form} errors={errors} handle={handle}/>
+              </>)}
+            </div>
+          )}
+
+          {/* ── Account Info ── */}
+          {tab === "account" && (
+            <div className="al-form-grid">
+              {done ? (<>
+                <div className="al-field al-full" style={{textAlign:"center",padding:"12px 0"}}>
+                  <div style={{fontSize:40,marginBottom:8}}>🎉</div>
+                  <div style={{fontSize:15,fontWeight:800,color:"#1b5e20",marginBottom:4}}>
+                    {form.first_name} {form.last_name} is now an official member!
+                  </div>
+                  <div style={{fontSize:12,color:"#888"}}>Share the credentials below with the member.</div>
+                </div>
+                <div className="al-cred-card" style={{gridColumn:"1/-1"}}>
+                  <div className="al-cred-title">🔑 Login Credentials</div>
+                  <div className="al-cred-sub">Give this slip to the member</div>
+                  {[["Member ID",creds.memberId,"id"],["Username",creds.username,"user"],["Password",creds.password,"pass"]].map(([k,v,key]) => (
+                    <div key={k} className="al-cred-row">
+                      <span className="al-cred-label">{k}</span>
+                      <div className="al-cred-val-wrap">
+                        <span className="al-cred-val">{v}</span>
+                        <button className="al-copy-btn" onClick={() => copyText(v,key)}>
+                          {copied===key ? "✓ Copied" : "Copy"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="al-cred-notice" style={{gridColumn:"1/-1"}}>
+                  💡 The member can change their username and password anytime in <strong>My Profile → Account Settings</strong> after logging in.
+                </div>
+              </>) : (
+                <div className="al-field al-full" style={{textAlign:"center",padding:"24px 0",color:"#888"}}>
+                  Complete Personal Info and Classification first, then submit to generate credentials.
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
 
         <div className="al-modal-footer">
-          <button className="al-btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="al-btn-save" onClick={handleSubmit}>Register Member</button>
+          {!done ? (<>
+            {tab !== "personal" && (
+              <button className="al-btn-cancel" onClick={() => {
+                const keys = TABS.map(t => t.key);
+                setTab(keys[keys.indexOf(tab) - 1]);
+              }}>← Previous</button>
+            )}
+            {tab === "personal" && <button className="al-btn-cancel" onClick={onClose}>Cancel</button>}
+            {tab !== "classification" ? (
+              <button className="al-btn-save" onClick={() => {
+                const keys = TABS.map(t => t.key);
+                setTab(keys[keys.indexOf(tab) + 1]);
+              }}>Next →</button>
+            ) : (
+              <button className="al-btn-save" onClick={handleSubmit} disabled={loading}>
+                {loading ? "Registering..." : "✓ Register Member"}
+              </button>
+            )}
+          </>) : (
+            <button className="al-btn-save" onClick={onClose}>Done</button>
+          )}
         </div>
       </div>
     </div>

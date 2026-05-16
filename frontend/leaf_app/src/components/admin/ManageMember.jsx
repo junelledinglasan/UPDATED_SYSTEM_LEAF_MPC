@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getMembersAPI, getMemberStatsAPI, getMemberAPI, updateMemberAPI, deleteMemberAPI, getApplicationsAPI, updateApplicationStatusAPI, convertToMemberAPI } from "../../api/members";
+import { getMembersAPI, getMemberStatsAPI, getMemberAPI, updateMemberAPI, deleteMemberAPI, getApplicationsAPI, updateApplicationStatusAPI, convertToMemberAPI, registerMemberAPI } from "../../api/members";
 import { Users, Clock, Eye, Pencil, Trash2, Search } from "lucide-react";
 import "./ManageMember.css";
 
@@ -15,47 +15,62 @@ function ViewEditModal({ member, onClose, onSave }) {
   const [showPw,  setShowPw]  = useState(false);
 
   const [form, setForm] = useState({
-    firstname:     member.firstname     || "",
-    lastname:      member.lastname      || "",
-    middlename:    member.middlename    || "",
-    status:        member.status        || "Active",
-    birthdate:     member.birthdate     || "",
-    gender:        member.gender        || "Male",
-    civil_status:  member.civil_status  || "Single",
-    contact:       member.contact       || "",
-    email:         member.email         || "",
-    address:       member.address       || "",
-    occupation:    member.occupation    || "",
-    share_capital: member.share_capital || 0,
-    valid_id:      member.valid_id      || "",
-    beneficiary:   member.beneficiary   || "",
-    relationship:  member.relationship  || "",
-    plain_password:"",
+    first_name:             member.first_name     || "",
+    last_name:              member.last_name      || "",
+    middle_name:            member.middle_name    || "",
+    status:                 member.status         || "Active",
+    birth_date:             "",
+    civil_status:           "",
+    educational_attainment: "",
+    contact:                member.contact        || "",
+    email:                  member.email          || "",
+    address:                "",
+    occupation:             "",
+    income:                 "",
+    birth_certificate:      false,
+    marriage_certificate:   false,
+    classification:         member.classification || "",
+    share_capital:          member.share_capital  || 0,
+    plain_password:         "",
+    // Sub-profile fields
+    school_name:   "", year_level:  "", allowance:      "",
+    pension_income:"", job_type:    "", monthly_income: "",
   });
 
-  // Fetch full member detail on open
   useEffect(() => {
     const load = async () => {
       try {
         const data = await getMemberAPI(member.id);
         setDetail(data);
+        const pm = data.pre_member_info || {};
+        const sp = data.student_profile  || {};
+        const sr = data.senior_profile   || {};
+        const jp = data.job_profile      || {};
         setForm({
-          firstname:     data.firstname     || "",
-          lastname:      data.lastname      || "",
-          middlename:    data.middlename    || "",
-          status:        data.status        || "Active",
-          birthdate:     data.birthdate     || "",
-          gender:        data.gender        || "Male",
-          civil_status:  data.civil_status  || "Single",
-          contact:       data.contact       || "",
-          email:         data.email         || "",
-          address:       data.address       || "",
-          occupation:    data.occupation    || "",
-          share_capital: data.share_capital || 0,
-          valid_id:      data.valid_id      || "",
-          beneficiary:   data.beneficiary   || "",
-          relationship:  data.relationship  || "",
-          plain_password: data.plain_password || "",
+          first_name:             data.first_name || pm.first_name || "",
+          last_name:              data.last_name  || pm.last_name  || "",
+          middle_name:            pm.middle_name            || "",
+          status:                 data.status               || "Active",
+          birth_date:             pm.birth_date             || "",
+          civil_status:           pm.civil_status           || "Single",
+          educational_attainment: pm.educational_attainment || "",
+          contact:                data.contact              || "",
+          email:                  data.email                || "",
+          address:                pm.address                || "",
+          occupation:             pm.occupation             || "",
+          income:                 pm.income                 || "",
+          birth_certificate:      pm.birth_certificate      || false,
+          marriage_certificate:   pm.marriage_certificate   || false,
+          classification:         pm.classification         || data.classification || "",
+          share_capital:          data.share_capital        || 0,
+          plain_password:         data.plain_password       || "",
+          // Sub-profile
+          school_name:    sp.school_name    || "",
+          year_level:     sp.year_level     || "",
+          allowance:      sp.allowance      || "",
+          pension_income: sr.pension_income || "",
+          job_type:       jp.job_type       || "",
+          monthly_income: jp.monthly_income || "",
         });
       } catch(e) {
         console.error("Failed to load member details:", e);
@@ -114,18 +129,16 @@ function ViewEditModal({ member, onClose, onSave }) {
             </div>
           ) : (
             <>
-              {/* Header strip */}
               <div className="mm-view-header">
-                <div className="mm-view-avatar">{(form.firstname||"M")[0].toUpperCase()}</div>
+                <div className="mm-view-avatar">{(form.first_name||"M")[0].toUpperCase()}</div>
                 <div className="mm-view-info">
-                  <div className="mm-view-name">{form.firstname} {form.lastname}</div>
+                  <div className="mm-view-name">{form.first_name} {form.last_name}</div>
                   <div className="mm-view-id">{memberId}</div>
                   <div className="mm-view-username">@{username}</div>
                 </div>
                 <span className={`status-badge status-${(form.status||"").toLowerCase()}`}>{form.status}</span>
               </div>
 
-              {/* Share Capital */}
               <div className="mm-view-capital">
                 <div className="mm-vc-row">
                   <span className="mm-vc-label">Share Capital</span>
@@ -140,15 +153,13 @@ function ViewEditModal({ member, onClose, onSave }) {
                 </div>
               </div>
 
-              {/* Personal Information */}
               <div className="mm-view-section-title">Personal Information</div>
               <div className="modal-grid">
-                <Field label="First Name"   name="firstname" />
-                <Field label="Last Name"    name="lastname" />
-                <Field label="Middle Name"  name="middlename" />
+                <Field label="First Name"   name="first_name" />
+                <Field label="Last Name"    name="last_name" />
+                <Field label="Middle Name"  name="middle_name" />
                 <Field label="Status"       name="status"       options={["Active","Inactive","Suspended"]} />
-                <Field label="Birthdate"    name="birthdate"    type="date" />
-                <Field label="Gender"       name="gender"       options={["Male","Female","Other"]} />
+                <Field label="Birthdate"    name="birth_date"   type="date" />
                 <Field label="Civil Status" name="civil_status" options={["Single","Married","Widowed","Separated"]} />
                 <Field label="Contact No."  name="contact"      type="tel" />
                 <Field label="Email"        name="email"        type="email" />
@@ -156,66 +167,92 @@ function ViewEditModal({ member, onClose, onSave }) {
                 <Field label="Address"      name="address"      full />
               </div>
 
-              {/* Valid ID & Beneficiary */}
-              <div className="mm-view-section-title">Valid ID & Beneficiary</div>
+              <div className="mm-view-section-title">Classification & Profile</div>
               <div className="modal-grid">
-                <Field label="Valid ID Type" name="valid_id"     options={["UMID","Philippine Passport","Driver's License","SSS ID","PhilHealth ID","Voter's ID","PRC ID","Postal ID"]} />
-                <Field label="Beneficiary"   name="beneficiary" />
-                <Field label="Relationship"  name="relationship" options={["Spouse","Parent","Child","Sibling","Other"]} />
+                <Field label="Classification" name="classification" options={["Student","Senior","Employed"]} />
+                <Field label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} />
+                <Field label="Monthly Income (₱)" name="income" type="number" />
+                <div className="modal-field">
+                  <div className="modal-field-label">Birth Certificate</div>
+                  {mode==="view" ? (
+                    <div className="modal-field-value">{form.birth_certificate ? " Submitted" : " Not submitted"}</div>
+                  ) : (
+                    <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
+                      <input type="checkbox" name="birth_certificate" checked={!!form.birth_certificate}
+                        onChange={e => setForm(p=>({...p,birth_certificate:e.target.checked}))}/> Yes
+                    </label>
+                  )}
+                </div>
+                <div className="modal-field">
+                  <div className="modal-field-label">Marriage Certificate</div>
+                  {mode==="view" ? (
+                    <div className="modal-field-value">{form.marriage_certificate ? " Submitted" : " Not submitted"}</div>
+                  ) : (
+                    <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
+                      <input type="checkbox" name="marriage_certificate" checked={!!form.marriage_certificate}
+                        onChange={e => setForm(p=>({...p,marriage_certificate:e.target.checked}))}/> Yes
+                    </label>
+                  )}
+                </div>
               </div>
 
-              {/* Account Section */}
+              {/* Student sub-profile */}
+              {form.classification === "Student" && (
+                <div className="modal-grid">
+                  <Field label="School Name"         name="school_name" full />
+                  <Field label="Year Level"          name="year_level" options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]} />
+                  <Field label="Monthly Allowance (₱)" name="allowance" type="number" />
+                </div>
+              )}
+              {/* Senior sub-profile */}
+              {form.classification === "Senior" && (
+                <div className="modal-grid">
+                  <Field label="Monthly Pension Income (₱)" name="pension_income" type="number" />
+                </div>
+              )}
+              {/* Employed sub-profile */}
+              {form.classification === "Employed" && (
+                <div className="modal-grid">
+                  <Field label="Employment Type"    name="job_type" options={["Employed","Self-Employed","Business","Freelance","Other"]} />
+                  <Field label="Monthly Income (₱)" name="monthly_income" type="number" />
+                </div>
+              )}
+
               <div className="mm-view-section-title">Account</div>
               <div className="modal-grid">
-
-                {/* Member ID */}
                 <div className="modal-field full">
                   <div className="modal-field-label">Member ID</div>
                   <input className="modal-input disabled" value={memberId} disabled />
                 </div>
-
-                {/* Username */}
                 <div className="modal-field full">
                   <div className="modal-field-label">Username</div>
                   <div className="modal-field-value mono">{username}</div>
                 </div>
 
-                {/* Password — view mode: show/hide */}
                 {mode==="view" && (
                   <div className="modal-field full">
                     <div className="modal-field-label">Password</div>
                     <div className="mm-pass-view-wrap">
                       <span className="modal-field-value mono">
-                        {showPw
-                          ? (form.plain_password || "No password saved")
-                          : "••••••••"
-                        }
+                        {showPw ? (form.plain_password || "No password saved") : "••••••••"}
                       </span>
-                      <button
-                        type="button"
-                        className="mm-reveal-btn"
-                        onClick={() => setShowPw(p => !p)}
-                      >
+                      <button type="button" className="mm-reveal-btn" onClick={() => setShowPw(p => !p)}>
                         {showPw ? "Hide" : "Show"}
                       </button>
                     </div>
                     {!form.plain_password && (
                       <div style={{fontSize:11,color:"#f57c00",marginTop:4}}>
                         ⚠ No saved password — member registered before this feature was added.
-                        Use Edit to set a new password.
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Password — edit mode: change password */}
                 {mode==="edit" && (
                   <div className="modal-field full">
                     <div className="modal-field-label">
                       New Password
-                      <span style={{fontSize:11,color:"#aaa",fontWeight:400,marginLeft:6}}>
-                        (leave blank to keep current)
-                      </span>
+                      <span style={{fontSize:11,color:"#aaa",fontWeight:400,marginLeft:6}}>(leave blank to keep current)</span>
                     </div>
                     <div className="mm-pass-wrap">
                       <input
@@ -226,21 +263,13 @@ function ViewEditModal({ member, onClose, onSave }) {
                         onChange={handle}
                         placeholder="Enter new password (min. 6 chars)"
                       />
-                      <button
-                        type="button"
-                        className="mm-eye-btn"
-                        onClick={() => setShowPw(p => !p)}
-                      >
+                      <button type="button" className="mm-eye-btn" onClick={() => setShowPw(p => !p)}>
                         {showPw ? "🙈" : "👁"}
                       </button>
-                    </div>
-                    <div style={{fontSize:11,color:"#aaa",marginTop:4}}>
-                      💡 Changing the password will update the member's login credentials.
                     </div>
                   </div>
                 )}
 
-                {/* Date Registered */}
                 <div className="modal-field full">
                   <div className="modal-field-label">Date Registered</div>
                   <div className="modal-field-value">
@@ -296,7 +325,7 @@ function DeleteModal({ member, onClose, onConfirm }) {
         <div className="modal-body">
           <div className="delete-warning-icon">⚠️</div>
           <p className="delete-confirm-text">
-            Are you sure you want to delete <strong>{member.firstname} {member.lastname}</strong>?
+            Are you sure you want to delete <strong>{member.fullname}</strong>?
           </p>
           <p className="delete-sub-text">Member ID: <span className="mono">{member.member_id}</span></p>
           <p className="delete-sub-text" style={{color:"#e53935",marginTop:4}}>
@@ -326,11 +355,11 @@ function PendingModal({ app, onClose, onConvert }) {
         </div>
         <div className="modal-body">
           <div className="mm-view-header">
-            <div className="mm-view-avatar">{(app.firstname||"A")[0]}</div>
+            <div className="mm-view-avatar">{(app.first_name||"A")[0]}</div>
             <div className="mm-view-info">
-              <div className="mm-view-name">{app.firstname} {app.lastname}</div>
+              <div className="mm-view-name">{app.first_name} {app.last_name}</div>
               <div className="mm-view-id">{app.app_id}</div>
-              <div className="mm-view-username">Submitted {(app.submitted_at||"").slice(0,10)}</div>
+              <div className="mm-view-username">Submitted {(app.created_at||"").slice(0,10)}</div>
             </div>
             <span className="mm-pending-badge">⏳ Pending</span>
           </div>
@@ -340,12 +369,12 @@ function PendingModal({ app, onClose, onConvert }) {
           <div className="mm-view-section-title">Personal Information</div>
           <div className="modal-grid">
             {[
-              ["Birthdate",    app.birthdate],
-              ["Gender",       app.gender],
+              ["Birthdate",    app.birth_date],
               ["Civil Status", app.civil_status],
-              ["Contact",      app.contact],
+              ["Contact",      app.contact_number],
               ["Email",        app.email],
               ["Occupation",   app.occupation],
+              ["Classification", app.classification],
             ].map(([k,v]) => (
               <div key={k} className="modal-field">
                 <div className="modal-field-label">{k}</div>
@@ -367,6 +396,248 @@ function PendingModal({ app, onClose, onConvert }) {
   );
 }
 
+// ─── Register Member Modal (F2F) ──────────────────────────────────────────────
+function RegisterMemberModal({ onClose, onSuccess }) {
+  const [tab,     setTab]    = useState("personal");
+  const [loading, setLoading]= useState(false);
+  const [errors,  setErrors] = useState({});
+  const [result,  setResult] = useState(null);
+
+  const TABS = [
+    { key: "personal",       label: "👤 Personal Info" },
+    { key: "classification", label: "📋 Classification" },
+    { key: "account",        label: "🔐 Account Info"  },
+  ];
+
+  const [form, setForm] = useState({
+    first_name:"", last_name:"", middle_name:"", birth_date:"", civil_status:"Single",
+    educational_attainment:"", occupation:"", income:"", contact_number:"", address:"",
+    birth_certificate:false, marriage_certificate:false,
+    classification:"Employed", school_name:"", year_level:"", allowance:"",
+    pension_income:"", job_type:"Employed", monthly_income:"",
+  });
+
+  const handle = e => {
+    const val = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setForm(p => ({ ...p, [e.target.name]: val }));
+    setErrors(p => ({ ...p, [e.target.name]: "" }));
+  };
+
+  const validate = () => {
+    const e = {};
+    if (!form.first_name.trim())     e.first_name     = "Required";
+    if (!form.last_name.trim())      e.last_name      = "Required";
+    if (!form.birth_date)            e.birth_date     = "Required";
+    if (!form.contact_number.trim()) e.contact_number = "Required";
+    if (!form.address.trim())        e.address        = "Required";
+    if (form.classification === "Student" && !form.school_name.trim()) e.school_name = "Required";
+    if (form.classification === "Student" && !form.year_level.trim())  e.year_level  = "Required";
+    return e;
+  };
+
+  const handleSubmit = async () => {
+    const e = validate();
+    if (Object.keys(e).length) {
+      setErrors(e);
+      const personalFields = ["first_name","last_name","birth_date","contact_number","address"];
+      const classFields    = ["school_name","year_level"];
+      if (personalFields.some(f => e[f])) { setTab("personal");        return; }
+      if (classFields.some(f => e[f]))    { setTab("classification");   return; }
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await registerMemberAPI({
+        first_name: form.first_name, last_name: form.last_name, middle_name: form.middle_name,
+        birth_date: form.birth_date, civil_status: form.civil_status,
+        educational_attainment: form.educational_attainment, occupation: form.occupation,
+        income: form.income || 0, contact_number: form.contact_number, address: form.address,
+        birth_certificate: form.birth_certificate, marriage_certificate: form.marriage_certificate,
+        classification: form.classification, school_name: form.school_name,
+        year_level: form.year_level, allowance: form.allowance || 0,
+        pension_income: form.pension_income || 0, job_type: form.job_type,
+        monthly_income: form.monthly_income || 0,
+      });
+      setResult(res);
+      setTab("account");
+      onSuccess();
+    } catch(err) {
+      const msg = err.response?.data?.error || "Failed to register member.";
+      setErrors({ first_name: msg });
+      setTab("personal");
+    } finally { setLoading(false); }
+  };
+
+  const RField = ({ label, name, type="text", options=null, full=false }) => (
+    <div className={`modal-field${full?" full":""}`}>
+      <div className="modal-field-label">
+        {label}
+        {["first_name","last_name","birth_date","contact_number","address"].includes(name) && <span style={{color:"#e53935"}}> *</span>}
+      </div>
+      {options ? (
+        <select className="modal-input" name={name} value={form[name]} onChange={handle}>
+          {options.map(o => <option key={o}>{o}</option>)}
+        </select>
+      ) : type === "checkbox" ? (
+        <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13}}>
+          <input type="checkbox" name={name} checked={!!form[name]} onChange={handle}/>
+          <span>Yes</span>
+        </label>
+      ) : (
+        <input className={`modal-input${errors[name]?" err":""}`} type={type} name={name} value={form[name]} onChange={handle}/>
+      )}
+      {errors[name] && <div style={{fontSize:11,color:"#e53935",marginTop:2}}>{errors[name]}</div>}
+    </div>
+  );
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box mm-view-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">Register New Member</div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div style={{fontSize:12,color:"#888",padding:"6px 20px",background:"#f9fbe7",borderBottom:"1px solid #eee"}}>
+          Walk-in / F2F member registration at the office
+        </div>
+
+        <div style={{display:"flex",borderBottom:"2px solid #e8f5e9"}}>
+          {TABS.map((t,i) => (
+            <button key={t.key} onClick={() => !result && setTab(t.key)} style={{
+              flex:1, padding:"10px 8px", fontSize:12, fontWeight:600,
+              color: tab===t.key ? "#2e7d32" : "#888",
+              background: tab===t.key ? "#f9fef9" : "none",
+              border:"none", borderBottom: tab===t.key ? "2px solid #2e7d32" : "none",
+              marginBottom: tab===t.key ? -2 : 0, cursor: result ? "default" : "pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+            }}>
+              <span style={{
+                width:20, height:20, borderRadius:"50%", fontSize:11,
+                background: tab===t.key ? "#2e7d32" : "#e0e0e0",
+                color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+              }}>{i+1}</span>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="modal-body">
+          {tab === "personal" && (
+            <div className="modal-grid">
+              <RField label="Last Name"              name="last_name"/>
+              <RField label="First Name"             name="first_name"/>
+              <RField label="Middle Name"            name="middle_name"/>
+              <RField label="Birthdate"              name="birth_date" type="date"/>
+              <RField label="Civil Status"           name="civil_status" options={["Single","Married","Widowed","Separated"]}/>
+              <RField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]}/>
+              <RField label="Contact No."            name="contact_number"/>
+              <RField label="Occupation"             name="occupation"/>
+              <RField label="Monthly Income (₱)"    name="income" type="number"/>
+              <RField label="Complete Address"       name="address" full/>
+              <RField label="Birth Certificate Submitted"    name="birth_certificate"    type="checkbox"/>
+              <RField label="Marriage Certificate Submitted" name="marriage_certificate" type="checkbox"/>
+            </div>
+          )}
+
+          {tab === "classification" && (
+            <div className="modal-grid">
+              <div className="modal-field full">
+                <div className="modal-field-label">Member Classification <span style={{color:"#e53935"}}>*</span></div>
+                <div style={{display:"flex",gap:12,marginTop:8}}>
+                  {["Student","Senior","Employed"].map(c => (
+                    <div key={c} onClick={() => setForm(p => ({...p, classification:c}))} style={{
+                      flex:1, border:`2px solid ${form.classification===c?"#2e7d32":"#e0e0e0"}`,
+                      borderRadius:10, padding:"16px 10px", textAlign:"center", cursor:"pointer",
+                      background: form.classification===c ? "#e8f5e9" : "#fafafa", transition:"all 0.2s",
+                    }}>
+                      <div style={{fontSize:26,marginBottom:6}}>{c==="Student"?"🎓":c==="Senior"?"👴":"💼"}</div>
+                      <div style={{fontSize:12,fontWeight:700,color:"#2e7d32"}}>{c}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {form.classification === "Student" && (<>
+                <RField label="School Name" name="school_name"/>
+                <RField label="Year Level"  name="year_level" options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]}/>
+                <RField label="Monthly Allowance (₱)" name="allowance" type="number"/>
+              </>)}
+              {form.classification === "Senior" && (<>
+                <RField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]}/>
+                <RField label="Monthly Pension Income (₱)" name="pension_income" type="number"/>
+              </>)}
+              {form.classification === "Employed" && (<>
+                <RField label="Occupation/Job Title" name="occupation"/>
+                <RField label="Employment Type" name="job_type" options={["Employed","Self-Employed","Business","Freelance","Other"]}/>
+                <RField label="Monthly Income (₱)" name="monthly_income" type="number"/>
+              </>)}
+            </div>
+          )}
+
+          {tab === "account" && (
+            <div className="modal-grid">
+              {result ? (<>
+                <div className="modal-field full" style={{textAlign:"center",padding:"12px 0"}}>
+                  <div style={{fontSize:36,marginBottom:8}}>🎉</div>
+                  <div style={{fontSize:15,fontWeight:800,color:"#1b5e20",marginBottom:4}}>
+                    {result.member?.fullname || `${form.first_name} ${form.last_name}`} is now an official member!
+                  </div>
+                  <div style={{fontSize:12,color:"#888"}}>Share the credentials below with the member.</div>
+                </div>
+                <div className="modal-field full" style={{background:"#f1f8e9",borderRadius:10,padding:16}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                    {[
+                      ["Member ID", result.member_id],
+                      ["Username",  result.username],
+                      ["Password",  result.plain_password],
+                      ["Status",    "Active"],
+                    ].map(([k,v]) => (
+                      <div key={k}>
+                        <div style={{fontSize:11,color:"#888",fontWeight:600}}>{k}</div>
+                        <div style={{fontSize:13,fontWeight:700,color:"#1b5e20",fontFamily:"monospace"}}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="modal-field full" style={{fontSize:11,color:"#f57c00",background:"#fff8e1",padding:"10px 14px",borderRadius:8,borderLeft:"3px solid #ff9800"}}>
+                  ⚠ Please save or print these credentials. The password won't be shown again.
+                </div>
+              </>) : (
+                <div className="modal-field full" style={{textAlign:"center",padding:"24px 0",color:"#888"}}>
+                  Complete Personal Info and Classification tabs first, then submit.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          {!result ? (<>
+            {tab !== "personal" && (
+              <button className="btn-modal-close" onClick={() => {
+                const keys = TABS.map(t=>t.key);
+                setTab(keys[keys.indexOf(tab)-1]);
+              }}>← Previous</button>
+            )}
+            {tab === "personal" && <button className="btn-modal-close" onClick={onClose}>Cancel</button>}
+            {tab !== "classification" ? (
+              <button className="btn-modal-save" onClick={() => {
+                const keys = TABS.map(t=>t.key);
+                setTab(keys[keys.indexOf(tab)+1]);
+              }}>Next →</button>
+            ) : (
+              <button className="btn-modal-save" onClick={handleSubmit} disabled={loading}>
+                {loading ? "Registering..." : "✓ Register Member"}
+              </button>
+            )}
+          </>) : (
+            <button className="btn-modal-save" onClick={onClose}>Done</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ManageMember() {
   const [members,      setMembers]      = useState([]);
@@ -380,6 +651,7 @@ export default function ManageMember() {
   const [viewMember,   setViewMember]   = useState(null);
   const [deleteMember, setDeleteMember] = useState(null);
   const [viewPending,  setViewPending]  = useState(null);
+  const [showRegister, setShowRegister] = useState(false);
   const [toast,        setToast]        = useState(null);
 
   const showToast = (msg, type="success") => {
@@ -398,11 +670,9 @@ export default function ManageMember() {
       if (mem.status==="fulfilled") setMembers(mem.value);
       if (st.status==="fulfilled")  setStats(st.value);
       if (apps.status==="fulfilled") {
-        // Kunin ang lahat ng application_id ng mga official members
         const convertedIds = mem.status==="fulfilled"
           ? mem.value.map(m => m.application_id).filter(Boolean)
           : [];
-        // Ipakita lang ang hindi pa na-convert sa official member
         setPending(apps.value.filter(a => !convertedIds.includes(a.id)));
       }
     } catch(e) { console.error(e); }
@@ -415,7 +685,8 @@ export default function ManageMember() {
     const matchStatus = filterStatus==="All" || m.status===filterStatus;
     const q = search.toLowerCase();
     return matchStatus && (
-      (m.firstname+" "+m.lastname).toLowerCase().includes(q) ||
+      (m.first_name+" "+m.last_name).toLowerCase().includes(q) ||
+      (m.fullname||"").toLowerCase().includes(q) ||
       (m.member_id||"").toLowerCase().includes(q)
     );
   });
@@ -444,11 +715,9 @@ export default function ManageMember() {
   const handleConvert = async (app) => {
     try {
       const result = await convertToMemberAPI(app.id);
-      // Agad alisin sa pending list para hindi na lumabas
       setPending(prev => prev.filter(p => p.id !== app.id));
       setViewPending(null);
-      showToast(`✓ ${app.firstname} ${app.lastname} is now an official member! ID: ${result.member_id}`, "success");
-      // I-refresh ang members list para lumabas sa Official Members tab
+      showToast(`✓ ${app.first_name} ${app.last_name} is now an official member! ID: ${result.member_id}`, "success");
       fetchData();
     } catch(err) {
       const msg = err.response?.data?.error || "Failed to convert member.";
@@ -460,6 +729,13 @@ export default function ManageMember() {
     <div className="mm-wrapper">
       {toast && <div className={`mm-toast mm-toast-${toast.type}`}>{toast.msg}</div>}
 
+      {showRegister && (
+        <RegisterMemberModal
+          onClose={() => setShowRegister(false)}
+          onSuccess={() => { fetchData(); showToast("Member registered successfully!", "success"); }}
+        />
+      )}
+
       {viewMember && (
         <ViewEditModal
           member={viewMember}
@@ -467,6 +743,7 @@ export default function ManageMember() {
           onSave={handleSaveEdit}
         />
       )}
+
       {viewPending && (
         <PendingModal
           app={viewPending}
@@ -474,6 +751,7 @@ export default function ManageMember() {
           onConvert={handleConvert}
         />
       )}
+
       <DeleteModal
         member={deleteMember}
         onClose={() => setDeleteMember(null)}
@@ -554,7 +832,7 @@ export default function ManageMember() {
                     style={{cursor:"pointer"}}
                   >
                     <td className="mono cell-id">{m.member_id}</td>
-                    <td className="cell-name">{m.firstname} {m.lastname}</td>
+                    <td className="cell-name">{m.fullname}</td>
                     <td>{m.contact}</td>
                     <td><span className={`status-badge status-${(m.status||"").toLowerCase()}`}>{m.status}</span></td>
                     <td>
@@ -594,7 +872,7 @@ export default function ManageMember() {
         <div className="mm-card">
           {pending.length===0 ? (
             <div className="mm-empty-pending">
-              <div style={{fontSize:36}}>✅</div>
+              <div style={{fontSize:36}}></div>
               <div style={{fontSize:14,fontWeight:700,color:"#1b5e20",marginTop:8}}>No pending applications</div>
               <div style={{fontSize:12,color:"#aaa",marginTop:4}}>All approved applicants have been processed.</div>
             </div>
@@ -620,10 +898,10 @@ export default function ManageMember() {
                       style={{cursor:"pointer"}}
                     >
                       <td className="mono cell-id">{p.app_id}</td>
-                      <td className="cell-name">{p.firstname} {p.lastname}</td>
-                      <td>{p.contact}</td>
+                      <td className="cell-name">{p.fullname || `${p.first_name} ${p.last_name}`}</td>
+                      <td>{p.contact_number}</td>
                       <td>{p.occupation}</td>
-                      <td style={{fontSize:11,color:"#888"}}>{(p.submitted_at||"").slice(0,10)}</td>
+                      <td style={{fontSize:11,color:"#888"}}>{(p.created_at||"").slice(0,10)}</td>
                       <td>
                         <div className="action-btns" onClick={e => e.stopPropagation()}>
                           <button className="action-btn view-btn" onClick={() => setViewPending(p)}><Eye size={13}/></button>

@@ -343,9 +343,11 @@
 .al-prev-divider { height:1px; background:#e4f0e5; margin:2px 0; }
 .paid-green { color:#2e7d32; }
 .al-reg-tabs { display:flex; border-bottom:1px solid #f0f0f0; flex-shrink:0; }
-.al-reg-tab { flex:1; padding:10px; font-size:11px; font-weight:600; cursor:pointer; background:transparent; color:#888; border:none; font-family:inherit; transition:all 0.15s; border-bottom:2px solid transparent; }
+.al-reg-tab { flex:1; padding:10px; font-size:11px; font-weight:600; cursor:pointer; background:transparent; color:#888; border:none; font-family:inherit; transition:all 0.15s; border-bottom:2px solid transparent; display:flex; align-items:center; justify-content:center; gap:6px; }
 .al-reg-tab:hover { color:#2e7d32; background:#fafcfa; }
 .al-reg-tab.active { color:#1b5e20; border-bottom-color:#2e7d32; background:#fafcfa; }
+.al-reg-tab-num { width:18px; height:18px; border-radius:50%; background:#e0e0e0; color:#fff; font-size:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background 0.15s; }
+.al-reg-tab.active .al-reg-tab-num { background:#2e7d32; }
 .al-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .al-member-id-display { background:#e8f5e9; color:#1b5e20; border:1.5px solid #c8e6c9; border-radius:8px; padding:8px 16px; font-family:'Courier New',monospace; font-size:14px; font-weight:700; letter-spacing:1px; }
 @media (max-width:640px) { .al-form-grid { grid-template-columns:1fr; } }
@@ -380,7 +382,7 @@
   .al-modal, .al-modal-lg { max-width:100%; border-radius:16px 16px 0 0; max-height:95vh; }
   .al-modal-sm { max-width:100%; border-radius:16px 16px 0 0; }
   .al-form-grid { grid-template-columns:1fr; }
-  .al-reg-tab { font-size:10px; padding:8px 6px; }
+  .al-reg-tab { font-size:10px; padding:8px 6px; gap:4px; }
   .al-balance-row { grid-template-columns:1fr 1fr; }
 }
 

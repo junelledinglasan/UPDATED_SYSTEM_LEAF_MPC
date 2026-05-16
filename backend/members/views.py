@@ -1,193 +1,65 @@
-import json
-import os
+import random, string
 from django.utils import timezone
-from django.http import HttpResponse, FileResponse
-from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from auth_app.models import User
 from activity_log.utils import log_activity
-from .models import Member, MembershipApplication
+from .models import LeafMemberInfo, Member, StudentProfile, SeniorProfile, JobProfile
 from .serializers import (
+    LeafMemberInfoSerializer, LeafMemberInfoListSerializer,
     MemberSerializer, MemberListSerializer,
-    MembershipApplicationSerializer, MembershipApplicationListSerializer,
 )
 
 
-# ══════════════════════════════════════════════════════════════════
-# HELPER — Auto-generate JSON + Excel after any member change
-# ══════════════════════════════════════════════════════════════════
+# ── Helpers ────────────────────────────────────────────────────────────────────
+def gen_password():
+    return 'leaf' + ''.join(random.choices(string.digits, k=4))
 
-def sync_member_exports():
-    """
-    Called after every member add/edit/delete.
-    Generates:
-      - media/exports/members.json
-      - media/exports/members.xlsx
-    """
-    try:
-        import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
 
-        # Get all members
-        members = Member.objects.all().order_by('member_id')
+def gen_username(first_name, last_name):
+    base  = f'{first_name.lower().strip()}.{last_name.lower().strip()}'
+    uname = base
+    i = 1
+    while User.objects.filter(username=uname).exists():
+        uname = f'{base}{i}'
+        i    += 1
+    return uname
 
-        # Build data list
-        data = []
-        for m in members:
-            data.append({
-                'member_id':       m.member_id,
-                'firstname':       m.firstname,
-                'lastname':        m.lastname,
-                'middlename':      m.middlename,
-                'birthdate':       str(m.birthdate) if m.birthdate else '',
-                'gender':          m.gender,
-                'civil_status':    m.civil_status,
-                'contact':         m.contact,
-                'email':           m.email,
-                'address':         m.address,
-                'occupation':      m.occupation,
-                'valid_id':        m.valid_id,
-                'id_number':       m.id_number,
-                'beneficiary':     m.beneficiary,
-                'relationship':    m.relationship,
-                'share_capital':   float(m.share_capital),
-                'status':          m.status,
-                'username':        m.user.username if m.user else '',
-                'date_registered': m.date_registered.strftime('%Y-%m-%d %H:%M') if m.date_registered else '',
-            })
 
-        # Ensure exports directory exists
-        export_dir = os.path.join(settings.MEDIA_ROOT, 'exports')
-        os.makedirs(export_dir, exist_ok=True)
-
-        # ── Save JSON ─────────────────────────────────────────────────────────
-        json_path = os.path.join(export_dir, 'members.json')
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump({
-                'generated_at': timezone.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'total':        len(data),
-                'members':      data,
-            }, f, indent=2, ensure_ascii=False)
-
-        # ── Save Excel ────────────────────────────────────────────────────────
-        xlsx_path = os.path.join(export_dir, 'members.xlsx')
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = 'Members'
-
-        # Header styling
-        header_fill   = PatternFill(start_color='1B5E20', end_color='1B5E20', fill_type='solid')
-        header_font   = Font(bold=True, color='FFFFFF', size=11)
-        header_align  = Alignment(horizontal='center', vertical='center')
-        thin_border   = Border(
-            left=Side(style='thin'), right=Side(style='thin'),
-            top=Side(style='thin'), bottom=Side(style='thin')
+def save_sub_profile(member, classification, data):
+    """Create or update the sub-profile based on classification."""
+    if classification == 'Student':
+        StudentProfile.objects.update_or_create(
+            member=member,
+            defaults={
+                'school_name': data.get('school_name', ''),
+                'year_level':  data.get('year_level', ''),
+                'allowance':   data.get('allowance', 0) or 0,
+            }
         )
-        even_fill = PatternFill(start_color='F1F8E9', end_color='F1F8E9', fill_type='solid')
-
-        # Title row
-        ws.merge_cells('A1:S1')
-        title_cell = ws['A1']
-        title_cell.value       = f'LEAF MPC — Member List (Generated: {timezone.now().strftime("%B %d, %Y")})'
-        title_cell.font        = Font(bold=True, size=13, color='1B5E20')
-        title_cell.alignment   = Alignment(horizontal='center', vertical='center')
-        ws.row_dimensions[1].height = 28
-
-        # Column headers
-        headers = [
-            'Member ID','First Name','Last Name','Middle Name',
-            'Birthdate','Gender','Civil Status','Contact','Email',
-            'Address','Occupation','Valid ID','ID Number',
-            'Beneficiary','Relationship','Share Capital',
-            'Status','Username','Date Registered'
-        ]
-
-        for col_num, header in enumerate(headers, 1):
-            cell = ws.cell(row=2, column=col_num, value=header)
-            cell.font      = header_font
-            cell.fill      = header_fill
-            cell.alignment = header_align
-            cell.border    = thin_border
-        ws.row_dimensions[2].height = 20
-
-        # Data rows
-        for row_num, m in enumerate(data, 3):
-            row_data = [
-                m['member_id'], m['firstname'], m['lastname'], m['middlename'],
-                m['birthdate'], m['gender'], m['civil_status'], m['contact'], m['email'],
-                m['address'], m['occupation'], m['valid_id'], m['id_number'],
-                m['beneficiary'], m['relationship'], m['share_capital'],
-                m['status'], m['username'], m['date_registered']
-            ]
-            for col_num, value in enumerate(row_data, 1):
-                cell = ws.cell(row=row_num, column=col_num, value=value)
-                cell.border    = thin_border
-                cell.alignment = Alignment(vertical='center', wrap_text=True)
-                if row_num % 2 == 0:
-                    cell.fill = even_fill
-
-        # Column widths
-        col_widths = [14,14,14,14,12,10,13,14,24,30,18,20,16,18,14,14,10,18,20]
-        for i, width in enumerate(col_widths, 1):
-            ws.column_dimensions[get_column_letter(i)].width = width
-
-        # Freeze header rows
-        ws.freeze_panes = 'A3'
-
-        wb.save(xlsx_path)
-
-    except Exception as e:
-        print(f'Export sync error: {e}')
+    elif classification == 'Senior':
+        SeniorProfile.objects.update_or_create(
+            member=member,
+            defaults={
+                'educational_attainment': data.get('educational_attainment', ''),
+                'pension_income':         data.get('pension_income', 0) or 0,
+            }
+        )
+    elif classification == 'Employed':
+        JobProfile.objects.update_or_create(
+            member=member,
+            defaults={
+                'occupation':     data.get('occupation', ''),
+                'job_type':       data.get('job_type', 'Employed'),
+                'monthly_income': data.get('monthly_income', 0) or 0,
+            }
+        )
 
 
 # ══════════════════════════════════════════════════════════════════
-# DOWNLOAD ENDPOINTS
-# ══════════════════════════════════════════════════════════════════
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def download_members_json(request):
-    if request.user.role not in ['admin', 'staff']:
-        return Response({'error': 'Unauthorized.'}, status=403)
-
-    json_path = os.path.join(settings.MEDIA_ROOT, 'exports', 'members.json')
-
-    if not os.path.exists(json_path):
-        sync_member_exports()
-
-    with open(json_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    response = HttpResponse(content, content_type='application/json')
-    response['Content-Disposition'] = f'attachment; filename="LEAF_MPC_Members_{timezone.now().strftime("%Y%m%d")}.json"'
-    return response
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def download_members_excel(request):
-    if request.user.role not in ['admin', 'staff']:
-        return Response({'error': 'Unauthorized.'}, status=403)
-
-    xlsx_path = os.path.join(settings.MEDIA_ROOT, 'exports', 'members.xlsx')
-
-    if not os.path.exists(xlsx_path):
-        sync_member_exports()
-
-    response = FileResponse(
-        open(xlsx_path, 'rb'),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    response['Content-Disposition'] = f'attachment; filename="LEAF_MPC_Members_{timezone.now().strftime("%Y%m%d")}.xlsx"'
-    return response
-
-
-# ══════════════════════════════════════════════════════════════════
-# MEMBERSHIP APPLICATIONS
+# APPLICATIONS — leaf_members_info
 # ══════════════════════════════════════════════════════════════════
 
 @api_view(['GET', 'POST'])
@@ -197,21 +69,23 @@ def application_list_view(request):
             return Response({'error': 'Authentication required.'}, status=401)
         if request.user.role not in ['admin', 'staff']:
             return Response({'error': 'Unauthorized.'}, status=403)
-        apps = MembershipApplication.objects.all()
-        if s := request.query_params.get('status'):
-            apps = apps.filter(status=s)
-        if q := request.query_params.get('search', '').strip():
-            apps = apps.filter(lastname__icontains=q) | \
-                   apps.filter(firstname__icontains=q) | \
-                   apps.filter(app_id__icontains=q)
-        return Response(MembershipApplicationListSerializer(apps, many=True).data)
 
+        apps = LeafMemberInfo.objects.all()
+        if s := request.query_params.get('status'):
+            apps = apps.filter(application_status=s)
+        if q := request.query_params.get('search', '').strip():
+            apps = apps.filter(last_name__icontains=q)  | \
+                   apps.filter(first_name__icontains=q)  | \
+                   apps.filter(app_id__icontains=q)
+        return Response(LeafMemberInfoListSerializer(apps, many=True).data)
+
+    # POST — online application
     user = request.user if request.user.is_authenticated else None
-    s = MembershipApplicationSerializer(data=request.data)
+    s    = LeafMemberInfoSerializer(data=request.data)
     if s.is_valid():
-        app = s.save(user=user)
-        log_activity('application', f'New online application received from {app.fullname} ({app.app_id})', user)
-        return Response(MembershipApplicationSerializer(app).data, status=201)
+        info = s.save(user=user)
+        log_activity('application', f'New application from {info.fullname} ({info.app_id})', user)
+        return Response(LeafMemberInfoSerializer(info).data, status=201)
     return Response(s.errors, status=400)
 
 
@@ -219,35 +93,37 @@ def application_list_view(request):
 @permission_classes([IsAuthenticated])
 def application_detail_view(request, pk):
     try:
-        app = MembershipApplication.objects.get(pk=pk)
-    except MembershipApplication.DoesNotExist:
+        app = LeafMemberInfo.objects.get(pk=pk)
+    except LeafMemberInfo.DoesNotExist:
         return Response({'error': 'Not found.'}, status=404)
 
     if request.method == 'GET':
-        return Response(MembershipApplicationSerializer(app).data)
+        return Response(LeafMemberInfoSerializer(app).data)
 
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
-    new_status = request.data.get('status')
+    new_status = request.data.get('status') or request.data.get('application_status')
     if new_status in ['Approved', 'Rejected']:
-        app.status      = new_status
-        app.reviewed_at = timezone.now()
-        app.reviewed_by = request.user.username
+        app.application_status = new_status
+        app.reviewed_at        = timezone.now()
+        app.reviewed_by        = request.user.username
         if new_status == 'Rejected':
             app.reject_reason = request.data.get('reject_reason', '')
         app.save()
-        log_activity('application', f'Application {app.app_id} ({app.fullname}) was {new_status.lower()} by {request.user.name}', request.user)
-    return Response(MembershipApplicationSerializer(app).data)
+        log_activity('application',
+            f'Application {app.app_id} ({app.fullname}) {new_status.lower()} by {request.user.name}',
+            request.user)
+    return Response(LeafMemberInfoSerializer(app).data)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def my_application_view(request):
     try:
-        app = MembershipApplication.objects.get(user=request.user)
-        return Response(MembershipApplicationSerializer(app).data)
-    except MembershipApplication.DoesNotExist:
+        app = LeafMemberInfo.objects.get(user=request.user)
+        return Response(LeafMemberInfoSerializer(app).data)
+    except LeafMemberInfo.DoesNotExist:
         return Response({'error': 'No application found.'}, status=404)
 
 
@@ -262,61 +138,68 @@ def convert_to_member_view(request, pk):
         return Response({'error': 'Unauthorized.'}, status=403)
 
     try:
-        app = MembershipApplication.objects.get(pk=pk)
-    except MembershipApplication.DoesNotExist:
+        info = LeafMemberInfo.objects.get(pk=pk)
+    except LeafMemberInfo.DoesNotExist:
         return Response({'error': 'Application not found.'}, status=404)
 
-    if app.status != 'Approved':
+    if info.application_status != 'Approved':
         return Response({'error': 'Application must be Approved first.'}, status=400)
 
-    already_converted = Member.objects.filter(application=app).exists()
-    if already_converted:
-        existing = Member.objects.get(application=app)
-        return Response({'error': 'Already converted.', 'member_id': existing.member_id}, status=400)
+    # Check if already converted
+    if Member.objects.filter(pre_member=info).exists():
+        existing = Member.objects.get(pre_member=info)
+        return Response({
+            'error':     'Already converted to official member.',
+            'member_id': existing.member_id,
+        }, status=400)
 
-    import random, string
-    user     = app.user
-    plain_pw = ''
+    # Get or create user account
+    user     = info.user
+    plain_pw = gen_password()
 
     if not user:
-        fn = app.firstname.lower().strip()
-        ln = app.lastname.lower().strip()
-        base = f'{fn}.{ln}'; uname = base; i = 1
-        while User.objects.filter(username=uname).exists():
-            uname = f'{base}{i}'; i += 1
-        plain_pw = 'leaf' + ''.join(random.choices(string.digits, k=4))
-        user = User.objects.create_user(username=uname, password=plain_pw, name=f'{app.firstname} {app.lastname}', role='member')
-        app.user = user; app.save()
+        uname = gen_username(info.first_name, info.last_name)
+        user  = User.objects.create_user(
+            username=uname, password=plain_pw,
+            name=info.fullname, role='member',
+        )
+        info.user = user
+        info.save()
     else:
-        plain_pw = request.data.get('plain_password', '')
-        user.role = 'member'; user.name = f'{app.firstname} {app.lastname}'.strip(); user.is_active = True; user.save()
+        user.role      = 'member'
+        user.name      = info.fullname
+        user.is_active = True
+        user.set_password(plain_pw)
+        user.save()
 
     try:
         member = Member.objects.create(
-            user=user, application=app,
-            firstname=app.firstname, lastname=app.lastname, middlename=app.middlename,
-            birthdate=app.birthdate, gender=app.gender, civil_status=app.civil_status,
-            contact=app.contact, email=app.email, address=app.address,
-            occupation=app.occupation, valid_id=app.valid_id, id_number=app.id_number,
-            beneficiary=app.beneficiary, relationship=app.relationship,
-            plain_password=plain_pw, status='Active',
+            user              = user,
+            pre_member        = info,
+            membership_status = 'Active',
+            plain_password    = plain_pw,
         )
     except Exception as e:
         return Response({'error': f'Failed to create member: {str(e)}'}, status=500)
 
-    sync_member_exports()  # ← Auto-update JSON + Excel
-    log_activity('member', f'Member registered: {member.fullname} ({member.member_id}) — converted from {app.app_id}', request.user)
+    # Create sub-profile
+    save_sub_profile(member, info.classification, request.data)
+
+    log_activity('member',
+        f'Member converted: {member.fullname} ({member.member_id}) from {info.app_id}',
+        request.user)
 
     return Response({
-        'message': f'{member.fullname} is now an official member!',
+        'message':   f'{member.fullname} is now an official member!',
         'member_id': member.member_id,
-        'username': user.username,
-        'member': MemberSerializer(member).data,
+        'username':  user.username,
+        'password':  plain_pw,
+        'member':    MemberSerializer(member).data,
     }, status=201)
 
 
 # ══════════════════════════════════════════════════════════════════
-# OFFICIAL MEMBERS
+# OFFICIAL MEMBERS — F2F Walk-in Registration
 # ══════════════════════════════════════════════════════════════════
 
 @api_view(['GET', 'POST'])
@@ -325,56 +208,75 @@ def member_list_view(request):
     if request.method == 'GET':
         members = Member.objects.all()
         if s := request.query_params.get('status'):
-            members = members.filter(status=s)
+            members = members.filter(membership_status=s)
         if q := request.query_params.get('search', '').strip():
-            members = members.filter(lastname__icontains=q) | \
-                      members.filter(firstname__icontains=q) | \
+            members = members.filter(pre_member__last_name__icontains=q)  | \
+                      members.filter(pre_member__first_name__icontains=q) | \
                       members.filter(member_id__icontains=q)
         return Response(MemberListSerializer(members, many=True).data)
 
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
-    import random, string
-    data          = request.data.copy()
-    plain_password = data.get('plain_password', '') or 'leaf' + ''.join(random.choices(string.digits, k=4))
-
-    fn = data.get('firstname', '').lower().strip()
-    ln = data.get('lastname',  '').lower().strip()
-    base = f'{fn}.{ln}'; uname = base; i = 1
-    while User.objects.filter(username=uname).exists():
-        uname = f'{base}{i}'; i += 1
+    data     = request.data
+    plain_pw = gen_password()
+    fname    = data.get('first_name', data.get('firstname', ''))
+    lname    = data.get('last_name',  data.get('lastname',  ''))
+    uname    = gen_username(fname, lname)
 
     user = User.objects.create_user(
-        username=uname, password=plain_password,
-        name=f"{data.get('firstname','')} {data.get('lastname','')}".strip(),
+        username=uname, password=plain_pw,
+        name=f'{fname} {lname}'.strip(),
         role='member', is_active=True,
     )
 
+    # Create LeafMemberInfo
     try:
-        member = Member.objects.create(
-            user=user,
-            firstname=data.get('firstname',''), lastname=data.get('lastname',''),
-            middlename=data.get('middlename',''), birthdate=data.get('birthdate'),
-            gender=data.get('gender','Male'), civil_status=data.get('civil_status','Single'),
-            contact=data.get('contact',''), email=data.get('email',''),
-            address=data.get('address',''), occupation=data.get('occupation',''),
-            valid_id=data.get('valid_id',''), id_number=data.get('id_number',''),
-            beneficiary=data.get('beneficiary',''), relationship=data.get('relationship',''),
-            plain_password=plain_password, status='Active',
+        info = LeafMemberInfo.objects.create(
+            user                   = user,
+            first_name             = fname,
+            last_name              = lname,
+            middle_name            = data.get('middle_name', data.get('middlename', '')),
+            birth_date             = data.get('birth_date',  data.get('birthdate')) or None,
+            civil_status           = data.get('civil_status', 'Single'),
+            educational_attainment = data.get('educational_attainment', ''),
+            occupation             = data.get('occupation', ''),
+            income                 = data.get('income', 0) or 0,
+            contact_number         = data.get('contact_number', data.get('contact', '')),
+            address                = data.get('address', ''),
+            classification         = data.get('classification', 'Employed'),
+            birth_certificate      = data.get('birth_certificate', False),
+            marriage_certificate   = data.get('marriage_certificate', False),
+            application_status     = 'Approved',
         )
     except Exception as e:
         user.delete()
-        return Response({'error': f'Failed to register member: {str(e)}'}, status=500)
+        return Response({'error': f'Failed to create info: {str(e)}'}, status=500)
 
-    sync_member_exports()  # ← Auto-update JSON + Excel
-    log_activity('member', f'New member registered (F2F): {member.fullname} ({member.member_id}) by {request.user.name}', request.user)
+    # Create Member record
+    try:
+        member = Member.objects.create(
+            user              = user,
+            pre_member        = info,
+            membership_status = 'Active',
+            plain_password    = plain_pw,
+        )
+    except Exception as e:
+        info.delete(); user.delete()
+        return Response({'error': f'Failed to create member: {str(e)}'}, status=500)
+
+    # Create sub-profile
+    save_sub_profile(member, data.get('classification', 'Employed'), data)
+
+    log_activity('member',
+        f'New F2F member: {member.fullname} ({member.member_id}) by {request.user.name}',
+        request.user)
 
     return Response({
         'message':        f'{member.fullname} is now an official member!',
         'member_id':      member.member_id,
-        'username':       user.username,
-        'plain_password': plain_password,
+        'username':       uname,
+        'plain_password': plain_pw,
         'member':         MemberSerializer(member).data,
     }, status=201)
 
@@ -393,18 +295,41 @@ def member_detail_view(request, pk):
     if request.method == 'PUT':
         if request.user.role not in ['admin', 'staff']:
             return Response({'error': 'Unauthorized.'}, status=403)
-        data   = request.data.copy()
-        new_pw = data.get('plain_password', '')
-        if new_pw and member.user:
+        data = request.data
+
+        # Update LeafMemberInfo fields
+        if member.pre_member:
+            info = member.pre_member
+            for field in [
+                'first_name', 'last_name', 'middle_name', 'birth_date',
+                'civil_status', 'educational_attainment', 'occupation',
+                'income', 'contact_number', 'address',
+                'birth_certificate', 'marriage_certificate',
+            ]:
+                if field in data:
+                    setattr(info, field, data[field])
+            info.save()
+
+        # Update password
+        if new_pw := data.get('plain_password', ''):
             member.user.set_password(new_pw)
             member.user.save()
-        s = MemberSerializer(member, data=data, partial=True)
-        if s.is_valid():
-            s.save()
-            sync_member_exports()  # ← Auto-update JSON + Excel
-            log_activity('member', f'Member updated: {member.fullname} ({member.member_id})', request.user)
-            return Response(s.data)
-        return Response(s.errors, status=400)
+            member.plain_password = new_pw
+
+        # Update membership fields
+        if ms := data.get('membership_status', data.get('status', '')):
+            member.membership_status = ms
+        if sc := data.get('share_capital'):
+            member.share_capital = sc
+
+        member.save()
+
+        # Update sub-profile
+        if member.pre_member:
+            save_sub_profile(member, member.pre_member.classification, data)
+
+        log_activity('member', f'Member updated: {member.fullname} ({member.member_id})', request.user)
+        return Response(MemberSerializer(member).data)
 
     if request.method == 'DELETE':
         if request.user.role != 'admin':
@@ -412,7 +337,6 @@ def member_detail_view(request, pk):
         name = member.fullname
         mid  = member.member_id
         member.delete()
-        sync_member_exports()  # ← Auto-update JSON + Excel (deleted member removed)
         log_activity('member', f'Member deleted: {name} ({mid})', request.user)
         return Response({'message': 'Member deleted.'})
 
@@ -426,10 +350,13 @@ def member_status_view(request, pk):
         member = Member.objects.get(pk=pk)
     except Member.DoesNotExist:
         return Response({'error': 'Not found.'}, status=404)
-    if st := request.data.get('status'):
-        old = member.status; member.status = st; member.save()
-        sync_member_exports()  # ← Auto-update JSON + Excel
-        log_activity('member', f'Member status changed: {member.fullname} {old} → {st}', request.user)
+
+    st = request.data.get('status') or request.data.get('membership_status')
+    if st:
+        old = member.membership_status
+        member.membership_status = st
+        member.save()
+        log_activity('member', f'Member status: {member.fullname} {old} → {st}', request.user)
     return Response(MemberSerializer(member).data)
 
 
@@ -439,13 +366,16 @@ def member_stats_view(request):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
     return Response({
-        'total':                  Member.objects.count(),
-        'active':                 Member.objects.filter(status='Active').count(),
-        'inactive':               Member.objects.filter(status='Inactive').count(),
-        'suspended':              Member.objects.filter(status='Suspended').count(),
-        'pending_applications':   MembershipApplication.objects.filter(status='Pending').count(),
-        'approved_applications':  MembershipApplication.objects.filter(status='Approved').count(),
-        'total_applications':     MembershipApplication.objects.count(),
+        'total':                 Member.objects.count(),
+        'active':                Member.objects.filter(membership_status='Active').count(),
+        'inactive':              Member.objects.filter(membership_status='Inactive').count(),
+        'suspended':             Member.objects.filter(membership_status='Suspended').count(),
+        'pending_applications':  LeafMemberInfo.objects.filter(application_status='Pending').count(),
+        'approved_applications': LeafMemberInfo.objects.filter(application_status='Approved').count(),
+        'total_applications':    LeafMemberInfo.objects.count(),
+        'students':              Member.objects.filter(pre_member__classification='Student').count(),
+        'seniors':               Member.objects.filter(pre_member__classification='Senior').count(),
+        'employed':              Member.objects.filter(pre_member__classification='Employed').count(),
     })
 
 
