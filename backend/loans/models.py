@@ -50,7 +50,22 @@ class Loan(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.loan_id:
-            count          = Loan.objects.count() + 1
-            year           = timezone.now().year
-            self.loan_id   = f'LN-{year}-{str(count).zfill(3)}'
+            year   = timezone.now().year
+            prefix = f'LN-{year}-'
+            existing = Loan.objects.filter(
+                loan_id__startswith=prefix
+            ).values_list('loan_id', flat=True)
+            max_num = 0
+            for lid in existing:
+                try:
+                    num = int(lid.replace(prefix, ''))
+                    if num > max_num:
+                        max_num = num
+                except ValueError:
+                    pass
+            candidate = f'{prefix}{str(max_num + 1).zfill(3)}'
+            while Loan.objects.filter(loan_id=candidate).exists():
+                max_num += 1
+                candidate = f'{prefix}{str(max_num + 1).zfill(3)}'
+            self.loan_id = candidate
         super().save(*args, **kwargs)

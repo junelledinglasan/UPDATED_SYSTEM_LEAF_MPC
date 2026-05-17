@@ -21,8 +21,8 @@ def loan_list_view(request):
         if s := request.query_params.get('status'):
             loans = loans.filter(status=s)
         if q := request.query_params.get('search', '').strip():
-            loans = loans.filter(member__lastname__icontains=q) | \
-                    loans.filter(member__firstname__icontains=q) | \
+            loans = loans.filter(member__pre_member__last_name__icontains=q) | \
+                    loans.filter(member__pre_member__first_name__icontains=q) | \
                     loans.filter(loan_id__icontains=q)
         return Response(LoanSerializer(loans, many=True).data)
 
@@ -64,9 +64,16 @@ def loan_detail_view(request, pk):
             loan.approved_at   = timezone.now()
             loan.approved_by   = request.user.username
             loan.next_due_date = datetime.date.today() + relativedelta(months=1)
+
+            # Add 3% of loan amount to member's share capital (CBU)
+            from decimal import Decimal
+            share_capital_addition = loan.amount * Decimal('0.03')
+            loan.member.share_capital += share_capital_addition
+            loan.member.save()
+
             log_activity(
                 'loan',
-                f'Loan approved & activated: {loan.loan_id} — {loan.member.fullname} — ₱{loan.amount:,.2f}',
+                f'Loan approved & activated: {loan.loan_id} — {loan.member.fullname} — ₱{loan.amount:,.2f} | Share Capital +₱{share_capital_addition:,.2f}',
                 request.user
             )
         elif new_status == 'Declined':

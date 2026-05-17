@@ -554,8 +554,9 @@ function NewLoanModal({ onClose }) {
     (m.member_id||"").toLowerCase().includes(search.toLowerCase())
   );
 
-  const maxLoanable = selMember ? parseFloat(selMember.share_capital||0) * 3 : 0;
-  const maxForType  = selMember ? Math.min(maxLoanable, { "Regular Loan":50000,"Emergency Loan":20000,"Salary Loan":30000,"Housing Loan":100000,"Business Loan":80000 }[form.loanType] || 50000) : 0;
+  const shareCapital = selMember ? parseFloat(selMember.share_capital||0) : 0;
+  const maxLoanable  = shareCapital * 2; // info only, no hard limit
+  const maxForType   = { "Regular Loan":50000,"Emergency Loan":20000,"Salary Loan":30000,"Housing Loan":100000,"Business Loan":80000 }[form.loanType] || 50000;
 
   // ── LEAF MPC Computation ────────────────────────────────────────────────
   const amount      = parseFloat(form.amount) || 0;
@@ -574,7 +575,7 @@ function NewLoanModal({ onClose }) {
   const validate = () => {
     const e = {};
     if (!form.amount || parseFloat(form.amount) <= 0)      e.amount  = "Enter a valid amount.";
-    if (selMember && parseFloat(form.amount) > maxForType) e.amount  = `Max loanable: ₱${maxForType.toLocaleString()}`;
+    if (parseFloat(form.amount) < 3000) e.amount = "Minimum loan amount is ₱3,000.";
     if (!form.purpose.trim())                              e.purpose = "Purpose is required.";
     return e;
   };
@@ -667,7 +668,7 @@ function NewLoanModal({ onClose }) {
                       <div className="al-loan-meta">{m.member_id}</div>
                     </div>
                     <div className="al-loan-bal">
-                      <div className="al-bal-val" style={{color:"#2e7d32"}}>₱{(parseFloat(m.share_capital||0)*3).toLocaleString()}</div>
+                      <div className="al-bal-val" style={{color:"#2e7d32"}}>₱{(parseFloat(m.share_capital||0)*2).toLocaleString()}</div>
                       <div className="al-bal-label">max loanable</div>
                     </div>
                   </div>
@@ -690,7 +691,7 @@ function NewLoanModal({ onClose }) {
                 <div className="al-loan-avatar">{selMember.fullname.charAt(0)}</div>
                 <div>
                   <div className="al-loan-name">{selMember.fullname}</div>
-                  <div className="al-loan-meta">{selMember.member_id} · Share Capital: ₱{parseFloat(selMember.share_capital||0).toLocaleString()} · Max: ₱{maxLoanable.toLocaleString()}</div>
+                  <div className="al-loan-meta">{selMember.member_id} · Share Capital: ₱{shareCapital.toLocaleString()} · Based Loanable (×2): ₱{maxLoanable.toLocaleString()}</div>
                 </div>
               </div>
 
@@ -711,7 +712,7 @@ function NewLoanModal({ onClose }) {
                     <input
                       className={`al-amount-in ${errors.amount?"border-red":""}`}
                       type="number" name="amount" min="1"
-                      placeholder={`Max ₱${maxForType.toLocaleString()}`}
+                      placeholder="Min ₱3,000"
                       value={form.amount}
                       onChange={e => { handle(e); setErrors(p=>({...p,amount:""})); }}
                     />
