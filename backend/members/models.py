@@ -59,9 +59,24 @@ class LeafMemberInfo(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.app_id:
-            year        = timezone.now().year
-            count       = LeafMemberInfo.objects.count() + 1
-            self.app_id = f'OA-{year}-{str(count).zfill(3)}'
+            year     = timezone.now().year
+            prefix   = f'OA-{year}-'
+            existing = LeafMemberInfo.objects.filter(
+                app_id__startswith=prefix
+            ).values_list('app_id', flat=True)
+            max_num = 0
+            for aid in existing:
+                try:
+                    num = int(aid.replace(prefix, ''))
+                    if num > max_num:
+                        max_num = num
+                except ValueError:
+                    pass
+            candidate = f'{prefix}{str(max_num + 1).zfill(3)}'
+            while LeafMemberInfo.objects.filter(app_id=candidate).exists():
+                max_num += 1
+                candidate = f'{prefix}{str(max_num + 1).zfill(3)}'
+            self.app_id = candidate
         super().save(*args, **kwargs)
 
 
@@ -78,7 +93,7 @@ class Member(models.Model):
     user              = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='member')
     pre_member        = models.OneToOneField(LeafMemberInfo, on_delete=models.SET_NULL, null=True, blank=True, related_name='converted_member')
     member_id         = models.CharField(max_length=20, unique=True, blank=True)
-    membership_date   = models.DateField(default=timezone.localdate, editable=False)
+    membership_date   = models.DateField(auto_now_add=True)
     membership_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active')
     share_capital     = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     plain_password    = models.CharField(max_length=100, blank=True)
@@ -131,8 +146,22 @@ class Member(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.member_id:
-            count          = Member.objects.count() + 1
-            self.member_id = f'LEAF-{str(count).zfill(3)}'
+            existing = Member.objects.filter(
+                member_id__startswith='LEAF-'
+            ).values_list('member_id', flat=True)
+            max_num = 0
+            for mid in existing:
+                try:
+                    num = int(mid.replace('LEAF-', ''))
+                    if num > max_num:
+                        max_num = num
+                except ValueError:
+                    pass
+            candidate = f'LEAF-{str(max_num + 1).zfill(3)}'
+            while Member.objects.filter(member_id=candidate).exists():
+                max_num += 1
+                candidate = f'LEAF-{str(max_num + 1).zfill(3)}'
+            self.member_id = candidate
         super().save(*args, **kwargs)
 
 

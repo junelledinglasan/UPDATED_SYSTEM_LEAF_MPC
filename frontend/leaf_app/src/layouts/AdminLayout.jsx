@@ -267,7 +267,7 @@ function RegisterModal({ onClose }) {
     first_name: "", last_name: "", middle_name: "", birth_date: "",
     civil_status: "Single", educational_attainment: "",
     contact_number: "", email: "", address: "", occupation: "",
-    income: "", birth_certificate: false, marriage_certificate: false,
+    income: "", share_capital: "", birth_certificate: false, marriage_certificate: false,
     // Classification
     classification: "Employed",
     school_name: "", year_level: "", allowance: "",
@@ -331,6 +331,7 @@ function RegisterModal({ onClose }) {
         pension_income:         form.pension_income || 0,
         job_type:               form.job_type,
         monthly_income:         form.monthly_income || 0,
+        share_capital:          form.share_capital || 0,
       });
       setCreds({ memberId: result.member_id, username: result.username, password: result.plain_password });
       setDone(true);
@@ -387,6 +388,7 @@ function RegisterModal({ onClose }) {
               <RegField name="contact_number"         label="Contact No."            required form={form} errors={errors} handle={handle} clearErr={n => setErrors(p=>({...p,[n]:""})) }/>
               <RegField name="email"                  label="Email"                  type="email" form={form} errors={errors} handle={handle}/>
               <RegField name="occupation"             label="Occupation"                      form={form} errors={errors} handle={handle}/>
+              <RegField name="share_capital"          label="Share Capital (₱)"              type="number" form={form} errors={errors} handle={handle}/>
               <RegField name="income"                 label="Monthly Income (₱)"     type="number" form={form} errors={errors} handle={handle}/>
               <div className="al-field al-full">
                 <label className="al-label">Address <span className="al-req">*</span></label>

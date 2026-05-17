@@ -28,6 +28,29 @@ def gen_username(first_name, last_name):
     return uname
 
 
+def gen_member_id():
+    """Generate unique member ID based on max existing ID, not count."""
+    existing = Member.objects.filter(
+        member_id__startswith='LEAF-'
+    ).values_list('member_id', flat=True)
+    
+    max_num = 0
+    for mid in existing:
+        try:
+            num = int(mid.replace('LEAF-', ''))
+            if num > max_num:
+                max_num = num
+        except ValueError:
+            pass
+    
+    candidate = f'LEAF-{str(max_num + 1).zfill(3)}'
+    # Safety check
+    while Member.objects.filter(member_id=candidate).exists():
+        max_num += 1
+        candidate = f'LEAF-{str(max_num + 1).zfill(3)}'
+    return candidate
+
+
 def save_sub_profile(member, classification, data):
     """Create or update the sub-profile based on classification."""
     if classification == 'Student':
@@ -260,6 +283,7 @@ def member_list_view(request):
             pre_member        = info,
             membership_status = 'Active',
             plain_password    = plain_pw,
+            share_capital     = float(data.get('share_capital', 0) or 0),
         )
     except Exception as e:
         info.delete(); user.delete()

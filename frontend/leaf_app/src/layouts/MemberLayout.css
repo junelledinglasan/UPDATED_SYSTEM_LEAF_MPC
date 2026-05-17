@@ -1,29 +1,26 @@
 :root {
-  --ml-sidebar-w: 220px;
-  --ml-topbar-h:  54px;
-  --ml-green:     #1b5e20;
-  --ml-green-mid: #2e7d32;
-  --ml-green-lt:  #4caf50;
-  --ml-green-pale:#e8f5e9;
-  --ml-green-bdr: #e4f0e5;
+  --ml-sidebar-w: 200px;
+  --ml-topbar-h:  56px;
+  --ml-green:     #2d5a1b;
+  --ml-green-mid: #3d7a25;
+  --ml-green-lt:  #5a9e35;
+  --ml-bg:        #e8f0e0;
 }
 
-/* ── Root Layout ──────────────────────────────────────────────────── */
+/* ── Layout ───────────────────────────────────────────────────────── */
 .ml-layout {
   display: flex;
   min-height: 100vh;
-  width: 100%;
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
   font-size: 13px;
-  background: #d8e8cc;
-  box-sizing: border-box;
+  background: var(--ml-bg);
 }
 
 /* ── Sidebar ──────────────────────────────────────────────────────── */
 .ml-sidebar {
   width: var(--ml-sidebar-w);
   min-width: var(--ml-sidebar-w);
-  background: #f2ede0;
+  background: #f0ead8;
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -31,177 +28,167 @@
   height: 100vh;
   z-index: 100;
   overflow: hidden;
+  border-right: 1px solid #ddd5c0;
   transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
 }
 
+/* Logo */
 .ml-logo {
-  display: flex; align-items: center; gap: 10px;
-  padding: 16px 16px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
   border-bottom: 1px solid #ddd5c0;
   flex-shrink: 0;
 }
-.ml-logo-icon {
-  width: 34px; height: 34px; min-width: 34px;
-  background: var(--ml-green-lt); border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
+.ml-logo-img {
+  width: 40px; height: 40px;
+  object-fit: contain;
 }
-.ml-logo-name { color: #1b5e20; font-size: 15px; font-weight: 900; line-height: 1.2; letter-spacing: -0.3px; }
-.ml-logo-sub  { color: #7a9260; font-size: 9px; font-weight: 600; letter-spacing: 0.5px; }
+.ml-logo-name { font-size: 13px; font-weight: 800; color: #2d5a1b; line-height: 1.2; }
+.ml-logo-sub  { font-size: 9px;  font-weight: 600; color: #7a9260; letter-spacing: 0.5px; }
 
+/* Profile strip */
 .ml-profile-strip {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid #e8e0d0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #ddd5c0;
   flex-shrink: 0;
 }
 .ml-avatar {
-  width: 36px; height: 36px; min-width: 36px;
+  width: 34px; height: 34px; min-width: 34px;
   border-radius: 50%;
-  background: var(--ml-green-lt); color: #fff;
+  background: var(--ml-green-lt);
+  color: #fff;
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 700;
-  border: 2px solid rgba(255,255,255,0.2);
 }
 .ml-profile-info  { flex: 1; min-width: 0; }
 .ml-profile-name  { font-size: 12px; font-weight: 700; color: #1a2e1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ml-profile-id    { font-size: 9.5px; color: #7a8a6a; font-family: 'Courier New', monospace; margin-top: 1px; }
+.ml-profile-id    { font-size: 9.5px; color: #7a8a6a; font-family: monospace; margin-top: 1px; }
 .ml-status-dot    { width: 9px; height: 9px; min-width: 9px; border-radius: 50%; flex-shrink: 0; }
-.ml-status-dot.active  { background: #69f0ae; box-shadow: 0 0 0 2px rgba(105,240,174,0.3); }
-.ml-status-dot.pending { background: #ffc107; box-shadow: 0 0 0 2px rgba(255,193,7,0.3); }
+.ml-status-dot.active  { background: #4caf50; box-shadow: 0 0 0 2px rgba(76,175,80,0.25); }
+.ml-status-dot.pending { background: #ffc107; box-shadow: 0 0 0 2px rgba(255,193,7,0.25); }
 
-/* ── Non-official notice in sidebar ─────────────────────────────── */
+/* Non-official notice */
 .ml-unofficial-notice {
-  margin: 8px 10px 0;
+  margin: 8px 10px;
   background: #fff8e1;
   border: 1px solid #ffe082;
   border-radius: 8px;
   padding: 8px 10px;
   display: flex;
   align-items: flex-start;
-  gap: 7px;
+  gap: 6px;
   flex-shrink: 0;
-}
-.ml-unofficial-icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
-.ml-unofficial-text {
   font-size: 11px;
-  color: #5d4037;
-  line-height: 1.4;
 }
+.ml-unofficial-text { color: #5d4037; line-height: 1.4; }
 
+/* Nav */
 .ml-nav {
-  flex: 1; padding: 10px 0;
-  display: flex; flex-direction: column;
+  flex: 1;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
 }
 .ml-nav-item {
-  display: flex; align-items: center; gap: 9px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 16px;
-  color: #3a5a3a; font-size: 12px; font-weight: 500;
+  color: #3a5a3a;
+  font-size: 12.5px;
+  font-weight: 500;
   text-decoration: none;
   border-left: 3px solid transparent;
-  transition: all 0.15s; white-space: nowrap;
+  transition: all 0.15s;
+  white-space: nowrap;
 }
-.ml-nav-item:hover  { background: rgba(46,125,50,0.08); color: #1b5e20; }
-.ml-nav-item.active { background: #e0edd8; color: #1b5e20; font-weight: 700; border-left-color: #2e7d32; }
+.ml-nav-item:hover  { background: rgba(45,90,27,0.07); color: #1b5e20; }
+.ml-nav-item.active { background: rgba(45,90,27,0.12); color: #1b5e20; font-weight: 700; border-left-color: #3d7a25; }
+.ml-nav-item.locked { opacity: 0.45; cursor: pointer; }
+.ml-nav-item.locked:hover { background: rgba(45,90,27,0.04); opacity: 0.55; }
 
-/* ── Locked nav item ─────────────────────────────────────────────── */
-.ml-nav-item.locked {
-  opacity: 0.5;
-  cursor: pointer;
-}
-.ml-nav-item.locked:hover {
-  background: rgba(46,125,50,0.05);
-  color: #3a5a3a;
-  opacity: 0.65;
-}
-.ml-lock-icon {
-  margin-left: auto;
-  font-size: 11px;
-  opacity: 0.8;
-}
-
-.ml-nav-icon  { font-size: 15px; width: 20px; min-width: 20px; text-align: center; }
-.ml-nav-label { flex: 1; }
+.ml-nav-icon   { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+.ml-nav-label  { flex: 1; }
+.ml-lock-icon  { margin-left: auto; font-size: 11px; }
 .ml-notif-badge {
   background: #e53935; color: #fff;
   font-size: 9px; font-weight: 800;
-  padding: 1px 6px; border-radius: 10px;
-  min-width: 18px; text-align: center;
+  padding: 1px 5px; border-radius: 10px;
 }
 
+/* Bottom logout */
 .ml-sidebar-bottom {
   padding: 10px 12px 16px;
-  border-top: 1px solid #e8e0d0;
+  border-top: 1px solid #ddd5c0;
   flex-shrink: 0;
 }
 .ml-logout-btn {
   width: 100%; padding: 9px;
-  background: #b71c1c; color: #fff;
+  background: #c62828; color: #fff;
   border: none; border-radius: 8px;
-  font-size: 12px; font-weight: 600;
+  font-size: 12px; font-weight: 700;
   cursor: pointer; font-family: inherit;
   transition: background 0.15s;
 }
-.ml-logout-btn:hover { background: #7f0000; }
+.ml-logout-btn:hover { background: #8e0000; }
 
 /* ── Main ─────────────────────────────────────────────────────────── */
 .ml-main {
   margin-left: var(--ml-sidebar-w);
-  flex: 1 1 auto;
+  flex: 1;
   min-width: 0;
-  width: calc(100% - var(--ml-sidebar-w));
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  overflow-x: hidden;
-  box-sizing: border-box;
 }
 
 /* ── Topbar ───────────────────────────────────────────────────────── */
 .ml-topbar {
   height: var(--ml-topbar-h);
-  background: #f2ede0;
+  background: #f0ead8;
   border-bottom: 1px solid #ddd5c0;
-  display: flex; align-items: center;
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 24px;
   position: sticky; top: 0; z-index: 50;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
   gap: 12px;
-  width: 100%;
-  box-sizing: border-box;
 }
-.ml-topbar-logo {
-  font-size: 22px; font-weight: 900;
+.ml-topbar-title {
+  font-size: 18px;
+  font-weight: 900;
   color: var(--ml-green);
-  display: flex; align-items: center; gap: 7px;
   flex: 1;
-  letter-spacing: -0.3px;
+  letter-spacing: 1px;
 }
 .ml-topbar-right { display: flex; align-items: center; gap: 10px; }
-
 .ml-notif-btn {
   position: relative;
   background: none; border: none;
-  font-size: 18px; cursor: pointer;
-  padding: 4px; border-radius: 8px;
+  font-size: 20px; cursor: pointer;
+  padding: 4px 6px; border-radius: 8px;
   transition: background 0.15s;
 }
-.ml-notif-btn:hover { background: #d8e8cc; }
+.ml-notif-btn:hover { background: rgba(45,90,27,0.08); }
 .ml-notif-dot {
   position: absolute; top: 0; right: 0;
   background: #e53935; color: #fff;
   font-size: 8px; font-weight: 800;
   width: 16px; height: 16px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  border: 1.5px solid #fff;
+  border: 1.5px solid #f0ead8;
 }
 .ml-topbar-avatar {
-  width: 30px; height: 30px; border-radius: 50%;
+  width: 32px; height: 32px; border-radius: 50%;
   background: var(--ml-green-lt); color: #fff;
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700;
+  font-size: 12px; font-weight: 700;
 }
 
 /* ── Hamburger ────────────────────────────────────────────────────── */
@@ -212,35 +199,21 @@
   padding: 6px; border-radius: 6px;
   transition: background 0.15s; flex-shrink: 0;
 }
-.ml-hamburger:hover { background: #d8e8cc; }
 .ml-hamburger span {
   display: block; width: 20px; height: 2px;
   background: var(--ml-green); border-radius: 2px; transition: all 0.25s;
 }
 .ml-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-.ml-hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.ml-hamburger.open span:nth-child(2) { opacity: 0; }
 .ml-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-/* ── Content — KEY FIX: must stretch full width ───────────────────── */
+/* ── Content ──────────────────────────────────────────────────────── */
 .ml-content {
-  flex: 1 1 auto;
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  min-width: 0;
-  width: 100%;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  background: #d8e8cc;
-}
-
-/* Ensure Outlet children fill the content area */
-.ml-content > * {
-  flex: 1 1 auto;
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
+  background: var(--ml-bg);
+  padding: 28px 28px 40px;
 }
 
 /* ── Mobile overlay ───────────────────────────────────────────────── */
@@ -249,104 +222,61 @@
   background: rgba(0,0,0,0.45); z-index: 99;
 }
 
-/* ── Official Member Gate Overlay ─────────────────────────────────── */
+/* ── Gate ─────────────────────────────────────────────────────────── */
 .ml-gate-overlay {
-  position: fixed;
-  inset: 0;
+  position: fixed; inset: 0;
   background: rgba(0,0,0,0.5);
   z-index: 300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   padding: 16px;
 }
-
-/* ── Gate Popup Box ───────────────────────────────────────────────── */
 .ml-gate-box {
-  background: #fff;
-  border-radius: 16px;
-  padding: 32px 28px;
-  max-width: 380px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
+  background: #fff; border-radius: 16px;
+  padding: 32px 28px; max-width: 380px; width: 100%;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; text-align: center;
   box-shadow: 0 12px 40px rgba(0,0,0,0.2);
 }
 .ml-gate-icon  { font-size: 48px; }
 .ml-gate-title { font-size: 18px; font-weight: 700; color: #1b5e20; }
 .ml-gate-text  { font-size: 13px; color: #666; line-height: 1.6; }
-
-/* ── Gate feature list ────────────────────────────────────────────── */
 .ml-gate-features {
-  background: #f1f8e9;
-  border: 1px solid #c8e6c9;
-  border-radius: 10px;
-  padding: 12px 16px;
-  width: 100%;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: left;
+  background: #f1f8e9; border: 1px solid #c8e6c9;
+  border-radius: 10px; padding: 12px 16px;
+  width: 100%; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 6px; text-align: left;
 }
 .ml-gate-feature-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #2e7d32;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  margin-bottom: 2px;
+  font-size: 11px; font-weight: 700; color: #2e7d32;
+  text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px;
 }
 .ml-gate-feature-item { font-size: 13px; color: #333; }
-
-/* ── Gate action buttons ──────────────────────────────────────────── */
 .ml-gate-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  margin-top: 4px;
+  display: flex; flex-direction: column; gap: 8px;
+  width: 100%; margin-top: 4px;
 }
 .ml-gate-btn-apply {
-  background: #2e7d32;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 12px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-  width: 100%;
+  background: #2e7d32; color: #fff; border: none;
+  border-radius: 10px; padding: 12px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s; width: 100%;
 }
 .ml-gate-btn-apply:hover { background: #1b5e20; }
 .ml-gate-btn-cancel {
-  background: none;
-  border: 1.5px solid #ddd;
-  border-radius: 10px;
-  padding: 10px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #888;
-  cursor: pointer;
-  transition: border-color 0.15s;
-  width: 100%;
+  background: none; border: 1.5px solid #ddd;
+  border-radius: 10px; padding: 10px;
+  font-size: 13px; font-weight: 500; color: #888;
+  cursor: pointer; transition: border-color 0.15s; width: 100%;
 }
 .ml-gate-btn-cancel:hover { border-color: #bbb; color: #555; }
 
 /* ── Responsive ───────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .ml-hamburger { display: flex; }
-  .ml-sidebar { transform: translateX(-100%); box-shadow: none; }
+  .ml-sidebar { transform: translateX(-100%); }
   .ml-sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.18); }
   .ml-overlay.open { display: block; }
-  .ml-main { margin-left: 0; width: 100%; }
+  .ml-main { margin-left: 0; }
+  .ml-content { padding: 16px; }
   .ml-topbar { padding: 0 14px; }
-  .ml-topbar-logo { font-size: 13px; }
-}
-@media (max-width: 480px) {
-  .ml-topbar { padding: 0 12px; }
 }

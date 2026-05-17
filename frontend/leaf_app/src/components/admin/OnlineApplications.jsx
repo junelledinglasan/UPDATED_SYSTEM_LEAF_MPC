@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getApplicationsAPI, updateApplicationStatusAPI } from "../../api/members";
+import { getApplicationsAPI, getApplicationAPI, updateApplicationStatusAPI } from "../../api/members";
 import { Search, ClipboardList, Clock, CheckCircle, XCircle } from "lucide-react";
 import "./OnlineApplications.css";
 
@@ -12,11 +12,12 @@ const STATUS_COLOR  = {
 };
 
 // ─── View Modal ───────────────────────────────────────────────────────────────
-function ViewModal({ app, onClose, onApprove, onReject }) {
+function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) {
   const [rejectMode, setRejectMode] = useState(false);
   const [reason,     setReason]     = useState("");
 
   if (!app) return null;
+  const status = app.application_status || app.status || "Pending";
 
   const handleReject = () => {
     if (!reason.trim()) return;
@@ -24,11 +25,8 @@ function ViewModal({ app, onClose, onApprove, onReject }) {
   };
 
   // Backend uses snake_case — map to display
-  const civil    = app.civil_status || app.civilStatus || "";
-  const validId  = app.valid_id     || app.validId     || "";
-  const idNumber = app.id_number    || app.idNumber    || "";
-  const subAt    = app.submitted_at || app.submittedAt || "";
-  const appId    = app.app_id       || app.id          || "";
+  const subAt = app.created_at?.slice(0,10) || "";
+  const appId = app.app_id || app.id || "";
 
   const InfoRow = ({ label, value, mono=false, full=false }) => (
     <div className={`oa-info-item${full?" oa-full":""}`}>
@@ -47,41 +45,36 @@ function ViewModal({ app, onClose, onApprove, onReject }) {
             <div className="oa-modal-sub">{appId} · Submitted {subAt}</div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span className={`oa-badge ${STATUS_COLOR[app.status]}`}>{app.status}</span>
+            <span className={`oa-badge ${STATUS_COLOR[status] || ""}`}>{status}</span>
             <button className="oa-modal-close" onClick={onClose}>✕</button>
           </div>
         </div>
 
         <div className="oa-modal-body">
+          {loadingDetails && (
+            <div style={{textAlign:"center",padding:"32px 0",color:"#aaa"}}>
+              <div style={{fontSize:24,marginBottom:8}}>⏳</div>
+              Loading full application details...
+            </div>
+          )}
+          {!loadingDetails && <>
           <div className="oa-section">
             <div className="oa-section-title">Personal Information</div>
             <div className="oa-info-grid">
-              <InfoRow label="Last Name"    value={app.lastname} />
-              <InfoRow label="First Name"   value={app.firstname} />
-              <InfoRow label="Middle Name"  value={app.middlename} />
-              <InfoRow label="Birthdate"    value={app.birthdate} />
-              <InfoRow label="Gender"       value={app.gender} />
-              <InfoRow label="Civil Status" value={civil} />
-              <InfoRow label="Occupation"   value={app.occupation} />
-              <InfoRow label="Contact No."  value={app.contact} mono />
-              <InfoRow label="Email"        value={app.email} mono />
-              <InfoRow label="Address"      value={app.address} full />
-            </div>
-          </div>
-
-          <div className="oa-section">
-            <div className="oa-section-title">Valid Identification</div>
-            <div className="oa-info-grid">
-              <InfoRow label="Type of ID" value={validId} />
-              <InfoRow label="ID Number"  value={idNumber} mono />
-            </div>
-          </div>
-
-          <div className="oa-section">
-            <div className="oa-section-title">Beneficiary / Emergency Contact</div>
-            <div className="oa-info-grid">
-              <InfoRow label="Beneficiary Name" value={app.beneficiary} />
-              <InfoRow label="Relationship"     value={app.relationship} />
+              <InfoRow label="Last Name"              value={app.last_name} />
+              <InfoRow label="First Name"             value={app.first_name} />
+              <InfoRow label="Middle Name"            value={app.middle_name} />
+              <InfoRow label="Birthdate"              value={app.birth_date} />
+              <InfoRow label="Civil Status"           value={app.civil_status} />
+              <InfoRow label="Educational Attainment" value={app.educational_attainment} />
+              <InfoRow label="Classification"         value={app.classification} />
+              <InfoRow label="Occupation"             value={app.occupation} />
+              <InfoRow label="Monthly Income"         value={app.income ? `₱${Number(app.income).toLocaleString()}` : "—"} />
+              <InfoRow label="Contact No."            value={app.contact_number} mono />
+              <InfoRow label="Email"                  value={app.email} mono />
+              <InfoRow label="Address"                value={app.address} full />
+              <InfoRow label="Birth Certificate"      value={app.birth_certificate ? "✅ Submitted" : "❌ Not submitted"} />
+              <InfoRow label="Marriage Certificate"   value={app.marriage_certificate ? "✅ Submitted" : "❌ Not submitted"} />
             </div>
           </div>
 
@@ -99,23 +92,24 @@ function ViewModal({ app, onClose, onApprove, onReject }) {
             </div>
           )}
 
-          {app.status === "Approved" && (
+          {status === "Approved" && (
             <div className="oa-notice oa-notice-approved">
               ✓ This application has been <strong>approved</strong>.
             </div>
           )}
-          {app.status === "Rejected" && (
+          {status === "Rejected" && (
             <div className="oa-notice oa-notice-rejected">
               ✗ This application has been <strong>rejected</strong>.
             </div>
           )}
+          </>}
         </div>
 
         <div className="oa-modal-footer">
           {!rejectMode ? (
             <>
               <button className="oa-btn-cancel" onClick={onClose}>Close</button>
-              {app.status === "Pending" && (
+              {status === "Pending" && (
                 <>
                   <button className="oa-btn-reject-soft" onClick={() => setRejectMode(true)}>✗ Reject</button>
                   <button className="oa-btn-approve" onClick={() => onApprove(app.id)}>✓ Approve & Notify Member</button>
@@ -142,6 +136,8 @@ export default function OnlineApplications() {
   const [filterStatus, setFilter]      = useState("All");
   const [currentPage,  setPage]        = useState(1);
   const [viewApp,      setViewApp]     = useState(null);
+  const [fullAppData,  setFullAppData] = useState(null);
+  const [loadingApp,   setLoadingApp]  = useState(false);
   const [toast,        setToast]       = useState(null);
 
   // ─── Fetch from real API ──────────────────────────────────────────────────
@@ -159,6 +155,22 @@ export default function OnlineApplications() {
 
   useEffect(() => { fetchApps(); }, []);
 
+  // Fetch full app details when a row is clicked
+  const handleViewApp = async (app) => {
+    setViewApp(app);
+    setFullAppData(null);
+    setLoadingApp(true);
+    try {
+      const full = await getApplicationAPI(app.id);
+      setFullAppData(full);
+    } catch(e) {
+      console.error("Failed to fetch app details:", e);
+      setFullAppData(app); // fallback to list data
+    } finally {
+      setLoadingApp(false);
+    }
+  };
+
   const showToast = (msg, type="success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
@@ -166,23 +178,23 @@ export default function OnlineApplications() {
 
   const counts = {
     total:    apps.length,
-    pending:  apps.filter(a => a.status === "Pending").length,
-    approved: apps.filter(a => a.status === "Approved").length,
-    rejected: apps.filter(a => a.status === "Rejected").length,
+    pending:  apps.filter(a => (a.application_status||a.status) === "Pending").length,
+    approved: apps.filter(a => (a.application_status||a.status) === "Approved").length,
+    rejected: apps.filter(a => (a.application_status||a.status) === "Rejected").length,
   };
 
   // Support both snake_case (API) and camelCase (old mock)
   const getAppId  = a => a.app_id       || a.id          || "";
-  const getSubAt  = a => a.submitted_at || a.submittedAt || "";
+  const getSubAt  = a => (a.created_at || "").slice(0,10);
 
   const filtered = apps.filter(a => {
-    const matchStatus = filterStatus === "All" || a.status === filterStatus;
+    const matchStatus = filterStatus === "All" || (a.application_status||a.status) === filterStatus;
     const q = search.toLowerCase();
-    const fullname = `${a.firstname} ${a.lastname}`.toLowerCase();
+    const fullname = (a.fullname || `${a.first_name} ${a.last_name}`).toLowerCase();
     return matchStatus && (
       getAppId(a).toLowerCase().includes(q) ||
       fullname.includes(q) ||
-      (a.contact || "").includes(q) ||
+      (a.contact_number || "").includes(q) ||
       (a.email || "").toLowerCase().includes(q) ||
       (a.occupation || "").toLowerCase().includes(q)
     );
@@ -195,8 +207,8 @@ export default function OnlineApplications() {
   const handleApprove = async (id) => {
     try {
       await updateApplicationStatusAPI(id, "Approved");
-      setApps(prev => prev.map(a => (a.id === id || a.app_id === id) ? { ...a, status: "Approved" } : a));
-      setViewApp(prev => prev ? { ...prev, status: "Approved" } : null);
+      setApps(prev => prev.map(a => (a.id === id || a.app_id === id) ? { ...a, application_status: "Approved", status: "Approved" } : a));
+      setViewApp(prev => prev ? { ...prev, application_status: "Approved", status: "Approved" } : null); setFullAppData(prev => prev ? { ...prev, application_status: "Approved" } : null);
       showToast("Application approved successfully!", "success");
     } catch {
       showToast("Failed to approve application.", "danger");
@@ -206,7 +218,7 @@ export default function OnlineApplications() {
   const handleReject = async (id, reason) => {
     try {
       await updateApplicationStatusAPI(id, "Rejected", reason);
-      setApps(prev => prev.map(a => (a.id === id || a.app_id === id) ? { ...a, status: "Rejected" } : a));
+      setApps(prev => prev.map(a => (a.id === id || a.app_id === id) ? { ...a, application_status: "Rejected", status: "Rejected" } : a));
       setViewApp(null);
       showToast("Application rejected.", "danger");
     } catch {
@@ -214,9 +226,9 @@ export default function OnlineApplications() {
     }
   };
 
-  const currentViewApp = viewApp
+  const currentViewApp = fullAppData || (viewApp
     ? apps.find(a => a.id === viewApp.id || a.app_id === viewApp.app_id)
-    : null;
+    : null);
 
   return (
     <div className="oa-wrapper">
@@ -225,7 +237,8 @@ export default function OnlineApplications() {
 
       <ViewModal
         app={currentViewApp}
-        onClose={() => setViewApp(null)}
+        loadingDetails={loadingApp}
+        onClose={() => { setViewApp(null); setFullAppData(null); }}
         onApprove={handleApprove}
         onReject={handleReject}
       />
@@ -275,7 +288,7 @@ export default function OnlineApplications() {
                 onClick={() => { setFilter(s); setPage(1); }}
               >
                 {s}
-                {s !== "All" && <span className="oa-tab-count">{apps.filter(a => a.status===s).length}</span>}
+                {s !== "All" && <span className="oa-tab-count">{apps.filter(a => (a.application_status||a.status)===s).length}</span>}
               </button>
             ))}
           </div>
@@ -302,18 +315,18 @@ export default function OnlineApplications() {
               ) : paginated.map((app, idx) => (
                 <tr
                   key={app.id || app.app_id}
-                  className={`${idx%2===0?"row-even":"row-odd"} oa-clickable-row`}
-                  onClick={() => setViewApp(app)}
+                  className={`oa-clickable-row row-${(app.application_status||app.status||"pending").toLowerCase()}`}
+                  onClick={() => handleViewApp(app)}
                 >
                   <td>
                     <div className="oa-id-cell">
                       <span className="mono cell-id">{getAppId(app)}</span>
-                      <span className={`oa-badge ${STATUS_COLOR[app.status]}`}>{app.status}</span>
+                      <span className={`oa-badge ${STATUS_COLOR[status] || ""}`}>{status}</span>
                     </div>
                   </td>
-                  <td className="cell-name">{app.lastname}, {app.firstname} {(app.middlename||"").charAt(0)}{app.middlename?"." : ""}</td>
-                  <td className="cell-date">{app.birthdate}</td>
-                  <td className="mono">{app.contact}</td>
+                  <td className="cell-name">{app.fullname || `${app.last_name}, ${app.first_name}`}</td>
+                  <td className="cell-date">{app.birth_date}</td>
+                  <td className="mono">{app.contact_number}</td>
                   <td className="cell-email">{app.email}</td>
                   <td>{app.occupation}</td>
                   <td className="cell-date">{getSubAt(app)}</td>

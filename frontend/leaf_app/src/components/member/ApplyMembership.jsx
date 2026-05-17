@@ -163,28 +163,23 @@ export default function ApplyMembership() {
   return (
     <div className="am-wrap">
 
-      {/* Header */}
-      <div className="am-header">
-        <button className="am-back-btn" onClick={() => navigate(-1)}> Back</button>
-        <div>
+      {/* Form Card — title, notice, tabs, and form all inside one card */}
+      <div className="am-card">
+
+        {/* Card Header */}
+        <div className="am-card-header">
           <div className="am-title">Apply for Official Membership</div>
-          <div className="am-sub">
-            Fill out the form below. Your application will be sent to the admin for review.
+          <div className="am-sub">Fill out the form below. Your application will be sent to the admin for review.</div>
+        </div>
+
+        {/* Info notice */}
+        <div className="am-info-notice">
+          <div className="am-notice-icon">ℹ️</div>
+          <div>
+            Make sure all information is accurate and complete. Incomplete applications may be rejected.
+            After submitting, the admin or staff will review and contact you.
           </div>
         </div>
-      </div>
-
-      {/* Info notice */}
-      <div className="am-info-notice">
-        <div className="am-notice-icon">ℹ</div>
-        <div>
-          Make sure all information is accurate and complete. Incomplete applications may be rejected.
-          After submitting, the admin or staff will review and contact you.
-        </div>
-      </div>
-
-      {/* Form Card */}
-      <div className="am-card">
 
         {/* Tabs */}
         <div className="am-tabs">

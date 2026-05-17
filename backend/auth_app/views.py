@@ -1,5 +1,5 @@
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -12,6 +12,34 @@ from .serializers import (
     CreateStaffSerializer,
     ResetPasswordSerializer,
 )
+
+
+# ─── Register (Create Account — public) ───────────────────────────────────────
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_view(request):
+    username = request.data.get('username', '').strip()
+    password = request.data.get('password', '')
+
+    if not username:
+        return Response({'detail': 'Username is required.'}, status=400)
+    if len(username) < 4:
+        return Response({'detail': 'Username must be at least 4 characters.'}, status=400)
+    if ' ' in username:
+        return Response({'detail': 'Username cannot contain spaces.'}, status=400)
+    if len(password) < 6:
+        return Response({'detail': 'Password must be at least 6 characters.'}, status=400)
+    if User.objects.filter(username=username).exists():
+        return Response({'username': ['Username already taken.']}, status=400)
+
+    user = User.objects.create_user(
+        username=username,
+        password=password,
+        name=username,
+        role='member',
+    )
+    log_activity('member', f'New account created: @{user.username}', user)
+    return Response({'message': 'Account created successfully.'}, status=201)
 
 
 # ─── Login ─────────────────────────────────────────────────────────────────────
@@ -141,4 +169,3 @@ def change_password_view(request):
     user.set_password(new_pw)
     user.save()
     return Response({'message': 'Password changed successfully.'})
- 

@@ -498,3 +498,15 @@
   .oa-status-tab  { padding: 4px 9px; font-size: 10px; }
   .oa-footer { flex-direction: column; align-items: flex-start; gap: 8px; }
 }
+/* ─── Row color by status ────────────────────────────────────────── */
+.oa-clickable-row.row-pending  td { background: #fff8f0 !important; }
+.oa-clickable-row.row-approved td { background: #f0faf0 !important; }
+.oa-clickable-row.row-rejected td { background: #fff0f0 !important; }
+.oa-clickable-row.row-pending:hover  td { background: #ffe8d0 !important; }
+.oa-clickable-row.row-approved:hover td { background: #d8f0d8 !important; }
+.oa-clickable-row.row-rejected:hover td { background: #ffd8d8 !important; }
+
+/* ─── Left border indicator ──────────────────────────────────────── */
+.oa-clickable-row.row-pending  td:first-child  { border-left: 3px solid #e65100; }
+.oa-clickable-row.row-approved td:first-child  { border-left: 3px solid #2e7d32; }
+.oa-clickable-row.row-rejected td:first-child  { border-left: 3px solid #c62828; }

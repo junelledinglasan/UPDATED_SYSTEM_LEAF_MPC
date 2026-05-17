@@ -2,16 +2,19 @@ import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { getAnnouncementsAPI } from "../../api/announcements";
 import { getLoansAPI } from "../../api/loans";
+import { getMyApplicationAPI } from "../../api/members";
 import "./Notifications.css";
 
 const TYPE_META = {
-  due:      { icon:"📅", color:"notif-due",      label:"Payment Due" },
-  notice:   { icon:"📢", color:"notif-notice",   label:"Notice"      },
-  approved: { icon:"✅", color:"notif-approved", label:"Approved"    },
-  system:   { icon:"⚙",  color:"notif-system",   label:"System"      },
+  due:        { icon:"📅", color:"notif-due",        label:"Payment Due"  },
+  notice:     { icon:"📢", color:"notif-notice",     label:"Notice"       },
+  approved:   { icon:"✅", color:"notif-approved",   label:"Approved"     },
+  rejected:   { icon:"❌", color:"notif-rejected",   label:"Rejected"     },
+  membership: { icon:"🏆", color:"notif-membership", label:"Membership"   },
+  system:     { icon:"⚙",  color:"notif-system",    label:"System"       },
 };
 
-const FILTERS = ["All","Unread","Payment Due","Notice","System"];
+const FILTERS = ["All","Unread","Payment Due","Notice","Membership","System"];
 
 function timeAgo(dateStr) {
   if (!dateStr) return "";
@@ -40,6 +43,44 @@ export default function Notifications() {
       setLoading(true);
       try {
         const built = [];
+
+        // ── Membership Application Status notification ────────────────────
+        try {
+          const app = await getMyApplicationAPI();
+          if (app && app.application_status) {
+            if (app.application_status === "Approved") {
+              built.push({
+                id:    `membership-approved`,
+                type:  "membership",
+                title: "🎉 Membership Application Approved!",
+                msg:   `Congratulations! Your membership application (${app.app_id}) has been approved. Please visit the LEAF MPC office to complete the process and become an official member.`,
+                time:  timeAgo(app.reviewed_at),
+                date:  app.reviewed_at || app.created_at,
+                read:  false,
+              });
+            } else if (app.application_status === "Rejected") {
+              built.push({
+                id:    `membership-rejected`,
+                type:  "rejected",
+                title: "❌ Membership Application Not Approved",
+                msg:   `Your membership application (${app.app_id}) was not approved.${app.reject_reason ? " Reason: " + app.reject_reason : ""} You may re-apply or visit the office for more information.`,
+                time:  timeAgo(app.reviewed_at),
+                date:  app.reviewed_at || app.created_at,
+                read:  false,
+              });
+            } else if (app.application_status === "Pending") {
+              built.push({
+                id:    `membership-pending`,
+                type:  "system",
+                title: "⏳ Membership Application Under Review",
+                msg:   `Your application (${app.app_id}) has been submitted and is currently under review by the admin/staff. You will be notified once it has been processed.`,
+                time:  timeAgo(app.created_at),
+                date:  app.created_at,
+                read:  true,
+              });
+            }
+          }
+        } catch { /* no application */ }
 
         // ── Announcements → Notice notifications ─────────────────────────
         const anns = await getAnnouncementsAPI().catch(() => []);
@@ -118,6 +159,7 @@ export default function Notifications() {
     if (filter === "Unread")      return !n.read;
     if (filter === "Payment Due") return n.type === "due";
     if (filter === "Notice")      return n.type === "notice";
+    if (filter === "Membership")  return n.type === "membership" || n.type === "rejected";
     if (filter === "System")      return n.type === "system" || n.type === "approved";
     return true;
   });

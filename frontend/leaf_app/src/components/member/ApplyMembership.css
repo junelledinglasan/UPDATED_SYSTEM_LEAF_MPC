@@ -2,39 +2,29 @@
 .am-wrap {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 4px 0 40px;
-  max-width: 760px;
+  gap: 0;
+  padding: 0 0 40px;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
 }
 
-/* ─── Header ─────────────────────────────────────────────────────────────── */
-.am-header {
+/* ─── Page Title Row ──────────────────────────────────────────────────────── */
+.am-page-title-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 14px;
+  padding: 4px 0 2px;
 }
-.am-back-btn {
-  background: none;
-  border: 1.5px solid #ddd;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #555;
-  cursor: pointer;
-  white-space: nowrap;
-  margin-top: 2px;
-  transition: border-color 0.15s;
-}
-.am-back-btn:hover { border-color: #2e7d32; color: #2e7d32; }
 .am-title {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 800;
   color: #1b5e20;
+  letter-spacing: -0.3px;
 }
 .am-sub {
-  font-size: 13px;
-  color: #888;
+  font-size: 12px;
+  color: #aaa;
   margin-top: 3px;
 }
 
@@ -44,50 +34,76 @@
   align-items: flex-start;
   gap: 10px;
   background: #e3f2fd;
-  border: 1px solid #90caf9;
-  border-radius: 10px;
-  padding: 12px 16px;
-  font-size: 13px;
+  border-top: 1px solid #90caf9;
+  border-bottom: 1px solid #90caf9;
+  padding: 12px 28px;
+  font-size: 12.5px;
   color: #0d47a1;
-  line-height: 1.5;
+  line-height: 1.6;
 }
-.am-notice-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.am-notice-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
 
 /* ─── Card ────────────────────────────────────────────────────────────────── */
 .am-card {
   background: #fff;
-  border: 1px solid #e8f5e9;
+  border: 1.5px solid #e8f5e9;
   border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+/* ─── Card Header ─────────────────────────────────────────────────────────── */
+.am-card-header {
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 /* ─── Tabs ────────────────────────────────────────────────────────────────── */
 .am-tabs {
   display: flex;
-  border-bottom: 1px solid #f0f0f0;
-  padding: 0 24px;
+  border-bottom: 2px solid #f0f0f0;
   background: #fafafa;
 }
 .am-tab {
-  padding: 14px 18px;
+  flex: 1;
+  padding: 14px 8px;
   background: none;
   border: none;
   border-bottom: 2.5px solid transparent;
-  font-size: 13px;
-  font-weight: 500;
-  color: #888;
+  margin-bottom: -2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #aaa;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   white-space: nowrap;
 }
-.am-tab:hover  { color: #2e7d32; }
-.am-tab.active { color: #2e7d32; border-bottom-color: #2e7d32; font-weight: 700; }
+.am-tab:hover  { color: #2e7d32; background: #f5fbf5; }
+.am-tab.active { color: #2e7d32; border-bottom-color: #2e7d32; background: #f5fbf5; font-weight: 700; }
+
+/* Tab number badge */
+.am-tab-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.am-tab.active .am-tab-num { background: #2e7d32; }
 
 /* ─── Form body ───────────────────────────────────────────────────────────── */
-.am-form-body {
-  padding: 24px;
-}
+.am-form-body { padding: 24px 28px; }
 .am-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -102,81 +118,119 @@
   gap: 5px;
 }
 .am-label {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  color: #444;
+  color: #555;
+  letter-spacing: 0.2px;
 }
 .am-req { color: #e53935; }
 .am-input {
-  border: 1.5px solid #ddd;
+  border: 1.5px solid #e0e0e0;
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 13px;
+  font-family: inherit;
   outline: none;
-  color: #333;
+  color: #222;
   background: #fff;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
   box-sizing: border-box;
   width: 100%;
 }
-.am-input:focus   { border-color: #2e7d32; }
+.am-input:focus   { border-color: #2e7d32; box-shadow: 0 0 0 3px rgba(46,125,50,0.08); }
 .am-input-err     { border-color: #e53935 !important; }
 .am-field-err     { font-size: 11px; color: #e53935; }
 
-/* ─── ID notice ───────────────────────────────────────────────────────────── */
-.am-id-notice {
-  background: #fff8e1;
-  border: 1px solid #ffe082;
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 12px;
-  color: #5d4037;
-  line-height: 1.5;
+/* ─── Checkbox ────────────────────────────────────────────────────────────── */
+.am-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  margin-top: 4px;
 }
+.am-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2e7d32;
+  cursor: pointer;
+}
+
+/* ─── Classification cards ────────────────────────────────────────────────── */
+.am-class-options {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+}
+.am-class-card {
+  flex: 1;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 20px 12px;
+  text-align: center;
+  cursor: pointer;
+  background: #fafafa;
+  transition: all 0.2s;
+}
+.am-class-card:hover    { border-color: #2e7d32; background: #f1f8e9; }
+.am-class-card.selected { border-color: #2e7d32; background: #e8f5e9; box-shadow: 0 0 0 3px rgba(46,125,50,0.10); }
+.am-class-icon { font-size: 30px; margin-bottom: 8px; }
+.am-class-name { font-size: 12px; font-weight: 700; color: #2e7d32; }
 
 /* ─── Form footer ─────────────────────────────────────────────────────────── */
 .am-form-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #f0f0f0;
+  padding: 14px 28px;
+  border-top: 1.5px solid #f0f0f0;
   background: #fafafa;
 }
 .am-tab-nav {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 10px;
 }
-.am-btn-primary {
+
+/* Buttons */
+.am-btn-back {
+  background: none;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.am-btn-back:hover { border-color: #2e7d32; color: #2e7d32; }
+
+.am-btn-next {
   background: #2e7d32;
   color: #fff;
   border: none;
   border-radius: 8px;
-  padding: 10px 22px;
+  padding: 10px 26px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
   transition: background 0.15s;
+  margin-left: auto;
 }
-.am-btn-primary:hover { background: #1b5e20; }
-.am-btn-secondary {
-  background: #fff;
-  color: #555;
-  border: 1.5px solid #ddd;
-  border-radius: 8px;
-  padding: 10px 22px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-.am-btn-secondary:hover { border-color: #aaa; }
+.am-btn-next:hover { background: #1b5e20; }
+
 .am-btn-submit {
   background: #2e7d32;
   color: #fff;
   border: none;
   border-radius: 8px;
   padding: 10px 28px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
   transition: background 0.15s;
   display: flex;
@@ -184,12 +238,27 @@
   justify-content: center;
   min-width: 160px;
   height: 42px;
+  margin-left: auto;
 }
 .am-btn-submit:hover:not(:disabled) { background: #1b5e20; }
 .am-btn-submit:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.am-btn-primary {
+  background: #2e7d32; color: #fff; border: none; border-radius: 8px;
+  padding: 10px 22px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+  transition: background 0.15s;
+}
+.am-btn-primary:hover { background: #1b5e20; }
+.am-btn-secondary {
+  background: #fff; color: #555; border: 1.5px solid #ddd; border-radius: 8px;
+  padding: 10px 22px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+  transition: border-color 0.15s;
+}
+.am-btn-secondary:hover { border-color: #aaa; }
+
+/* Spinner */
 .am-spinner {
-  width: 18px;
-  height: 18px;
+  width: 16px; height: 16px;
   border: 2.5px solid rgba(255,255,255,0.4);
   border-top-color: #fff;
   border-radius: 50%;
@@ -200,20 +269,21 @@
 /* ─── Success screen ──────────────────────────────────────────────────────── */
 .am-success-card {
   background: #fff;
-  border: 1px solid #e8f5e9;
+  border: 1.5px solid #e8f5e9;
   border-radius: 16px;
-  padding: 40px 32px;
+  padding: 48px 36px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
   max-width: 480px;
+  width: 100%;
 }
 .am-success-icon  { font-size: 56px; }
-.am-success-title { font-size: 20px; font-weight: 700; color: #1b5e20; }
-.am-success-text  { font-size: 13px; color: #666; line-height: 1.6; }
+.am-success-title { font-size: 20px; font-weight: 800; color: #1b5e20; }
+.am-success-text  { font-size: 13px; color: #666; line-height: 1.7; }
 .am-success-notice {
   display: flex;
   align-items: flex-start;
@@ -223,9 +293,9 @@
   border-radius: 10px;
   padding: 14px 16px;
   text-align: left;
-  font-size: 13px;
+  font-size: 12.5px;
   color: #5d4037;
-  line-height: 1.5;
+  line-height: 1.6;
   width: 100%;
   box-sizing: border-box;
 }
@@ -233,18 +303,17 @@
   display: flex;
   gap: 10px;
   width: 100%;
-  flex-wrap: wrap;
 }
 .am-success-actions .am-btn-primary,
-.am-success-actions .am-btn-secondary {
-  flex: 1;
-  text-align: center;
-}
+.am-success-actions .am-btn-secondary { flex: 1; text-align: center; }
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
-  .am-form-grid  { grid-template-columns: 1fr; }
-  .am-wrap       { padding: 4px 0 24px; }
-  .am-tab        { padding: 12px 12px; font-size: 12px; }
-  .am-success-actions { flex-direction: column; }
+  .am-form-grid         { grid-template-columns: 1fr; }
+  .am-form-body         { padding: 16px; }
+  .am-form-footer       { padding: 12px 16px; }
+  .am-class-options     { flex-direction: column; }
+  .am-success-actions   { flex-direction: column; }
+  .am-tab               { font-size: 11px; padding: 12px 6px; gap: 4px; }
+  .am-tab-num           { width: 18px; height: 18px; font-size: 10px; }
 }

@@ -9,7 +9,7 @@ import MemberLayout        from "./layouts/MemberLayout";
 
 // Auth pages — ONE login for all roles
 import Login               from "./pages/Login";
-import MemberRegister from "./components/member/ApplyMembership";
+import MemberRegister from "./components/member/MemberRegister";
 
 // Admin components
 import Dashboard           from "./components/admin/Dashboard";
