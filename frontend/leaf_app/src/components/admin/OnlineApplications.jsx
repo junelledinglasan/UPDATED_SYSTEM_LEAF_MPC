@@ -21,7 +21,8 @@ function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) 
 
   const handleReject = () => {
     if (!reason.trim()) return;
-    onReject(app.id, reason);
+    const id = app.id || app.app_id;
+    onReject(id, reason);
   };
 
   // Backend uses snake_case — map to display
@@ -31,7 +32,7 @@ function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) 
   const InfoRow = ({ label, value, mono=false, full=false }) => (
     <div className={`oa-info-item${full?" oa-full":""}`}>
       <span className="oa-info-key">{label}</span>
-      <span className={`oa-info-val${mono?" mono":""}`}>{value}</span>
+      <span className={`oa-info-val${mono?" mono":""}`}>{value || "—"}</span>
     </div>
   );
 
@@ -69,7 +70,7 @@ function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) 
               <InfoRow label="Educational Attainment" value={app.educational_attainment} />
               <InfoRow label="Classification"         value={app.classification} />
               <InfoRow label="Occupation"             value={app.occupation} />
-              <InfoRow label="Monthly Income"         value={app.income ? `₱${Number(app.income).toLocaleString()}` : "—"} />
+              <InfoRow label="Monthly Income"         value={app.income && app.income != "0.00" ? `₱${Number(app.income).toLocaleString()}` : "—"} />
               <InfoRow label="Contact No."            value={app.contact_number} mono />
               <InfoRow label="Email"                  value={app.email} mono />
               <InfoRow label="Address"                value={app.address} full />
@@ -112,7 +113,7 @@ function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) 
               {status === "Pending" && (
                 <>
                   <button className="oa-btn-reject-soft" onClick={() => setRejectMode(true)}>✗ Reject</button>
-                  <button className="oa-btn-approve" onClick={() => onApprove(app.id)}>✓ Approve & Notify Member</button>
+                  <button className="oa-btn-approve" onClick={() => onApprove(app.id || app.app_id)}>✓ Approve & Notify Member</button>
                 </>
               )}
             </>
@@ -208,9 +209,10 @@ export default function OnlineApplications() {
     try {
       await updateApplicationStatusAPI(id, "Approved");
       setApps(prev => prev.map(a => (a.id === id || a.app_id === id) ? { ...a, application_status: "Approved", status: "Approved" } : a));
-      setViewApp(prev => prev ? { ...prev, application_status: "Approved", status: "Approved" } : null); setFullAppData(prev => prev ? { ...prev, application_status: "Approved" } : null);
+      setFullAppData(prev => prev ? { ...prev, application_status: "Approved" } : null);
       showToast("Application approved successfully!", "success");
-    } catch {
+    } catch(err) {
+      console.error("Approve error:", err.response?.data);
       showToast("Failed to approve application.", "danger");
     }
   };
@@ -220,8 +222,10 @@ export default function OnlineApplications() {
       await updateApplicationStatusAPI(id, "Rejected", reason);
       setApps(prev => prev.map(a => (a.id === id || a.app_id === id) ? { ...a, application_status: "Rejected", status: "Rejected" } : a));
       setViewApp(null);
+      setFullAppData(null);
       showToast("Application rejected.", "danger");
-    } catch {
+    } catch(err) {
+      console.error("Reject error:", err.response?.data);
       showToast("Failed to reject application.", "danger");
     }
   };

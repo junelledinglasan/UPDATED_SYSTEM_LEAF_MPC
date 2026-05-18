@@ -35,6 +35,7 @@ class LeafMemberInfo(models.Model):
     occupation             = models.CharField(max_length=100, blank=True)
     income                 = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     contact_number         = models.CharField(max_length=20, blank=True)
+    email                  = models.EmailField(max_length=100, blank=True)
     address                = models.TextField(blank=True)
     classification         = models.CharField(max_length=20, choices=CLASSIFICATION_CHOICES, default='Employed')
     birth_certificate      = models.BooleanField(default=False)

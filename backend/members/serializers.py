@@ -42,8 +42,10 @@ class LeafMemberInfoListSerializer(serializers.ModelSerializer):
         model  = LeafMemberInfo
         fields = [
             'id', 'app_id', 'first_name', 'last_name', 'middle_name',
-            'fullname', 'contact_number', 'classification',
-            'application_status', 'created_at', 'is_converted',
+            'fullname', 'birth_date', 'civil_status', 'educational_attainment',
+            'occupation', 'income', 'contact_number', 'address',
+            'classification', 'birth_certificate', 'marriage_certificate',
+            'application_status', 'reject_reason', 'created_at', 'is_converted',
         ]
 
     def get_is_converted(self, obj):

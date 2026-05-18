@@ -82,7 +82,7 @@ function ViewEditModal({ member, onClose, onSave }) {
   }, [member.id]);
 
   const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
-  const maxLoanable = (parseFloat(form.share_capital) || 0) * 3;
+  const maxLoanable = (parseFloat(form.share_capital) || 0) * 2;
 
   const handleSave = async () => {
     setSaving(true);
@@ -148,7 +148,7 @@ function ViewEditModal({ member, onClose, onSave }) {
                   }
                 </div>
                 <div className="mm-vc-row">
-                  <span className="mm-vc-label">Max Loanable (×3)</span>
+                  <span className="mm-vc-label">Max Loanable (×2)</span>
                   <span className="mm-vc-val green">₱{maxLoanable.toLocaleString()}</span>
                 </div>
               </div>
@@ -175,7 +175,7 @@ function ViewEditModal({ member, onClose, onSave }) {
                 <div className="modal-field">
                   <div className="modal-field-label">Birth Certificate</div>
                   {mode==="view" ? (
-                    <div className="modal-field-value">{form.birth_certificate ? " Submitted" : " Not submitted"}</div>
+                    <div className="modal-field-value">{form.birth_certificate ? "✅ Submitted" : "❌ Not submitted"}</div>
                   ) : (
                     <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
                       <input type="checkbox" name="birth_certificate" checked={!!form.birth_certificate}
@@ -186,7 +186,7 @@ function ViewEditModal({ member, onClose, onSave }) {
                 <div className="modal-field">
                   <div className="modal-field-label">Marriage Certificate</div>
                   {mode==="view" ? (
-                    <div className="modal-field-value">{form.marriage_certificate ? " Submitted" : " Not submitted"}</div>
+                    <div className="modal-field-value">{form.marriage_certificate ? "✅ Submitted" : "❌ Not submitted"}</div>
                   ) : (
                     <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
                       <input type="checkbox" name="marriage_certificate" checked={!!form.marriage_certificate}
@@ -872,7 +872,7 @@ export default function ManageMember() {
         <div className="mm-card">
           {pending.length===0 ? (
             <div className="mm-empty-pending">
-              <div style={{fontSize:36}}></div>
+              <div style={{fontSize:36}}>✅</div>
               <div style={{fontSize:14,fontWeight:700,color:"#1b5e20",marginTop:8}}>No pending applications</div>
               <div style={{fontSize:12,color:"#aaa",marginTop:4}}>All approved applicants have been processed.</div>
             </div>
