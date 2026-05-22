@@ -3,14 +3,16 @@ from .models import Payment
 
 
 class PaymentSerializer(serializers.ModelSerializer):
-    member_name = serializers.CharField(source='member.fullname',  read_only=True)
-    member_code = serializers.CharField(source='member.member_id', read_only=True)
-    loan_code   = serializers.CharField(source='loan.loan_id',     read_only=True)
+    member_name  = serializers.CharField(source='member.fullname',  read_only=True)
+    member_code  = serializers.CharField(source='member.member_id', read_only=True)
+    loan_code    = serializers.CharField(source='loan.loan_id',     read_only=True)
+    explorer_url = serializers.ReadOnlyField()
 
     class Meta:
         model  = Payment
         fields = '__all__'
-        read_only_fields = ['tx_id', 'hash', 'paid_at', 'balance', 'recorded_by']
+        read_only_fields = ['tx_id', 'hash', 'paid_at', 'balance', 'recorded_by',
+                            'polygon_tx', 'block_number', 'network']
 
 
 class CreatePaymentSerializer(serializers.ModelSerializer):
