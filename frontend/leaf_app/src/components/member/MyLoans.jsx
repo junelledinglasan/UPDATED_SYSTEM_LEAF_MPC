@@ -16,8 +16,9 @@ export default function MyLoans() {
     Promise.allSettled([getLoansAPI(), getPaymentsAPI()])
       .then(([l, p]) => {
         if (l.status==="fulfilled") {
-          setLoans(l.value);
-          if (l.value.length > 0) setSelected(l.value[0]);
+          const activeLoans = l.value.filter(loan => loan.status === "Active" || loan.status === "Overdue");
+          setLoans(activeLoans);
+          if (activeLoans.length > 0) setSelected(activeLoans[0]);
         }
         if (p.status==="fulfilled") setPayments(p.value);
       })
@@ -28,8 +29,8 @@ export default function MyLoans() {
   if (!loans.length) return (
     <div style={{textAlign:"center",padding:"60px",color:"#aaa"}}>
       <div style={{fontSize:40,marginBottom:12}}>📭</div>
-      <div style={{fontWeight:600}}>No loans yet.</div>
-      <div style={{fontSize:12,marginTop:4}}>You have no loan records at the moment.</div>
+      <div style={{fontWeight:600}}>No active loans.</div>
+      <div style={{fontSize:12,marginTop:4}}>You have no active loan records at the moment.</div>
     </div>
   );
 
@@ -50,25 +51,30 @@ export default function MyLoans() {
 
       {/* Loan selector */}
       <div className="ml-loan-cards">
-        {loans.map(loan => (
-          <div
-            key={loan.loanId}
-            className={`ml-loan-card ${selectedLoan.loanId === loan.loanId ? "selected" : ""}`}
-            onClick={() => { setSelected(loan); setTab("details"); }}
-          >
-            <div className="ml-lc-header">
-              <span className="ml-lc-type">{loan.loan_type}</span>
-              <span className={`ml-lc-status ${(loan.status||"").toLowerCase()}`}>{loan.status}</span>
+        {loans.map(loan => {
+          const loanPrincipal = parseFloat(loan.amount || 0);
+          const loanBalance   = parseFloat(loan.balance || 0);
+          const loanPaidPct   = loanPrincipal > 0 ? Math.round(((loanPrincipal - loanBalance) / loanPrincipal) * 100) : 0;
+          return (
+            <div
+              key={loan.loan_id}
+              className={`ml-loan-card ${selectedLoan?.loan_id === loan.loan_id ? "selected" : ""}`}
+              onClick={() => { setSelected(loan); setTab("details"); }}
+            >
+              <div className="ml-lc-header">
+                <span className="ml-lc-type">{loan.loan_type}</span>
+                <span className={`ml-lc-status ${(loan.status||"").toLowerCase()}`}>{loan.status}</span>
+              </div>
+              <div className="ml-lc-id">{loan.loan_id}</div>
+              <div className="ml-lc-balance">₱{Number(loan.balance).toLocaleString()}</div>
+              <div className="ml-lc-label">remaining balance</div>
+              <div className="ml-lc-bar">
+                <div className="ml-lc-fill" style={{ width: loanPaidPct + "%" }} />
+              </div>
+              <div className="ml-lc-pct">{loanPaidPct}% paid</div>
             </div>
-            <div className="ml-lc-id">{loan.loan_id}</div>
-            <div className="ml-lc-balance">₱{Number(loan.balance).toLocaleString()}</div>
-            <div className="ml-lc-label">remaining balance</div>
-            <div className="ml-lc-bar">
-              <div className="ml-lc-fill" style={{ width: paidPct + "%" }} />
-            </div>
-            <div className="ml-lc-pct">{paidPct}% paid</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Detail tabs */}

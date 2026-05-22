@@ -316,3 +316,26 @@
   padding: 10px 14px;
   border-left: 3px solid #2e7d32;
 }
+/* ─── Year Selector ──────────────────────────────────────────── */
+.rp-year-selector { display:flex; align-items:center; }
+
+/* ─── Chart subtitle ─────────────────────────────────────────── */
+.rp-chart-sub { font-size:11px; color:#888; margin-bottom:12px; line-height:1.4; }
+
+/* ─── Classification Cards ───────────────────────────────────── */
+.rp-cls-card {
+  background:#fff; border:1px solid #e4f0e5; border-radius:14px;
+  padding:20px; box-shadow:0 1px 4px rgba(0,0,0,0.04);
+}
+.rp-cls-icon  { font-size:32px; margin-bottom:6px; }
+.rp-cls-name  { font-size:15px; font-weight:800; color:#1b5e20; margin-bottom:12px; }
+.rp-cls-stats { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+.rp-cls-row   { display:flex; justify-content:space-between; align-items:center; font-size:12px; }
+.rp-cls-row span { color:#888; }
+.rp-cls-row strong { color:#222; font-weight:700; }
+.rp-cls-bar-wrap { height:6px; background:#f0f4f1; border-radius:4px; overflow:hidden; }
+.rp-cls-bar      { height:100%; border-radius:4px; transition:width 0.6s; }
+
+/* ─── Fix audit table to show tx_id ─────────────────────────── */
+.rp-audit-table th:nth-child(2),
+.rp-audit-table td:nth-child(2) { display:table-cell !important; }

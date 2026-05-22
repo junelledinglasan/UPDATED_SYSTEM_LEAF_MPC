@@ -6,6 +6,48 @@ import "./ManageMember.css";
 const STATUS_OPTIONS = ["All","Active","Inactive","Suspended"];
 const ROWS_PER_PAGE  = 10;
 
+// ─── Standalone Field components — OUTSIDE all components to prevent focus loss
+function ModalField({ label, name, type="text", options=null, full=false, mode, form, handle }) {
+  return (
+    <div className={`modal-field${full?" full":""}`}>
+      <div className="modal-field-label">{label}</div>
+      {mode==="view" ? (
+        <div className="modal-field-value">{form[name] || "—"}</div>
+      ) : options ? (
+        <select className="modal-input" name={name} value={form[name]||""} onChange={handle}>
+          {options.map(o => <option key={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input className="modal-input" type={type} name={name} value={form[name]||""} onChange={handle} />
+      )}
+    </div>
+  );
+}
+
+function RegisterField({ label, name, type="text", options=null, full=false, form, handle, errors }) {
+  const required = ["first_name","last_name","birth_date","contact_number","address"].includes(name);
+  return (
+    <div className={`modal-field${full?" full":""}`}>
+      <div className="modal-field-label">
+        {label}{required && <span style={{color:"#e53935"}}> *</span>}
+      </div>
+      {options ? (
+        <select className="modal-input" name={name} value={form[name]||""} onChange={handle}>
+          {options.map(o => <option key={o}>{o}</option>)}
+        </select>
+      ) : type === "checkbox" ? (
+        <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13}}>
+          <input type="checkbox" name={name} checked={!!form[name]} onChange={handle}/>
+          <span>Yes</span>
+        </label>
+      ) : (
+        <input className={`modal-input${errors?.[name]?" err":""}`} type={type} name={name} value={form[name]||""} onChange={handle}/>
+      )}
+      {errors?.[name] && <div style={{fontSize:11,color:"#e53935",marginTop:2}}>{errors[name]}</div>}
+    </div>
+  );
+}
+
 // ─── View / Edit Member Modal ─────────────────────────────────────────────────
 function ViewEditModal({ member, onClose, onSave }) {
   const [mode,    setMode]    = useState("view");
@@ -15,26 +57,25 @@ function ViewEditModal({ member, onClose, onSave }) {
   const [showPw,  setShowPw]  = useState(false);
 
   const [form, setForm] = useState({
-    first_name:             member.first_name     || "",
-    last_name:              member.last_name      || "",
-    middle_name:            member.middle_name    || "",
-    status:                 member.status         || "Active",
-    birth_date:             "",
-    civil_status:           "",
+    first_name:    member.first_name    || "",
+    last_name:     member.last_name     || "",
+    middle_name:   "",
+    status:        member.status        || "Active",
+    birth_date:    "",
+    civil_status:  "",
+    contact:       member.contact       || "",
+    email:         member.email         || "",
+    address:       "",
+    occupation:    "",
+    share_capital: member.share_capital || 0,
+    classification: member.classification || "",
     educational_attainment: "",
-    contact:                member.contact        || "",
-    email:                  member.email          || "",
-    address:                "",
-    occupation:             "",
-    income:                 "",
-    birth_certificate:      false,
-    marriage_certificate:   false,
-    classification:         member.classification || "",
-    share_capital:          member.share_capital  || 0,
-    plain_password:         "",
-    // Sub-profile fields
-    school_name:   "", year_level:  "", allowance:      "",
-    pension_income:"", job_type:    "", monthly_income: "",
+    income: "",
+    birth_certificate: false,
+    marriage_certificate: false,
+    school_name: "", year_level: "", allowance: "",
+    pension_income: "", job_type: "", monthly_income: "",
+    plain_password: "",
   });
 
   useEffect(() => {
@@ -43,34 +84,33 @@ function ViewEditModal({ member, onClose, onSave }) {
         const data = await getMemberAPI(member.id);
         setDetail(data);
         const pm = data.pre_member_info || {};
-        const sp = data.student_profile  || {};
-        const sr = data.senior_profile   || {};
-        const jp = data.job_profile      || {};
+        const sp = data.student_profile || {};
+        const sr = data.senior_profile  || {};
+        const jp = data.job_profile     || {};
         setForm({
-          first_name:             data.first_name || pm.first_name || "",
-          last_name:              data.last_name  || pm.last_name  || "",
-          middle_name:            pm.middle_name            || "",
-          status:                 data.status               || "Active",
-          birth_date:             pm.birth_date             || "",
-          civil_status:           pm.civil_status           || "Single",
+          first_name:    data.first_name || pm.first_name || "",
+          last_name:     data.last_name  || pm.last_name  || "",
+          middle_name:   pm.middle_name  || "",
+          status:        data.status     || "Active",
+          birth_date:    pm.birth_date   || "",
+          civil_status:  pm.civil_status || "Single",
+          contact:       data.contact    || "",
+          email:         data.email      || "",
+          address:       pm.address      || "",
+          occupation:    pm.occupation   || "",
+          share_capital: data.share_capital || 0,
+          classification: pm.classification || data.classification || "",
           educational_attainment: pm.educational_attainment || "",
-          contact:                data.contact              || "",
-          email:                  data.email                || "",
-          address:                pm.address                || "",
-          occupation:             pm.occupation             || "",
-          income:                 pm.income                 || "",
-          birth_certificate:      pm.birth_certificate      || false,
-          marriage_certificate:   pm.marriage_certificate   || false,
-          classification:         pm.classification         || data.classification || "",
-          share_capital:          data.share_capital        || 0,
-          plain_password:         data.plain_password       || "",
-          // Sub-profile
-          school_name:    sp.school_name    || "",
-          year_level:     sp.year_level     || "",
-          allowance:      sp.allowance      || "",
+          income:        pm.income       || "",
+          birth_certificate:    pm.birth_certificate    || false,
+          marriage_certificate: pm.marriage_certificate || false,
+          school_name:   sp.school_name  || "",
+          year_level:    sp.year_level   || "",
+          allowance:     sp.allowance    || "",
           pension_income: sr.pension_income || "",
-          job_type:       jp.job_type       || "",
+          job_type:      jp.job_type     || "",
           monthly_income: jp.monthly_income || "",
+          plain_password: data.plain_password || "",
         });
       } catch(e) {
         console.error("Failed to load member details:", e);
@@ -81,7 +121,11 @@ function ViewEditModal({ member, onClose, onSave }) {
     load();
   }, [member.id]);
 
-  const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+  const handle = e => {
+    const val = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setForm(p => ({ ...p, [e.target.name]: val }));
+  };
+
   const maxLoanable = (parseFloat(form.share_capital) || 0) * 2;
 
   const handleSave = async () => {
@@ -98,21 +142,6 @@ function ViewEditModal({ member, onClose, onSave }) {
 
   const username = detail?.user_username || "—";
   const memberId = detail?.member_id || member.member_id || "—";
-
-  const Field = ({ label, name, type="text", options=null, full=false }) => (
-    <div className={`modal-field${full?" full":""}`}>
-      <div className="modal-field-label">{label}</div>
-      {mode==="view" ? (
-        <div className="modal-field-value">{form[name] || "—"}</div>
-      ) : options ? (
-        <select className="modal-input" name={name} value={form[name]} onChange={handle}>
-          {options.map(o => <option key={o}>{o}</option>)}
-        </select>
-      ) : (
-        <input className="modal-input" type={type} name={name} value={form[name]} onChange={handle} />
-      )}
-    </div>
-  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -155,31 +184,30 @@ function ViewEditModal({ member, onClose, onSave }) {
 
               <div className="mm-view-section-title">Personal Information</div>
               <div className="modal-grid">
-                <Field label="First Name"   name="first_name" />
-                <Field label="Last Name"    name="last_name" />
-                <Field label="Middle Name"  name="middle_name" />
-                <Field label="Status"       name="status"       options={["Active","Inactive","Suspended"]} />
-                <Field label="Birthdate"    name="birth_date"   type="date" />
-                <Field label="Civil Status" name="civil_status" options={["Single","Married","Widowed","Separated"]} />
-                <Field label="Contact No."  name="contact"      type="tel" />
-                <Field label="Email"        name="email"        type="email" />
-                <Field label="Occupation"   name="occupation" />
-                <Field label="Address"      name="address"      full />
+                <ModalField label="First Name"             name="first_name"   mode={mode} form={form} handle={handle}/>
+                <ModalField label="Last Name"              name="last_name"    mode={mode} form={form} handle={handle}/>
+                <ModalField label="Middle Name"            name="middle_name"  mode={mode} form={form} handle={handle}/>
+                <ModalField label="Status"                 name="status"       options={["Active","Inactive","Suspended"]} mode={mode} form={form} handle={handle}/>
+                <ModalField label="Birthdate"              name="birth_date"   type="date" mode={mode} form={form} handle={handle}/>
+                <ModalField label="Civil Status"           name="civil_status" options={["Single","Married","Widowed","Separated"]} mode={mode} form={form} handle={handle}/>
+                <ModalField label="Contact No."            name="contact"      type="tel"  mode={mode} form={form} handle={handle}/>
+                <ModalField label="Email"                  name="email"        type="email" mode={mode} form={form} handle={handle}/>
+                <ModalField label="Occupation"             name="occupation"   mode={mode} form={form} handle={handle}/>
+                <ModalField label="Address"                name="address"      full mode={mode} form={form} handle={handle}/>
               </div>
 
               <div className="mm-view-section-title">Classification & Profile</div>
               <div className="modal-grid">
-                <Field label="Classification" name="classification" options={["Student","Senior","Employed"]} />
-                <Field label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} />
-                <Field label="Monthly Income (₱)" name="income" type="number" />
+                <ModalField label="Classification"         name="classification" options={["Student","Senior","Employed"]} mode={mode} form={form} handle={handle}/>
+                <ModalField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} mode={mode} form={form} handle={handle}/>
+                <ModalField label="Monthly Income (₱)"    name="income"       type="number" mode={mode} form={form} handle={handle}/>
                 <div className="modal-field">
                   <div className="modal-field-label">Birth Certificate</div>
                   {mode==="view" ? (
                     <div className="modal-field-value">{form.birth_certificate ? "✅ Submitted" : "❌ Not submitted"}</div>
                   ) : (
                     <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
-                      <input type="checkbox" name="birth_certificate" checked={!!form.birth_certificate}
-                        onChange={e => setForm(p=>({...p,birth_certificate:e.target.checked}))}/> Yes
+                      <input type="checkbox" name="birth_certificate" checked={!!form.birth_certificate} onChange={handle}/> Yes
                     </label>
                   )}
                 </div>
@@ -189,32 +217,28 @@ function ViewEditModal({ member, onClose, onSave }) {
                     <div className="modal-field-value">{form.marriage_certificate ? "✅ Submitted" : "❌ Not submitted"}</div>
                   ) : (
                     <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
-                      <input type="checkbox" name="marriage_certificate" checked={!!form.marriage_certificate}
-                        onChange={e => setForm(p=>({...p,marriage_certificate:e.target.checked}))}/> Yes
+                      <input type="checkbox" name="marriage_certificate" checked={!!form.marriage_certificate} onChange={handle}/> Yes
                     </label>
                   )}
                 </div>
               </div>
 
-              {/* Student sub-profile */}
               {form.classification === "Student" && (
                 <div className="modal-grid">
-                  <Field label="School Name"         name="school_name" full />
-                  <Field label="Year Level"          name="year_level" options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]} />
-                  <Field label="Monthly Allowance (₱)" name="allowance" type="number" />
+                  <ModalField label="School Name"          name="school_name"  mode={mode} form={form} handle={handle}/>
+                  <ModalField label="Year Level"           name="year_level"   options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]} mode={mode} form={form} handle={handle}/>
+                  <ModalField label="Monthly Allowance (₱)" name="allowance"  type="number" mode={mode} form={form} handle={handle}/>
                 </div>
               )}
-              {/* Senior sub-profile */}
               {form.classification === "Senior" && (
                 <div className="modal-grid">
-                  <Field label="Monthly Pension Income (₱)" name="pension_income" type="number" />
+                  <ModalField label="Monthly Pension Income (₱)" name="pension_income" type="number" mode={mode} form={form} handle={handle}/>
                 </div>
               )}
-              {/* Employed sub-profile */}
               {form.classification === "Employed" && (
                 <div className="modal-grid">
-                  <Field label="Employment Type"    name="job_type" options={["Employed","Self-Employed","Business","Freelance","Other"]} />
-                  <Field label="Monthly Income (₱)" name="monthly_income" type="number" />
+                  <ModalField label="Employment Type"      name="job_type"     options={["Employed","Self-Employed","Business","Freelance","Other"]} mode={mode} form={form} handle={handle}/>
+                  <ModalField label="Monthly Income (₱)"  name="monthly_income" type="number" mode={mode} form={form} handle={handle}/>
                 </div>
               )}
 
@@ -228,7 +252,6 @@ function ViewEditModal({ member, onClose, onSave }) {
                   <div className="modal-field-label">Username</div>
                   <div className="modal-field-value mono">{username}</div>
                 </div>
-
                 {mode==="view" && (
                   <div className="modal-field full">
                     <div className="modal-field-label">Password</div>
@@ -240,14 +263,8 @@ function ViewEditModal({ member, onClose, onSave }) {
                         {showPw ? "Hide" : "Show"}
                       </button>
                     </div>
-                    {!form.plain_password && (
-                      <div style={{fontSize:11,color:"#f57c00",marginTop:4}}>
-                        ⚠ No saved password — member registered before this feature was added.
-                      </div>
-                    )}
                   </div>
                 )}
-
                 {mode==="edit" && (
                   <div className="modal-field full">
                     <div className="modal-field-label">
@@ -269,14 +286,11 @@ function ViewEditModal({ member, onClose, onSave }) {
                     </div>
                   </div>
                 )}
-
                 <div className="modal-field full">
                   <div className="modal-field-label">Date Registered</div>
                   <div className="modal-field-value">
                     {detail?.date_registered
-                      ? new Date(detail.date_registered).toLocaleDateString("en-PH", {
-                          year:"numeric", month:"long", day:"numeric"
-                        })
+                      ? new Date(detail.date_registered).toLocaleDateString("en-PH", {year:"numeric",month:"long",day:"numeric"})
                       : "—"
                     }
                   </div>
@@ -325,12 +339,10 @@ function DeleteModal({ member, onClose, onConfirm }) {
         <div className="modal-body">
           <div className="delete-warning-icon">⚠️</div>
           <p className="delete-confirm-text">
-            Are you sure you want to delete <strong>{member.fullname}</strong>?
+            Are you sure you want to delete <strong>{member.fullname || `${member.first_name} ${member.last_name}`}</strong>?
           </p>
           <p className="delete-sub-text">Member ID: <span className="mono">{member.member_id}</span></p>
-          <p className="delete-sub-text" style={{color:"#e53935",marginTop:4}}>
-            This action cannot be undone.
-          </p>
+          <p className="delete-sub-text" style={{color:"#e53935",marginTop:4}}>This action cannot be undone.</p>
         </div>
         <div className="modal-footer">
           <button className="btn-modal-close" onClick={onClose}>Cancel</button>
@@ -468,28 +480,6 @@ function RegisterMemberModal({ onClose, onSuccess }) {
     } finally { setLoading(false); }
   };
 
-  const RField = ({ label, name, type="text", options=null, full=false }) => (
-    <div className={`modal-field${full?" full":""}`}>
-      <div className="modal-field-label">
-        {label}
-        {["first_name","last_name","birth_date","contact_number","address"].includes(name) && <span style={{color:"#e53935"}}> *</span>}
-      </div>
-      {options ? (
-        <select className="modal-input" name={name} value={form[name]} onChange={handle}>
-          {options.map(o => <option key={o}>{o}</option>)}
-        </select>
-      ) : type === "checkbox" ? (
-        <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13}}>
-          <input type="checkbox" name={name} checked={!!form[name]} onChange={handle}/>
-          <span>Yes</span>
-        </label>
-      ) : (
-        <input className={`modal-input${errors[name]?" err":""}`} type={type} name={name} value={form[name]} onChange={handle}/>
-      )}
-      {errors[name] && <div style={{fontSize:11,color:"#e53935",marginTop:2}}>{errors[name]}</div>}
-    </div>
-  );
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box mm-view-modal" onClick={e => e.stopPropagation()}>
@@ -524,18 +514,18 @@ function RegisterMemberModal({ onClose, onSuccess }) {
         <div className="modal-body">
           {tab === "personal" && (
             <div className="modal-grid">
-              <RField label="Last Name"              name="last_name"/>
-              <RField label="First Name"             name="first_name"/>
-              <RField label="Middle Name"            name="middle_name"/>
-              <RField label="Birthdate"              name="birth_date" type="date"/>
-              <RField label="Civil Status"           name="civil_status" options={["Single","Married","Widowed","Separated"]}/>
-              <RField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]}/>
-              <RField label="Contact No."            name="contact_number"/>
-              <RField label="Occupation"             name="occupation"/>
-              <RField label="Monthly Income (₱)"    name="income" type="number"/>
-              <RField label="Complete Address"       name="address" full/>
-              <RField label="Birth Certificate Submitted"    name="birth_certificate"    type="checkbox"/>
-              <RField label="Marriage Certificate Submitted" name="marriage_certificate" type="checkbox"/>
+              <RegisterField label="Last Name"              name="last_name"             form={form} handle={handle} errors={errors}/>
+              <RegisterField label="First Name"             name="first_name"            form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Middle Name"            name="middle_name"           form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Birthdate"              name="birth_date" type="date" form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Civil Status"           name="civil_status" options={["Single","Married","Widowed","Separated"]} form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Contact No."            name="contact_number"        form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Occupation"             name="occupation"            form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Monthly Income (₱)"    name="income" type="number"  form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Complete Address"       name="address" full          form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Birth Certificate Submitted"    name="birth_certificate"    type="checkbox" form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Marriage Certificate Submitted" name="marriage_certificate" type="checkbox" form={form} handle={handle} errors={errors}/>
             </div>
           )}
 
@@ -557,18 +547,18 @@ function RegisterMemberModal({ onClose, onSuccess }) {
                 </div>
               </div>
               {form.classification === "Student" && (<>
-                <RField label="School Name" name="school_name"/>
-                <RField label="Year Level"  name="year_level" options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]}/>
-                <RField label="Monthly Allowance (₱)" name="allowance" type="number"/>
+                <RegisterField label="School Name"           name="school_name"  form={form} handle={handle} errors={errors}/>
+                <RegisterField label="Year Level"            name="year_level"   options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]} form={form} handle={handle} errors={errors}/>
+                <RegisterField label="Monthly Allowance (₱)" name="allowance" type="number" form={form} handle={handle} errors={errors}/>
               </>)}
               {form.classification === "Senior" && (<>
-                <RField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]}/>
-                <RField label="Monthly Pension Income (₱)" name="pension_income" type="number"/>
+                <RegisterField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} form={form} handle={handle} errors={errors}/>
+                <RegisterField label="Monthly Pension Income (₱)" name="pension_income" type="number" form={form} handle={handle} errors={errors}/>
               </>)}
               {form.classification === "Employed" && (<>
-                <RField label="Occupation/Job Title" name="occupation"/>
-                <RField label="Employment Type" name="job_type" options={["Employed","Self-Employed","Business","Freelance","Other"]}/>
-                <RField label="Monthly Income (₱)" name="monthly_income" type="number"/>
+                <RegisterField label="Occupation/Job Title"  name="occupation"   form={form} handle={handle} errors={errors}/>
+                <RegisterField label="Employment Type"       name="job_type"     options={["Employed","Self-Employed","Business","Freelance","Other"]} form={form} handle={handle} errors={errors}/>
+                <RegisterField label="Monthly Income (₱)"   name="monthly_income" type="number" form={form} handle={handle} errors={errors}/>
               </>)}
             </div>
           )}
@@ -585,12 +575,7 @@ function RegisterMemberModal({ onClose, onSuccess }) {
                 </div>
                 <div className="modal-field full" style={{background:"#f1f8e9",borderRadius:10,padding:16}}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                    {[
-                      ["Member ID", result.member_id],
-                      ["Username",  result.username],
-                      ["Password",  result.plain_password],
-                      ["Status",    "Active"],
-                    ].map(([k,v]) => (
+                    {[["Member ID",result.member_id],["Username",result.username],["Password",result.plain_password],["Status","Active"]].map(([k,v]) => (
                       <div key={k}>
                         <div style={{fontSize:11,color:"#888",fontWeight:600}}>{k}</div>
                         <div style={{fontSize:13,fontWeight:700,color:"#1b5e20",fontFamily:"monospace"}}>{v}</div>
@@ -685,8 +670,7 @@ export default function ManageMember() {
     const matchStatus = filterStatus==="All" || m.status===filterStatus;
     const q = search.toLowerCase();
     return matchStatus && (
-      (m.first_name+" "+m.last_name).toLowerCase().includes(q) ||
-      (m.fullname||"").toLowerCase().includes(q) ||
+      (m.fullname||`${m.first_name} ${m.last_name}`).toLowerCase().includes(q) ||
       (m.member_id||"").toLowerCase().includes(q)
     );
   });
@@ -825,14 +809,9 @@ export default function ManageMember() {
                 ) : paginated.length===0 ? (
                   <tr><td colSpan={5} className="mm-empty">No members found.</td></tr>
                 ) : paginated.map((m, idx) => (
-                  <tr
-                    key={m.id}
-                    className={idx%2===0?"row-even":"row-odd"}
-                    onClick={() => setViewMember(m)}
-                    style={{cursor:"pointer"}}
-                  >
+                  <tr key={m.id} className={idx%2===0?"row-even":"row-odd"} onClick={() => setViewMember(m)} style={{cursor:"pointer"}}>
                     <td className="mono cell-id">{m.member_id}</td>
-                    <td className="cell-name">{m.fullname}</td>
+                    <td className="cell-name">{m.fullname || `${m.first_name} ${m.last_name}`}</td>
                     <td>{m.contact}</td>
                     <td><span className={`status-badge status-${(m.status||"").toLowerCase()}`}>{m.status}</span></td>
                     <td>
@@ -891,12 +870,7 @@ export default function ManageMember() {
                 </thead>
                 <tbody>
                   {pending.map((p, idx) => (
-                    <tr
-                      key={p.id}
-                      className={idx%2===0?"row-even":"row-odd"}
-                      onClick={() => setViewPending(p)}
-                      style={{cursor:"pointer"}}
-                    >
+                    <tr key={p.id} className={idx%2===0?"row-even":"row-odd"} onClick={() => setViewPending(p)} style={{cursor:"pointer"}}>
                       <td className="mono cell-id">{p.app_id}</td>
                       <td className="cell-name">{p.fullname || `${p.first_name} ${p.last_name}`}</td>
                       <td>{p.contact_number}</td>
