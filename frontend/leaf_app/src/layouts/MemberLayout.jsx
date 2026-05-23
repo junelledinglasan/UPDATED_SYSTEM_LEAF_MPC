@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getMyProfileAPI, getMyApplicationAPI } from "../api/members";
 import "./MemberLayout.css";
+import logo from "../assets/logo.png";
 
 const LOCKED_ROUTES = [
   "/member/dashboard",
@@ -112,11 +113,11 @@ export default function MemberLayout() {
 
         {/* Logo */}
         <div className="ml-logo">
-          <img src="/logo.png" alt="LEAF MPC" className="ml-logo-img" />
-          <div>
-            <div className="ml-logo-name">LEAF MPC</div>
-            <div className="ml-logo-sub">MEMBER PORTAL</div>
-          </div>
+          <img
+            src={logo}
+            alt="LEAF MPC Logo"
+            style={{ height: "35px", width: "160px", objectFit: "contain" }}
+          />
         </div>
 
         {/* Profile strip */}

@@ -7,9 +7,9 @@ import AdminLayout         from "./layouts/AdminLayout";
 import StaffLayout         from "./layouts/StaffLayout";
 import MemberLayout        from "./layouts/MemberLayout";
 
-// Auth pages — ONE login for all roles
+// Auth pages
 import Login               from "./pages/Login";
-import MemberRegister from "./components/member/MemberRegister";
+import MemberRegister      from "./components/member/MemberRegister";
 
 // Admin components
 import Dashboard           from "./components/admin/Dashboard";
@@ -41,8 +41,8 @@ export default function App() {
 
           {/* Default → single login */}
           <Route path="/"         element={<Navigate to="/login" replace />} />
-          <Route path="/login"    element={<Login />}            />
-          <Route path="/register" element={<MemberRegister />}   />
+          <Route path="/login"    element={<Login />}          />
+          <Route path="/register" element={<MemberRegister />} />
 
           {/* ── Admin Routes ── */}
           <Route
@@ -73,13 +73,14 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<Navigate to="home" replace />} />
-            <Route path="home"          element={<StaffHome />}          />
+            {/* /staff → /staff (index = StaffHome) */}
+            <Route index                element={<StaffHome />}          />
             <Route path="members"       element={<ManageMember />}       />
             <Route path="applications"  element={<OnlineApplications />} />
             <Route path="loan-approval" element={<LoanApproval />}       />
             <Route path="loan-payment"  element={<LoanPayment />}        />
             <Route path="announcement"  element={<Announcement />}       />
+            <Route path="reports"       element={<Reports />}            />
           </Route>
 
           {/* ── Member Routes ── */}

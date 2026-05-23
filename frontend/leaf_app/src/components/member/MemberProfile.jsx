@@ -12,7 +12,7 @@ export default function MemberProfile() {
   const [loading,     setLoading]    = useState(true);
   const [tab,         setTab]        = useState("info");
   const [editing,     setEditing]    = useState(false);
-  const [form,        setForm]       = useState({ contact:"", email:"", address:"", occupation:"" });
+  const [form, setForm] = useState({ contact_number:"", email:"", address:"", occupation:"" });
   const [saved,       setSaved]      = useState(false);
 
   // Security state
@@ -36,10 +36,10 @@ export default function MemberProfile() {
         setIsOfficial(true);
         const pm = p.pre_member_info || {};
         setForm({
-          contact:    p.contact     || "",
-          email:      p.email       || "",
-          address:    pm.address    || "",
-          occupation: pm.occupation || "",
+          contact_number: pm.contact_number || p.contact || "",
+          email:          pm.email          || p.email   || "",
+          address:        pm.address        || "",
+          occupation:     pm.occupation     || "",
         });
       } catch {
         try {
@@ -60,8 +60,10 @@ export default function MemberProfile() {
   const handleSave = async () => {
     try {
       await updateMemberAPI(profile.id, {
-        contact: form.contact, email: form.email,
-        address: form.address, occupation: form.occupation,
+        contact_number: form.contact_number,
+        email:          form.email,
+        address:        form.address,
+        occupation:     form.occupation,
       });
       setProfile(p => ({ ...p, ...form }));
       setSaved(true); setEditing(false);
@@ -250,8 +252,8 @@ export default function MemberProfile() {
             <div className="mp-info-item">
               <span className="mp-info-key">Contact No.</span>
               {editing
-                ? <input className="mp-edit-input" type="tel" name="contact" value={form.contact} onChange={handle}/>
-                : <span className="mp-info-val">{form.contact || "—"}</span>
+                ? <input className="mp-edit-input" type="tel" name="contact_number" value={form.contact_number} onChange={handle}/>
+                : <span className="mp-info-val">{form.contact_number || PM.contact_number || "—"}</span>
               }
             </div>
 
@@ -260,7 +262,7 @@ export default function MemberProfile() {
               <span className="mp-info-key">Email</span>
               {editing
                 ? <input className="mp-edit-input" type="email" name="email" value={form.email} onChange={handle}/>
-                : <span className="mp-info-val">{form.email || "—"}</span>
+                : <span className="mp-info-val">{form.email || PM.email || "—"}</span>
               }
             </div>
 
@@ -269,7 +271,7 @@ export default function MemberProfile() {
               <span className="mp-info-key">Occupation</span>
               {editing
                 ? <input className="mp-edit-input" name="occupation" value={form.occupation} onChange={handle}/>
-                : <span className="mp-info-val">{form.occupation || "—"}</span>
+                : <span className="mp-info-val">{form.occupation || PM.occupation || "—"}</span>
               }
             </div>
 
@@ -278,7 +280,7 @@ export default function MemberProfile() {
               <span className="mp-info-key">Address</span>
               {editing
                 ? <input className="mp-edit-input" name="address" value={form.address} onChange={handle}/>
-                : <span className="mp-info-val">{form.address || "—"}</span>
+                : <span className="mp-info-val">{form.address || PM.address || "—"}</span>
               }
             </div>
           </div>

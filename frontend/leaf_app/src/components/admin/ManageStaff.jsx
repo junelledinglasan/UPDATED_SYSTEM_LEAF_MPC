@@ -3,9 +3,23 @@ import { getStaffListAPI, addStaffAPI, editStaffAPI, resetStaffPasswordAPI } fro
 import { Pencil, KeyRound, Eye, EyeOff, UserPlus } from "lucide-react";
 import "./ManageStaff.css";
 
+const STAFF_ROLE_OPTIONS = [
+  { value: "cashier",     label: "Cashier"               },
+  { value: "collector",   label: "Collector"             },
+  { value: "bookkeeper",  label: "Bookkeeper"            },
+  { value: "admin_clerk", label: "Administrative Clerk"  },
+];
+
+const STAFF_ROLE_LABELS = {
+  cashier:     "Cashier",
+  collector:   "Collector",
+  bookkeeper:  "Bookkeeper",
+  admin_clerk: "Administrative Clerk",
+};
+
 // ─── Add Staff Modal ──────────────────────────────────────────────────────────
 function AddStaffModal({ onClose, onSuccess }) {
-  const [form,    setForm]    = useState({ name: "", username: "", password: "", confirm: "" });
+  const [form,    setForm]    = useState({ name: "", username: "", password: "", confirm: "", staff_role: "" });
   const [errors,  setErrors]  = useState({});
   const [showPw,  setShowPw]  = useState(false);
   const [done,    setDone]    = useState(null);
@@ -18,11 +32,12 @@ function AddStaffModal({ onClose, onSuccess }) {
 
   const validate = () => {
     const e = {};
-    if (!form.name.trim())        e.name     = "Name is required.";
-    if (!form.username.trim())    e.username  = "Username is required.";
-    if (form.username.length < 4) e.username  = "Minimum 4 characters.";
-    if (!form.password)           e.password  = "Password is required.";
-    if (form.password.length < 6) e.password  = "Minimum 6 characters.";
+    if (!form.name.trim())        e.name       = "Name is required.";
+    if (!form.username.trim())    e.username   = "Username is required.";
+    if (form.username.length < 4) e.username   = "Minimum 4 characters.";
+    if (!form.staff_role)         e.staff_role = "Please select a role.";
+    if (!form.password)           e.password   = "Password is required.";
+    if (form.password.length < 6) e.password   = "Minimum 6 characters.";
     if (form.password !== form.confirm) e.confirm = "Passwords do not match.";
     return e;
   };
@@ -32,7 +47,12 @@ function AddStaffModal({ onClose, onSuccess }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setLoading(true);
     try {
-      const staff = await addStaffAPI({ name: form.name, username: form.username, password: form.password });
+      const staff = await addStaffAPI({
+        name:       form.name,
+        username:   form.username,
+        password:   form.password,
+        staff_role: form.staff_role,
+      });
       setDone(staff);
       onSuccess?.();
     } catch (err) {
@@ -55,6 +75,7 @@ function AddStaffModal({ onClose, onSuccess }) {
           <div className="ms-cred-box">
             <div className="ms-cred-row"><span className="ms-cred-label">Name</span><span className="ms-cred-val">{done.name}</span></div>
             <div className="ms-cred-row"><span className="ms-cred-label">Username</span><span className="ms-cred-val">{done.username}</span></div>
+            <div className="ms-cred-row"><span className="ms-cred-label">Role</span><span className="ms-cred-val">{STAFF_ROLE_LABELS[done.staff_role] ?? done.staff_role}</span></div>
             <div className="ms-cred-row"><span className="ms-cred-label">Password</span><span className="ms-cred-val">{form.password}</span></div>
           </div>
           <div style={{ fontSize:11, color:"#aaa" }}>Give these credentials to the staff member.</div>
@@ -88,6 +109,21 @@ function AddStaffModal({ onClose, onSuccess }) {
             {errors.username && <div className="ms-field-err">{errors.username}</div>}
           </div>
           <div className="ms-field">
+            <label className="ms-label">Staff Role <span className="ms-req">*</span></label>
+            <select
+              className={`ms-input ${errors.staff_role ? "ms-input-err" : ""}`}
+              name="staff_role"
+              value={form.staff_role}
+              onChange={handle}
+            >
+              <option value="">— Select a role —</option>
+              {STAFF_ROLE_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            {errors.staff_role && <div className="ms-field-err">{errors.staff_role}</div>}
+          </div>
+          <div className="ms-field">
             <label className="ms-label">Password <span className="ms-req">*</span></label>
             <div className="ms-pw-wrap">
               <input className={`ms-input ${errors.password?"ms-input-err":""}`} type={showPw?"text":"password"} name="password" value={form.password} onChange={handle} placeholder="At least 6 characters" />
@@ -114,7 +150,7 @@ function AddStaffModal({ onClose, onSuccess }) {
 
 // ─── Edit Staff Modal ─────────────────────────────────────────────────────────
 function EditStaffModal({ staff, onClose, onSuccess }) {
-  const [form,    setForm]    = useState({ name: staff.name, username: staff.username });
+  const [form,    setForm]    = useState({ name: staff.name, username: staff.username, staff_role: staff.staff_role ?? "" });
   const [errors,  setErrors]  = useState({});
   const [done,    setDone]    = useState(false);
   const [loading, setLoading] = useState(false);
@@ -126,12 +162,13 @@ function EditStaffModal({ staff, onClose, onSuccess }) {
 
   const handleSubmit = async () => {
     const e = {};
-    if (!form.name.trim())     e.name     = "Name is required.";
-    if (!form.username.trim()) e.username = "Username is required.";
+    if (!form.name.trim())     e.name       = "Name is required.";
+    if (!form.username.trim()) e.username   = "Username is required.";
+    if (!form.staff_role)      e.staff_role = "Please select a role.";
     if (Object.keys(e).length) { setErrors(e); return; }
     setLoading(true);
     try {
-      await editStaffAPI(staff.id, { name: form.name, username: form.username });
+      await editStaffAPI(staff.id, { name: form.name, username: form.username, staff_role: form.staff_role });
       setDone(true);
       onSuccess?.();
     } catch (err) {
@@ -161,7 +198,7 @@ function EditStaffModal({ staff, onClose, onSuccess }) {
         <div className="ms-modal-header">
           <div>
             <div className="ms-modal-title">Edit Staff Account</div>
-            <div className="ms-modal-sub">Update staff name and username</div>
+            <div className="ms-modal-sub">Update staff name, username and role</div>
           </div>
           <button className="ms-modal-close" onClick={onClose}>✕</button>
         </div>
@@ -175,6 +212,21 @@ function EditStaffModal({ staff, onClose, onSuccess }) {
             <label className="ms-label">Username <span className="ms-req">*</span></label>
             <input className={`ms-input ${errors.username?"ms-input-err":""}`} type="text" name="username" value={form.username} onChange={handle} />
             {errors.username && <div className="ms-field-err">{errors.username}</div>}
+          </div>
+          <div className="ms-field">
+            <label className="ms-label">Staff Role <span className="ms-req">*</span></label>
+            <select
+              className={`ms-input ${errors.staff_role ? "ms-input-err" : ""}`}
+              name="staff_role"
+              value={form.staff_role}
+              onChange={handle}
+            >
+              <option value="">— Select a role —</option>
+              {STAFF_ROLE_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            {errors.staff_role && <div className="ms-field-err">{errors.staff_role}</div>}
           </div>
         </div>
         <div className="ms-modal-footer">
@@ -252,7 +304,7 @@ function ResetPasswordModal({ staff, onClose }) {
             <div className="ms-staff-avatar">{staff.name?.[0]?.toUpperCase() || "S"}</div>
             <div>
               <div className="ms-staff-name">{staff.name}</div>
-              <div className="ms-staff-meta">@{staff.username} · Staff</div>
+              <div className="ms-staff-meta">@{staff.username} · {STAFF_ROLE_LABELS[staff.staff_role] ?? "Staff"}</div>
             </div>
           </div>
           <div className="ms-field">
@@ -325,7 +377,7 @@ export default function ManageStaff() {
           <div className="ms-stat-label">Total Staff</div>
         </div>
         <div className="ms-stat-card">
-          <div className="ms-stat-val" style={{ color:"#2e7d32" }}>{staffList.length}</div>
+          <div className="ms-stat-val" style={{ color:"#2e7d32" }}>{staffList.filter(s => s.is_active).length}</div>
           <div className="ms-stat-label">Active</div>
         </div>
       </div>
@@ -364,7 +416,11 @@ export default function ManageStaff() {
                     </div>
                   </td>
                   <td className="ms-td-user">@{s.username}</td>
-                  <td><span className="ms-role-badge">Staff</span></td>
+                  <td>
+                    <span className="ms-role-badge">
+                      {STAFF_ROLE_LABELS[s.staff_role] ?? "—"}
+                    </span>
+                  </td>
                   <td>
                     <div className="ms-action-row">
                       <button className="ms-action-btn edit"  onClick={() => setEditTarget(s)}><Pencil size={11}/> Edit</button>

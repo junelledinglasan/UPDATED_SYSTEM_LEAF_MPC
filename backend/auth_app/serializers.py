@@ -9,18 +9,20 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        token['role']     = user.role
-        token['name']     = user.name
-        token['username'] = user.username
+        token['role']       = user.role
+        token['name']       = user.name
+        token['username']   = user.username
+        token['staff_role'] = user.staff_role
         return token
 
     def validate(self, attrs):
         data = super().validate(attrs)
         data['user'] = {
-            'id':       self.user.id,
-            'username': self.user.username,
-            'name':     self.user.name,
-            'role':     self.user.role,
+            'id':         self.user.id,
+            'username':   self.user.username,
+            'name':       self.user.name,
+            'role':       self.user.role,
+            'staff_role': self.user.staff_role,
         }
         return data
 
@@ -28,7 +30,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model  = User
-        fields = ['id', 'username', 'name', 'role', 'is_active', 'created_at']
+        fields = ['id', 'username', 'name', 'role', 'staff_role', 'is_active', 'created_at']
 
 
 class CreateStaffSerializer(serializers.ModelSerializer):
@@ -36,7 +38,7 @@ class CreateStaffSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = User
-        fields = ['username', 'name', 'password']
+        fields = ['username', 'name', 'password', 'staff_role']
 
     def create(self, validated_data):
         return User.objects.create_user(
@@ -44,6 +46,7 @@ class CreateStaffSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             name=validated_data['name'],
             role='staff',
+            staff_role=validated_data.get('staff_role', None),
         )
 
 

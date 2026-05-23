@@ -27,9 +27,17 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('member', 'Member'),
     ]
 
+    STAFF_ROLES = [
+        ('cashier',     'Cashier'),
+        ('collector',   'Collector'),
+        ('bookkeeper',  'Bookkeeper'),
+        ('admin_clerk', 'Administrative Clerk'),
+    ]
+
     username   = models.CharField(max_length=50, unique=True)
     name       = models.CharField(max_length=100)
     role       = models.CharField(max_length=10, choices=ROLES, default='member')
+    staff_role = models.CharField(max_length=20, choices=STAFF_ROLES, blank=True, null=True)
     is_active  = models.BooleanField(default=True)
     is_staff   = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -43,4 +51,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         db_table = 'users'
 
     def __str__(self):
+        if self.staff_role:
+            return f'{self.username} ({self.role} - {self.staff_role})'
         return f'{self.username} ({self.role})'

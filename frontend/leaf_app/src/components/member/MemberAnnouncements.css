@@ -1,4 +1,4 @@
-.ma-wrapper { padding:20px 24px 40px; display:flex; flex-direction:column; gap:16px; background:#f0f4f1; min-height:calc(100vh - 54px); box-sizing:border-box; width:100%; min-width:0; }
+.ma-wrapper { padding:20px 24px 40px; display:flex; flex-direction:column; gap:16px; background:#d8e8cc; min-height:calc(100vh - 58px); box-sizing:border-box; width:100%; min-width:0; }
 .ma-page-title { font-size:18px; font-weight:700; color:#1b5e20; }
 .ma-page-sub   { font-size:11px; color:#aaa; margin-top:3px; }
 .ma-filter-tabs { display:flex; gap:4px; flex-wrap:wrap; }

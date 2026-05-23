@@ -63,7 +63,7 @@ function ViewEditModal({ member, onClose, onSave }) {
     status:        member.status        || "Active",
     birth_date:    "",
     civil_status:  "",
-    contact:       member.contact       || "",
+    contact_number: member.contact      || "",
     email:         member.email         || "",
     address:       "",
     occupation:    "",
@@ -94,8 +94,8 @@ function ViewEditModal({ member, onClose, onSave }) {
           status:        data.status     || "Active",
           birth_date:    pm.birth_date   || "",
           civil_status:  pm.civil_status || "Single",
-          contact:       data.contact    || "",
-          email:         data.email      || "",
+          contact_number: pm.contact_number || data.contact || "",
+          email:         pm.email        || data.email      || "",
           address:       pm.address      || "",
           occupation:    pm.occupation   || "",
           share_capital: data.share_capital || 0,
@@ -190,7 +190,7 @@ function ViewEditModal({ member, onClose, onSave }) {
                 <ModalField label="Status"                 name="status"       options={["Active","Inactive","Suspended"]} mode={mode} form={form} handle={handle}/>
                 <ModalField label="Birthdate"              name="birth_date"   type="date" mode={mode} form={form} handle={handle}/>
                 <ModalField label="Civil Status"           name="civil_status" options={["Single","Married","Widowed","Separated"]} mode={mode} form={form} handle={handle}/>
-                <ModalField label="Contact No."            name="contact"      type="tel"  mode={mode} form={form} handle={handle}/>
+                <ModalField label="Contact No."            name="contact_number" type="tel"  mode={mode} form={form} handle={handle}/>
                 <ModalField label="Email"                  name="email"        type="email" mode={mode} form={form} handle={handle}/>
                 <ModalField label="Occupation"             name="occupation"   mode={mode} form={form} handle={handle}/>
                 <ModalField label="Address"                name="address"      full mode={mode} form={form} handle={handle}/>
@@ -424,7 +424,7 @@ function RegisterMemberModal({ onClose, onSuccess }) {
   const [form, setForm] = useState({
     first_name:"", last_name:"", middle_name:"", birth_date:"", civil_status:"Single",
     educational_attainment:"", occupation:"", income:"", contact_number:"", address:"",
-    birth_certificate:false, marriage_certificate:false,
+    birth_certificate:false, marriage_certificate:false, share_capital:"",
     classification:"Employed", school_name:"", year_level:"", allowance:"",
     pension_income:"", job_type:"Employed", monthly_income:"",
   });
@@ -465,7 +465,8 @@ function RegisterMemberModal({ onClose, onSuccess }) {
         educational_attainment: form.educational_attainment, occupation: form.occupation,
         income: form.income || 0, contact_number: form.contact_number, address: form.address,
         birth_certificate: form.birth_certificate, marriage_certificate: form.marriage_certificate,
-        classification: form.classification, school_name: form.school_name,
+        classification: form.classification, share_capital: form.share_capital || 0,
+        school_name: form.school_name,
         year_level: form.year_level, allowance: form.allowance || 0,
         pension_income: form.pension_income || 0, job_type: form.job_type,
         monthly_income: form.monthly_income || 0,
@@ -523,6 +524,7 @@ function RegisterMemberModal({ onClose, onSuccess }) {
               <RegisterField label="Contact No."            name="contact_number"        form={form} handle={handle} errors={errors}/>
               <RegisterField label="Occupation"             name="occupation"            form={form} handle={handle} errors={errors}/>
               <RegisterField label="Monthly Income (₱)"    name="income" type="number"  form={form} handle={handle} errors={errors}/>
+              <RegisterField label="Share Capital (₱)"      name="share_capital" type="number" form={form} handle={handle} errors={errors}/>
               <RegisterField label="Complete Address"       name="address" full          form={form} handle={handle} errors={errors}/>
               <RegisterField label="Birth Certificate Submitted"    name="birth_certificate"    type="checkbox" form={form} handle={handle} errors={errors}/>
               <RegisterField label="Marriage Certificate Submitted" name="marriage_certificate" type="checkbox" form={form} handle={handle} errors={errors}/>
@@ -665,6 +667,24 @@ export default function ManageMember() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Listen for topbar Register Member button from StaffLayout
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.action === "register") setShowRegister(true);
+    };
+    window.addEventListener("staff-action", handler);
+    return () => window.removeEventListener("staff-action", handler);
+  }, []);
+
+  // Listen for topbar Register Member button from StaffLayout
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.action === "register") setShowRegister(true);
+    };
+    window.addEventListener("staff-action", handler);
+    return () => window.removeEventListener("staff-action", handler);
+  }, []);
 
   const filtered = members.filter(m => {
     const matchStatus = filterStatus==="All" || m.status===filterStatus;

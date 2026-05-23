@@ -36,17 +36,10 @@
 .ml-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
   padding: 14px 16px;
   border-bottom: 1px solid #ddd5c0;
   flex-shrink: 0;
 }
-.ml-logo-img {
-  width: 40px; height: 40px;
-  object-fit: contain;
-}
-.ml-logo-name { font-size: 13px; font-weight: 800; color: #2d5a1b; line-height: 1.2; }
-.ml-logo-sub  { font-size: 9px;  font-weight: 600; color: #7a9260; letter-spacing: 0.5px; }
 
 /* Profile strip */
 .ml-profile-strip {
@@ -212,8 +205,8 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  background: var(--ml-bg);
-  padding: 28px 28px 40px;
+  background: #d8e8cc;
+  padding: 0;
 }
 
 /* ── Mobile overlay ───────────────────────────────────────────────── */
