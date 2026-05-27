@@ -30,7 +30,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     STAFF_ROLES = [
         ('cashier',     'Cashier'),
         ('collector',   'Collector'),
-        ('bookkeeper',  'Bookkeeper'),
         ('admin_clerk', 'Administrative Clerk'),
     ]
 

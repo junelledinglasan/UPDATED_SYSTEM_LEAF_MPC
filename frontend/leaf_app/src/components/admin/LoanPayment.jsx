@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { getLoansAPI } from "../../api/loans";
-import { getPaymentsAPI, getPaymentStatsAPI } from "../../api/payments";
+import { getPaymentsAPI, getPaymentStatsAPI, recordPaymentAPI } from "../../api/payments";
 import { Search, Eye } from "lucide-react";
 import "./LoanPayment.css";
 
@@ -84,16 +84,26 @@ function RecordModal({ loan, onClose, onSave }) {
 
 function ReceiptModal({ tx, onClose }) {
   if (!tx) return null;
+
+  const isOnBlockchain = tx.polygon_tx && tx.network === 'polygon';
+  const explorerUrl = tx.polygon_tx
+    ? `https://polygonscan.com/tx/${tx.polygon_tx}`
+    : null;
+
   const rows = [
-    ["Member",       tx.member_name||tx.fullname||""],
-    ["Member ID",    tx.member_code||tx.memberId||""],
-    ["Loan ID",      tx.loan_code||tx.loanId||""],
-    ["Amount Paid",  `₱${Number(tx.amount||0).toLocaleString()}`],
-    ["Balance After",`₱${Number(tx.balance||tx.balanceAfter||0).toLocaleString()}`],
-    ["Note",         tx.note||"—"],
-    ["Date & Time",  tx.paid_at||tx.date||""],
-    ["SHA-256 Hash", tx.hash||""],
+    ["Member",        tx.member_name||tx.fullname||""],
+    ["Member ID",     tx.member_code||tx.memberId||""],
+    ["Loan ID",       tx.loan_code||tx.loanId||""],
+    ["Amount Paid",   `₱${Number(tx.amount||0).toLocaleString()}`],
+    ["Balance After", `₱${Number(tx.balance||tx.balanceAfter||0).toLocaleString()}`],
+    ["Note",          tx.note||"—"],
+    ["Date & Time",   tx.paid_at||tx.date||""],
+    ["SHA-256 Hash",  tx.hash||""],
+    ["Blockchain",    isOnBlockchain ? "✅ Recorded on Polygon Mainnet" : "⚠ Local only"],
+    ["Polygon TX",    tx.polygon_tx || "—"],
+    ["Block Number",  tx.block_number || "—"],
   ];
+
   return (
     <div className="lp-overlay" onClick={onClose}>
       <div className="lp-modal lp-modal-sm" onClick={e=>e.stopPropagation()}>
@@ -106,10 +116,18 @@ function ReceiptModal({ tx, onClose }) {
             {rows.map(([k,v])=>(
               <div key={k} className="lp-receipt-row">
                 <span className="lp-rk">{k}</span>
-                <span className={`lp-rv ${k==="Amount Paid"?"green":""} ${k==="SHA-256 Hash"?"mono hash-text":""}`}>{v}</span>
+                <span className={`lp-rv ${k==="Amount Paid"?"green":""} ${k==="SHA-256 Hash"||k==="Polygon TX"?"mono hash-text":""}`}>{v}</span>
               </div>
             ))}
           </div>
+          {explorerUrl && (
+            <div style={{marginTop: 12, textAlign: 'center'}}>
+              <a href={explorerUrl} target="_blank" rel="noopener noreferrer"
+                 style={{color: '#7c3aed', fontWeight: 600, fontSize: 13}}>
+                🔗 View on Polygonscan
+              </a>
+            </div>
+          )}
         </div>
         <div className="lp-modal-footer">
           <button className="lp-btn-cancel" onClick={onClose}>Close</button>
@@ -213,8 +231,6 @@ export default function LoanPayment() {
 
       <div className="lp-page-header">
         <div><div className="lp-page-title">Loan Payment</div><div className="lp-page-sub">Record and track F2F loan payments collected at the office.</div></div>
-        <div style={{display:"flex",gap:8}}>
-        </div>
       </div>
 
       <div className="lp-summary-grid">
@@ -283,7 +299,7 @@ export default function LoanPayment() {
 
         {activeTab==="history" && (
           <div className="lp-table-wrap">
-            <table className="lp-table">
+            <table className="lp-table history-table">
               <thead><tr>
                 <th style={{width:"16%"}}>TX ID</th>
                 <th style={{width:"11%"}}>Loan ID</th>
@@ -307,7 +323,7 @@ export default function LoanPayment() {
                     <td className="fw green">₱{Number(t.amount||0).toLocaleString()}</td>
                     <td className="blue">₱{Number(t.balance||0).toLocaleString()}</td>
                     <td className="cell-date">{t.paid_at}</td>
-                    <td><span className="hash-text">{t.hash}</span></td>
+                    <td><span className="hash-text">{t.polygon_tx ? '🔗 '+t.polygon_tx.slice(0,10)+'...' : t.hash}</span></td>
                     <td style={{textAlign:"center"}}><button className="lp-view-btn" onClick={()=>setViewTx(t)}><Eye size={12}/></button></td>
                   </tr>
                 ))}

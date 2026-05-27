@@ -1,6 +1,6 @@
 from django.db.models import Sum
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
 from activity_log.utils import log_activity
@@ -78,7 +78,7 @@ def verify_payment_view(request, tx_hash):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def blockchain_status_view(request):
     """Check Polygon network connection status."""
     return Response(get_network_status())

@@ -1,12 +1,18 @@
 import { useState, useEffect } from "react";
 import { getMembersAPI, getMemberStatsAPI, getMemberAPI, updateMemberAPI, deleteMemberAPI, getApplicationsAPI, updateApplicationStatusAPI, convertToMemberAPI, registerMemberAPI } from "../../api/members";
 import { Users, Clock, Eye, Pencil, Trash2, Search } from "lucide-react";
+import api from "../../api/axiosInstance";
 import "./ManageMember.css";
 
 const STATUS_OPTIONS = ["All","Active","Inactive","Suspended"];
 const ROWS_PER_PAGE  = 10;
 
-// ─── Standalone Field components — OUTSIDE all components to prevent focus loss
+async function getMemberFinancialSummary(memberId) {
+  const res = await api.get(`/members/${memberId}/financial-summary/`);
+  return res.data;
+}
+
+// ─── Standalone Field components ──────────────────────────────────────────────
 function ModalField({ label, name, type="text", options=null, full=false, mode, form, handle }) {
   return (
     <div className={`modal-field${full?" full":""}`}>
@@ -48,6 +54,98 @@ function RegisterField({ label, name, type="text", options=null, full=false, for
   );
 }
 
+// ─── Financial Summary Section ────────────────────────────────────────────────
+function FinancialSummary({ memberId }) {
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("overview");
+
+  useEffect(() => {
+    getMemberFinancialSummary(memberId)
+      .then(setSummary)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [memberId]);
+
+  if (loading) return <div style={{textAlign:"center",padding:"20px",color:"#888",fontSize:13}}>Loading financial data...</div>;
+  if (!summary) return null;
+
+  const statusColor = {
+    Active: "#2e7d32", Overdue: "#c62828", Completed: "#1565c0",
+    "For Review": "#e65100", Approved: "#558b2f", Declined: "#757575",
+  };
+
+  return (
+    <div style={{marginTop:16}}>
+      <div className="mm-view-section-title">Financial Overview</div>
+
+      {/* Summary Cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
+        <div style={{background:"#e8f5e9",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+          <div style={{fontSize:11,color:"#558b2f",fontWeight:600,marginBottom:4}}>💰 Share Capital</div>
+          <div style={{fontSize:18,fontWeight:800,color:"#1b5e20"}}>₱{Number(summary.share_capital).toLocaleString()}</div>
+          <div style={{fontSize:10,color:"#888",marginTop:2}}>Max Loanable: ₱{Number(summary.max_loanable).toLocaleString()}</div>
+        </div>
+        <div style={{background:"#e3f2fd",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+          <div style={{fontSize:11,color:"#1565c0",fontWeight:600,marginBottom:4}}>📋 Active Loans</div>
+          <div style={{fontSize:18,fontWeight:800,color:"#0d47a1"}}>{summary.active_loans}</div>
+          <div style={{fontSize:10,color:"#888",marginTop:2}}>Total: {summary.total_loans} loan{summary.total_loans!==1?"s":""}</div>
+        </div>
+        <div style={{background:"#f3e5f5",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+          <div style={{fontSize:11,color:"#6a1b9a",fontWeight:600,marginBottom:4}}>💳 Total Paid</div>
+          <div style={{fontSize:18,fontWeight:800,color:"#4a148c"}}>₱{Number(summary.total_paid).toLocaleString()}</div>
+          <div style={{fontSize:10,color:"#888",marginTop:2}}>Remaining: ₱{Number(summary.total_balance).toLocaleString()}</div>
+        </div>
+      </div>
+
+      {/* Loan List */}
+      {summary.loans.length > 0 && (
+        <>
+          <div className="mm-view-section-title">Loan History</div>
+          <div style={{borderRadius:8,overflow:"hidden",border:"1px solid #e0e0e0"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{background:"#f5f5f5"}}>
+                  <th style={{padding:"8px 10px",textAlign:"left",fontWeight:600,color:"#555"}}>Loan ID</th>
+                  <th style={{padding:"8px 10px",textAlign:"left",fontWeight:600,color:"#555"}}>Type</th>
+                  <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,color:"#555"}}>Amount</th>
+                  <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,color:"#555"}}>Balance</th>
+                  <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,color:"#555"}}>Monthly</th>
+                  <th style={{padding:"8px 10px",textAlign:"center",fontWeight:600,color:"#555"}}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.loans.map((loan, idx) => (
+                  <tr key={loan.loan_id} style={{background: idx%2===0?"#fff":"#fafafa",borderTop:"1px solid #f0f0f0"}}>
+                    <td style={{padding:"8px 10px",fontFamily:"monospace",color:"#1b5e20",fontWeight:600}}>{loan.loan_id}</td>
+                    <td style={{padding:"8px 10px",color:"#555"}}>{loan.loan_type}</td>
+                    <td style={{padding:"8px 10px",textAlign:"right",fontWeight:600}}>₱{Number(loan.amount).toLocaleString()}</td>
+                    <td style={{padding:"8px 10px",textAlign:"right",color: loan.balance>0?"#c62828":"#2e7d32",fontWeight:600}}>₱{Number(loan.balance).toLocaleString()}</td>
+                    <td style={{padding:"8px 10px",textAlign:"right",color:"#555"}}>₱{Number(loan.monthly_due).toLocaleString()}</td>
+                    <td style={{padding:"8px 10px",textAlign:"center"}}>
+                      <span style={{
+                        background: (statusColor[loan.status]||"#757575")+"20",
+                        color: statusColor[loan.status]||"#757575",
+                        padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700
+                      }}>{loan.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {summary.loans.length === 0 && (
+        <div style={{textAlign:"center",padding:"16px",color:"#aaa",fontSize:13,background:"#fafafa",borderRadius:8}}>
+          No loans found for this member.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── View / Edit Member Modal ─────────────────────────────────────────────────
 function ViewEditModal({ member, onClose, onSave }) {
   const [mode,    setMode]    = useState("view");
@@ -55,6 +153,7 @@ function ViewEditModal({ member, onClose, onSave }) {
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [showPw,  setShowPw]  = useState(false);
+  const [profileTab, setProfileTab] = useState("info");
 
   const [form, setForm] = useState({
     first_name:    member.first_name    || "",
@@ -158,6 +257,7 @@ function ViewEditModal({ member, onClose, onSave }) {
             </div>
           ) : (
             <>
+              {/* Member Header */}
               <div className="mm-view-header">
                 <div className="mm-view-avatar">{(form.first_name||"M")[0].toUpperCase()}</div>
                 <div className="mm-view-info">
@@ -168,134 +268,162 @@ function ViewEditModal({ member, onClose, onSave }) {
                 <span className={`status-badge status-${(form.status||"").toLowerCase()}`}>{form.status}</span>
               </div>
 
-              <div className="mm-view-capital">
-                <div className="mm-vc-row">
-                  <span className="mm-vc-label">Share Capital</span>
-                  {mode==="edit"
-                    ? <input className="modal-input mm-capital-input" type="number" name="share_capital" value={form.share_capital} onChange={handle}/>
-                    : <span className="mm-vc-val">₱{Number(form.share_capital||0).toLocaleString()}</span>
-                  }
+              {/* Profile Tabs */}
+              {mode === "view" && (
+                <div style={{display:"flex",borderBottom:"2px solid #e8f5e9",marginBottom:16}}>
+                  {[
+                    {key:"info",    label:"👤 Profile Info"},
+                    {key:"finance", label:"💰 Financial Summary"},
+                  ].map(t => (
+                    <button key={t.key} onClick={() => setProfileTab(t.key)} style={{
+                      flex:1, padding:"9px 8px", fontSize:12, fontWeight:600,
+                      color: profileTab===t.key ? "#2e7d32" : "#888",
+                      background: profileTab===t.key ? "#f9fef9" : "none",
+                      border:"none", borderBottom: profileTab===t.key ? "2px solid #2e7d32" : "none",
+                      marginBottom: profileTab===t.key ? -2 : 0, cursor:"pointer",
+                    }}>{t.label}</button>
+                  ))}
                 </div>
-                <div className="mm-vc-row">
-                  <span className="mm-vc-label">Max Loanable (×2)</span>
-                  <span className="mm-vc-val green">₱{maxLoanable.toLocaleString()}</span>
-                </div>
-              </div>
+              )}
 
-              <div className="mm-view-section-title">Personal Information</div>
-              <div className="modal-grid">
-                <ModalField label="First Name"             name="first_name"   mode={mode} form={form} handle={handle}/>
-                <ModalField label="Last Name"              name="last_name"    mode={mode} form={form} handle={handle}/>
-                <ModalField label="Middle Name"            name="middle_name"  mode={mode} form={form} handle={handle}/>
-                <ModalField label="Status"                 name="status"       options={["Active","Inactive","Suspended"]} mode={mode} form={form} handle={handle}/>
-                <ModalField label="Birthdate"              name="birth_date"   type="date" mode={mode} form={form} handle={handle}/>
-                <ModalField label="Civil Status"           name="civil_status" options={["Single","Married","Widowed","Separated"]} mode={mode} form={form} handle={handle}/>
-                <ModalField label="Contact No."            name="contact_number" type="tel"  mode={mode} form={form} handle={handle}/>
-                <ModalField label="Email"                  name="email"        type="email" mode={mode} form={form} handle={handle}/>
-                <ModalField label="Occupation"             name="occupation"   mode={mode} form={form} handle={handle}/>
-                <ModalField label="Address"                name="address"      full mode={mode} form={form} handle={handle}/>
-              </div>
+              {/* Financial Summary Tab */}
+              {mode === "view" && profileTab === "finance" && (
+                <FinancialSummary memberId={member.id} />
+              )}
 
-              <div className="mm-view-section-title">Classification & Profile</div>
-              <div className="modal-grid">
-                <ModalField label="Classification"         name="classification" options={["Student","Senior","Employed"]} mode={mode} form={form} handle={handle}/>
-                <ModalField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} mode={mode} form={form} handle={handle}/>
-                <ModalField label="Monthly Income (₱)"    name="income"       type="number" mode={mode} form={form} handle={handle}/>
-                <div className="modal-field">
-                  <div className="modal-field-label">Birth Certificate</div>
-                  {mode==="view" ? (
-                    <div className="modal-field-value">{form.birth_certificate ? "✅ Submitted" : "❌ Not submitted"}</div>
-                  ) : (
-                    <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
-                      <input type="checkbox" name="birth_certificate" checked={!!form.birth_certificate} onChange={handle}/> Yes
-                    </label>
+              {/* Profile Info Tab */}
+              {(mode === "edit" || profileTab === "info") && (
+                <>
+                  <div className="mm-view-capital">
+                    <div className="mm-vc-row">
+                      <span className="mm-vc-label">Share Capital</span>
+                      {mode==="edit"
+                        ? <input className="modal-input mm-capital-input" type="number" name="share_capital" value={form.share_capital} onChange={handle}/>
+                        : <span className="mm-vc-val">₱{Number(form.share_capital||0).toLocaleString()}</span>
+                      }
+                    </div>
+                    <div className="mm-vc-row">
+                      <span className="mm-vc-label">Max Loanable (×2)</span>
+                      <span className="mm-vc-val green">₱{maxLoanable.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="mm-view-section-title">Personal Information</div>
+                  <div className="modal-grid">
+                    <ModalField label="First Name"             name="first_name"   mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Last Name"              name="last_name"    mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Middle Name"            name="middle_name"  mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Status"                 name="status"       options={["Active","Inactive","Suspended"]} mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Birthdate"              name="birth_date"   type="date" mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Civil Status"           name="civil_status" options={["Single","Married","Widowed","Separated"]} mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Contact No."            name="contact_number" type="tel"  mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Email"                  name="email"        type="email" mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Occupation"             name="occupation"   mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Address"                name="address"      full mode={mode} form={form} handle={handle}/>
+                  </div>
+
+                  <div className="mm-view-section-title">Classification & Profile</div>
+                  <div className="modal-grid">
+                    <ModalField label="Classification"         name="classification" options={["Student","Senior","Employed"]} mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} mode={mode} form={form} handle={handle}/>
+                    <ModalField label="Monthly Income (₱)"    name="income"       type="number" mode={mode} form={form} handle={handle}/>
+                    <div className="modal-field">
+                      <div className="modal-field-label">Birth Certificate</div>
+                      {mode==="view" ? (
+                        <div className="modal-field-value">{form.birth_certificate ? "✅ Submitted" : "❌ Not submitted"}</div>
+                      ) : (
+                        <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
+                          <input type="checkbox" name="birth_certificate" checked={!!form.birth_certificate} onChange={handle}/> Yes
+                        </label>
+                      )}
+                    </div>
+                    <div className="modal-field">
+                      <div className="modal-field-label">Marriage Certificate</div>
+                      {mode==="view" ? (
+                        <div className="modal-field-value">{form.marriage_certificate ? "✅ Submitted" : "❌ Not submitted"}</div>
+                      ) : (
+                        <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
+                          <input type="checkbox" name="marriage_certificate" checked={!!form.marriage_certificate} onChange={handle}/> Yes
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  {form.classification === "Student" && (
+                    <div className="modal-grid">
+                      <ModalField label="School Name"          name="school_name"  mode={mode} form={form} handle={handle}/>
+                      <ModalField label="Year Level"           name="year_level"   options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]} mode={mode} form={form} handle={handle}/>
+                      <ModalField label="Monthly Allowance (₱)" name="allowance"  type="number" mode={mode} form={form} handle={handle}/>
+                    </div>
                   )}
-                </div>
-                <div className="modal-field">
-                  <div className="modal-field-label">Marriage Certificate</div>
-                  {mode==="view" ? (
-                    <div className="modal-field-value">{form.marriage_certificate ? "✅ Submitted" : "❌ Not submitted"}</div>
-                  ) : (
-                    <label style={{display:"flex",alignItems:"center",gap:8,marginTop:4,fontSize:13,cursor:"pointer"}}>
-                      <input type="checkbox" name="marriage_certificate" checked={!!form.marriage_certificate} onChange={handle}/> Yes
-                    </label>
+                  {form.classification === "Senior" && (
+                    <div className="modal-grid">
+                      <ModalField label="Monthly Pension Income (₱)" name="pension_income" type="number" mode={mode} form={form} handle={handle}/>
+                    </div>
                   )}
-                </div>
-              </div>
+                  {form.classification === "Employed" && (
+                    <div className="modal-grid">
+                      <ModalField label="Employment Type"      name="job_type"     options={["Employed","Self-Employed","Business","Freelance","Other"]} mode={mode} form={form} handle={handle}/>
+                      <ModalField label="Monthly Income (₱)"  name="monthly_income" type="number" mode={mode} form={form} handle={handle}/>
+                    </div>
+                  )}
 
-              {form.classification === "Student" && (
-                <div className="modal-grid">
-                  <ModalField label="School Name"          name="school_name"  mode={mode} form={form} handle={handle}/>
-                  <ModalField label="Year Level"           name="year_level"   options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]} mode={mode} form={form} handle={handle}/>
-                  <ModalField label="Monthly Allowance (₱)" name="allowance"  type="number" mode={mode} form={form} handle={handle}/>
-                </div>
-              )}
-              {form.classification === "Senior" && (
-                <div className="modal-grid">
-                  <ModalField label="Monthly Pension Income (₱)" name="pension_income" type="number" mode={mode} form={form} handle={handle}/>
-                </div>
-              )}
-              {form.classification === "Employed" && (
-                <div className="modal-grid">
-                  <ModalField label="Employment Type"      name="job_type"     options={["Employed","Self-Employed","Business","Freelance","Other"]} mode={mode} form={form} handle={handle}/>
-                  <ModalField label="Monthly Income (₱)"  name="monthly_income" type="number" mode={mode} form={form} handle={handle}/>
-                </div>
-              )}
-
-              <div className="mm-view-section-title">Account</div>
-              <div className="modal-grid">
-                <div className="modal-field full">
-                  <div className="modal-field-label">Member ID</div>
-                  <input className="modal-input disabled" value={memberId} disabled />
-                </div>
-                <div className="modal-field full">
-                  <div className="modal-field-label">Username</div>
-                  <div className="modal-field-value mono">{username}</div>
-                </div>
-                {mode==="view" && (
-                  <div className="modal-field full">
-                    <div className="modal-field-label">Password</div>
-                    <div className="mm-pass-view-wrap">
-                      <span className="modal-field-value mono">
-                        {showPw ? (form.plain_password || "No password saved") : "••••••••"}
-                      </span>
-                      <button type="button" className="mm-reveal-btn" onClick={() => setShowPw(p => !p)}>
-                        {showPw ? "Hide" : "Show"}
-                      </button>
+                  <div className="mm-view-section-title">Account</div>
+                  <div className="modal-grid">
+                    <div className="modal-field full">
+                      <div className="modal-field-label">Member ID</div>
+                      <input className="modal-input disabled" value={memberId} disabled />
+                    </div>
+                    <div className="modal-field full">
+                      <div className="modal-field-label">Username</div>
+                      <div className="modal-field-value mono">{username}</div>
+                    </div>
+                    {mode==="view" && (
+                      <div className="modal-field full">
+                        <div className="modal-field-label">Password</div>
+                        <div className="mm-pass-view-wrap">
+                          <span className="modal-field-value mono">
+                            {showPw ? (form.plain_password || "No password saved") : "••••••••"}
+                          </span>
+                          <button type="button" className="mm-reveal-btn" onClick={() => setShowPw(p => !p)}>
+                            {showPw ? "Hide" : "Show"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {mode==="edit" && (
+                      <div className="modal-field full">
+                        <div className="modal-field-label">
+                          New Password
+                          <span style={{fontSize:11,color:"#aaa",fontWeight:400,marginLeft:6}}>(leave blank to keep current)</span>
+                        </div>
+                        <div className="mm-pass-wrap">
+                          <input
+                            className="modal-input mm-pass-input"
+                            type={showPw ? "text" : "password"}
+                            name="plain_password"
+                            value={form.plain_password}
+                            onChange={handle}
+                            placeholder="Enter new password (min. 6 chars)"
+                          />
+                          <button type="button" className="mm-eye-btn" onClick={() => setShowPw(p => !p)}>
+                            {showPw ? "🙈" : "👁"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="modal-field full">
+                      <div className="modal-field-label">Date Registered</div>
+                      <div className="modal-field-value">
+                        {detail?.date_registered
+                          ? new Date(detail.date_registered).toLocaleDateString("en-PH", {year:"numeric",month:"long",day:"numeric"})
+                          : "—"
+                        }
+                      </div>
                     </div>
                   </div>
-                )}
-                {mode==="edit" && (
-                  <div className="modal-field full">
-                    <div className="modal-field-label">
-                      New Password
-                      <span style={{fontSize:11,color:"#aaa",fontWeight:400,marginLeft:6}}>(leave blank to keep current)</span>
-                    </div>
-                    <div className="mm-pass-wrap">
-                      <input
-                        className="modal-input mm-pass-input"
-                        type={showPw ? "text" : "password"}
-                        name="plain_password"
-                        value={form.plain_password}
-                        onChange={handle}
-                        placeholder="Enter new password (min. 6 chars)"
-                      />
-                      <button type="button" className="mm-eye-btn" onClick={() => setShowPw(p => !p)}>
-                        {showPw ? "🙈" : "👁"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                <div className="modal-field full">
-                  <div className="modal-field-label">Date Registered</div>
-                  <div className="modal-field-value">
-                    {detail?.date_registered
-                      ? new Date(detail.date_registered).toLocaleDateString("en-PH", {year:"numeric",month:"long",day:"numeric"})
-                      : "—"
-                    }
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -668,16 +796,6 @@ export default function ManageMember() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Listen for topbar Register Member button from StaffLayout
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.detail?.action === "register") setShowRegister(true);
-    };
-    window.addEventListener("staff-action", handler);
-    return () => window.removeEventListener("staff-action", handler);
-  }, []);
-
-  // Listen for topbar Register Member button from StaffLayout
   useEffect(() => {
     const handler = (e) => {
       if (e.detail?.action === "register") setShowRegister(true);
@@ -762,7 +880,6 @@ export default function ManageMember() {
         onConfirm={handleDelete}
       />
 
-      {/* Page Header */}
       <div className="mm-page-header">
         <div>
           <div className="mm-page-title">Member Management</div>
@@ -780,7 +897,6 @@ export default function ManageMember() {
         </div>
       </div>
 
-      {/* Main Tabs */}
       <div className="mm-main-tabs">
         <button className={`mm-main-tab ${mainTab==="official"?"active":""}`} onClick={() => setMainTab("official")}>
           <Users size={14}/> Official Members <span className="mm-tab-count">{members.length}</span>
@@ -791,7 +907,6 @@ export default function ManageMember() {
         </button>
       </div>
 
-      {/* Official Members Table */}
       {mainTab==="official" && (
         <div className="mm-card">
           <div className="mm-toolbar">
@@ -866,7 +981,6 @@ export default function ManageMember() {
         </div>
       )}
 
-      {/* Pending Tab */}
       {mainTab==="pending" && (
         <div className="mm-card">
           {pending.length===0 ? (

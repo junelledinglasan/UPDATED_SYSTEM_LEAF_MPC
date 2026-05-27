@@ -79,7 +79,7 @@
 .lp-sum-val.purple { color: #6a1b9a; }
 .lp-sum-label      { font-size: 10px; color: #8a9a7a; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; }
 
-/* Card — THIS is the key fix: must be full width */
+/* Card */
 .lp-card {
   background: #fff;
   border-radius: 12px;
@@ -163,20 +163,30 @@
 .lp-filter-tab.active.ftab-current  { background: #2e7d32; border-color: #2e7d32; color: #fff; }
 .lp-filter-tab.active.ftab-overdue  { background: #c62828; border-color: #c62828; color: #fff; }
 
-/* Table — must fill the full card width */
+/* Table */
 .lp-table-wrap {
   overflow-x: auto;
   flex: 1;
   width: 100%;
   box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
 }
+
+/* Loans table */
 .lp-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 12px;
-  min-width: 600px; /* prevents collapse on smaller cards */
+  min-width: 700px;
 }
+
+/* History table — wider to fit all columns */
+.lp-table.history-table {
+  min-width: 1000px;
+  table-layout: auto;
+}
+
 .lp-table thead tr { background: #f2f8f2; border-bottom: 2px solid #d8ecd8; }
 .lp-table th {
   padding: 10px 14px;
@@ -360,11 +370,6 @@
   .lp-search-wrap { max-width: 100%; min-width: 0; }
   .lp-tabs { width: 100%; }
   .lp-tab  { flex: 1; padding: 8px 10px; font-size: 11px; }
-  /* Loans table — hide less important cols */
-  .lp-table th:nth-child(6), .lp-table td:nth-child(6) { display: none; }
-  .lp-table th:nth-child(7), .lp-table td:nth-child(7) { display: none; }
-  /* History table */
-  .lp-table th:nth-child(8), .lp-table td:nth-child(8) { display: none; }
   .lp-balance-row { grid-template-columns: 1fr 1fr; }
   .lp-modal { max-width: 100%; }
   .lp-footer { flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -372,7 +377,6 @@
 @media (max-width: 480px) {
   .lp-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lp-sum-val { font-size: 20px; }
-  .lp-table th:nth-child(4), .lp-table td:nth-child(4) { display: none; }
 }
 
 /* ─── New Loan Button in LoanPayment ─────────────────────────────────────── */

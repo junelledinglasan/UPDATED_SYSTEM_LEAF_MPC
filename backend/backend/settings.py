@@ -1,6 +1,9 @@
 from pathlib import Path
 from datetime import timedelta
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -29,7 +32,7 @@ INSTALLED_APPS = [
     'payments',
     'announcements',
     'reports',
-    'activity_log',       # ← bagong app
+    'activity_log',
 ]
 
 MIDDLEWARE = [
@@ -68,7 +71,7 @@ DATABASES = {
         'ENGINE':   'django.db.backends.postgresql',
         'NAME':     'leaf_mpc_db',
         'USER':     'postgres',
-        'PASSWORD': 'admin123',    # ← palitan ng iyong password
+        'PASSWORD': 'admin123',
         'HOST':     'localhost',
         'PORT':     '5432',
     }
@@ -114,14 +117,9 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # ════════════════════════════════════════════════════════════
 # POLYGON BLOCKCHAIN SETTINGS
 # ════════════════════════════════════════════════════════════
+POLYGON_RPC_URL   = os.getenv('POLYGON_RPC_URL',   'https://polygon-rpc.com')
+POLYGON_CHAIN_ID  = int(os.getenv('POLYGON_CHAIN_ID', '137'))
 
-# Network Configuration
-# For TESTING: Polygon Amoy Testnet
-# For PRODUCTION: Palitan ng Polygon Mainnet values sa ibaba
-POLYGON_RPC_URL   = os.getenv('POLYGON_RPC_URL',   'https://rpc-amoy.polygon.technology')
-POLYGON_CHAIN_ID  = int(os.getenv('POLYGON_CHAIN_ID', '80002'))
-
-# Wallet Credentials (from .env file — HUWAG i-hardcode dito)
 POLYGON_PRIVATE_KEY   = os.getenv('POLYGON_PRIVATE_KEY')
 POLYGON_WALLET_ADDR   = os.getenv('POLYGON_WALLET_ADDR')
 POLYGON_CONTRACT_ADDR = os.getenv('POLYGON_CONTRACT_ADDR')

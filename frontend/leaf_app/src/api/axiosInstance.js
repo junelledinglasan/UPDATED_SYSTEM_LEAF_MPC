@@ -1,6 +1,17 @@
 import axios from "axios";
 
-const BASE_URL = "http://127.0.0.1:8000/api";
+// ─── Dynamic BASE URL ─────────────────────────────────────────────────────────
+// Kapag naka-mobile (hindi localhost), gamitin ang actual IP ng PC
+const getBaseURL = () => {
+  const hostname = window.location.hostname;
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return "http://127.0.0.1:8000/api";
+  }
+  // Mobile access — gamitin ang same IP ng frontend server
+  return `http://${hostname}:8000/api`;
+};
+
+const BASE_URL = getBaseURL();
 
 const api = axios.create({
   baseURL: BASE_URL,

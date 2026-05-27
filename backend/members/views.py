@@ -411,3 +411,42 @@ def my_profile_view(request):
         return Response(MemberSerializer(member).data)
     except Member.DoesNotExist:
         return Response({'error': 'Not an official member yet.'}, status=404)
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def member_financial_summary_view(request, pk):
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+    try:
+        member = Member.objects.get(pk=pk)
+    except Member.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=404)
+
+    from loans.models import Loan
+    from payments.models import Payment
+
+    loans        = Loan.objects.filter(member=member)
+    active_loans = loans.filter(status__in=['Active', 'Overdue'])
+    total_paid   = sum(float(p.amount) for p in Payment.objects.filter(member=member))
+
+    return Response({
+        'share_capital':     float(member.share_capital or 0),
+        'max_loanable':      float(member.share_capital or 0) * 2,
+        'total_loans':       loans.count(),
+        'active_loans':      active_loans.count(),
+        'total_loan_amount': sum(float(l.amount)   for l in active_loans),
+        'total_balance':     sum(float(l.balance)  for l in active_loans),
+        'total_paid':        total_paid,
+        'loans': [
+            {
+                'loan_id':    l.loan_id,
+                'loan_type':  l.loan_type,
+                'amount':     float(l.amount),
+                'balance':    float(l.balance),
+                'monthly_due': float(l.monthly_due),
+                'status':     l.status,
+                'applied_at': str(l.applied_at)[:10],
+            }
+            for l in loans
+        ]
+    })

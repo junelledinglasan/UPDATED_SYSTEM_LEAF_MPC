@@ -125,7 +125,7 @@ def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amoun
             tx_id, member_id, loan_id, amount_int, local_hash,
         ).build_transaction({
             'chainId':  config['chain_id'],
-            'gas':      200000,
+            'gas':      500000,
             'gasPrice': gas_price,
             'nonce':    nonce,
             'from':     wallet_addr,

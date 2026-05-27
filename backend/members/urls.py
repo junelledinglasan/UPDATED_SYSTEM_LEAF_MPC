@@ -4,6 +4,7 @@ from .views import (
     convert_to_member_view, my_application_view,
     member_list_view, member_detail_view,
     member_status_view, member_stats_view, my_profile_view,
+    member_financial_summary_view,
 )
 
 urlpatterns = [
@@ -14,9 +15,10 @@ urlpatterns = [
     path('my-application/',                my_application_view,     name='my-application'),
 
     # Official Members
-    path('',                 member_list_view,   name='member-list'),
-    path('stats/',           member_stats_view,  name='member-stats'),
-    path('my-profile/',      my_profile_view,    name='my-profile'),
-    path('<int:pk>/',        member_detail_view, name='member-detail'),
-    path('<int:pk>/status/', member_status_view, name='member-status'),
+    path('',                              member_list_view,                name='member-list'),
+    path('stats/',                        member_stats_view,               name='member-stats'),
+    path('my-profile/',                   my_profile_view,                 name='my-profile'),
+    path('<int:pk>/',                     member_detail_view,              name='member-detail'),
+    path('<int:pk>/status/',              member_status_view,              name='member-status'),
+    path('<int:pk>/financial-summary/',   member_financial_summary_view,   name='member-financial-summary'),
 ]

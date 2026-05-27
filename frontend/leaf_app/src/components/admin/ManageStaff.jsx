@@ -1,19 +1,17 @@
 import { useState, useEffect } from "react";
-import { getStaffListAPI, addStaffAPI, editStaffAPI, resetStaffPasswordAPI } from "../../api/auth";
-import { Pencil, KeyRound, Eye, EyeOff, UserPlus } from "lucide-react";
+import { getStaffListAPI, addStaffAPI, editStaffAPI, resetStaffPasswordAPI, deleteStaffAPI } from "../../api/auth";
+import { Pencil, KeyRound, Eye, EyeOff, UserPlus, Trash2 } from "lucide-react";
 import "./ManageStaff.css";
 
 const STAFF_ROLE_OPTIONS = [
   { value: "cashier",     label: "Cashier"               },
   { value: "collector",   label: "Collector"             },
-  { value: "bookkeeper",  label: "Bookkeeper"            },
   { value: "admin_clerk", label: "Administrative Clerk"  },
 ];
 
 const STAFF_ROLE_LABELS = {
   cashier:     "Cashier",
   collector:   "Collector",
-  bookkeeper:  "Bookkeeper",
   admin_clerk: "Administrative Clerk",
 };
 
@@ -332,13 +330,67 @@ function ResetPasswordModal({ staff, onClose }) {
   );
 }
 
+// ─── Delete Confirm Modal ─────────────────────────────────────────────────────
+function DeleteStaffModal({ staff, onClose, onConfirm }) {
+  const [loading, setLoading] = useState(false);
+  if (!staff) return null;
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    await onConfirm(staff.id);
+    setLoading(false);
+  };
+
+  return (
+    <div className="ms-overlay" onClick={onClose}>
+      <div className="ms-modal ms-modal-sm" onClick={e => e.stopPropagation()}>
+        <div className="ms-modal-header">
+          <div className="ms-modal-title" style={{color:"#c62828"}}>Delete Staff Account</div>
+          <button className="ms-modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="ms-modal-body" style={{alignItems:"center",textAlign:"center",padding:"24px",gap:12}}>
+          <div style={{fontSize:40}}>⚠️</div>
+          <div style={{fontSize:14,fontWeight:700,color:"#333"}}>
+            Are you sure you want to delete this staff account?
+          </div>
+          <div className="ms-cred-box" style={{textAlign:"left"}}>
+            <div className="ms-cred-row"><span className="ms-cred-label">Name</span><span className="ms-cred-val">{staff.name}</span></div>
+            <div className="ms-cred-row"><span className="ms-cred-label">Username</span><span className="ms-cred-val">@{staff.username}</span></div>
+            <div className="ms-cred-row"><span className="ms-cred-label">Role</span><span className="ms-cred-val">{STAFF_ROLE_LABELS[staff.staff_role] ?? "—"}</span></div>
+          </div>
+          <div style={{fontSize:12,color:"#e53935",background:"#fce4ec",padding:"8px 12px",borderRadius:8}}>
+            This action cannot be undone.
+          </div>
+        </div>
+        <div className="ms-modal-footer">
+          <button className="ms-btn-cancel" onClick={onClose}>Cancel</button>
+          <button
+            onClick={handleConfirm}
+            disabled={loading}
+            style={{background:"#c62828",color:"#fff",border:"none",borderRadius:8,padding:"8px 20px",fontWeight:700,cursor:"pointer",fontSize:13}}
+          >
+            {loading ? "Deleting..." : "Yes, Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ManageStaff Page ────────────────────────────────────────────────────
 export default function ManageStaff() {
-  const [staffList,   setStaffList]   = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [showAdd,     setShowAdd]     = useState(false);
-  const [editTarget,  setEditTarget]  = useState(null);
-  const [resetTarget, setResetTarget] = useState(null);
+  const [staffList,    setStaffList]   = useState([]);
+  const [loading,      setLoading]     = useState(true);
+  const [showAdd,      setShowAdd]     = useState(false);
+  const [editTarget,   setEditTarget]  = useState(null);
+  const [resetTarget,  setResetTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget]= useState(null);
+  const [toast,        setToast]       = useState(null);
+
+  const showToast = (msg, type="success") => {
+    setToast({msg, type});
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const fetchStaff = async () => {
     setLoading(true);
@@ -352,14 +404,35 @@ export default function ManageStaff() {
     }
   };
 
+  const handleDelete = async (id) => {
+    try {
+      await deleteStaffAPI(id);
+      setDeleteTarget(null);
+      showToast("Staff account deleted.", "danger");
+      fetchStaff();
+    } catch {
+      showToast("Failed to delete staff.", "danger");
+    }
+  };
+
   useEffect(() => { fetchStaff(); }, []);
 
   return (
     <div className="ms-wrap">
 
-      {showAdd     && <AddStaffModal    onClose={() => setShowAdd(false)}   onSuccess={fetchStaff} />}
-      {editTarget  && <EditStaffModal   staff={editTarget} onClose={() => setEditTarget(null)}  onSuccess={fetchStaff} />}
-      {resetTarget && <ResetPasswordModal staff={resetTarget} onClose={() => setResetTarget(null)} />}
+      {toast && (
+        <div style={{
+          position:"fixed", top:20, right:20, zIndex:9999,
+          background: toast.type==="danger" ? "#c62828" : "#2e7d32",
+          color:"#fff", padding:"10px 20px", borderRadius:8,
+          fontSize:13, fontWeight:600, boxShadow:"0 4px 12px rgba(0,0,0,0.2)"
+        }}>{toast.msg}</div>
+      )}
+
+      {showAdd      && <AddStaffModal    onClose={() => setShowAdd(false)}        onSuccess={fetchStaff} />}
+      {editTarget   && <EditStaffModal   staff={editTarget}   onClose={() => setEditTarget(null)}   onSuccess={fetchStaff} />}
+      {resetTarget  && <ResetPasswordModal staff={resetTarget} onClose={() => setResetTarget(null)} />}
+      {deleteTarget && <DeleteStaffModal  staff={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete} />}
 
       {/* Header */}
       <div className="ms-header">
@@ -425,6 +498,7 @@ export default function ManageStaff() {
                     <div className="ms-action-row">
                       <button className="ms-action-btn edit"  onClick={() => setEditTarget(s)}><Pencil size={11}/> Edit</button>
                       <button className="ms-action-btn reset" onClick={() => setResetTarget(s)}><KeyRound size={11}/> Reset Password</button>
+                      <button className="ms-action-btn delete" onClick={() => setDeleteTarget(s)} style={{background:"#fce4ec",color:"#c62828",border:"1px solid #ef9a9a"}}><Trash2 size={11}/> Delete</button>
                     </div>
                   </td>
                 </tr>
