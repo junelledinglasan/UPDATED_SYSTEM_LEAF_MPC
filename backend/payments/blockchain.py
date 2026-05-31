@@ -80,6 +80,30 @@ PAYMENT_ABI = [
         "name": "PaymentRecorded",
         "type": "event",
     },
+    {
+        "inputs": [
+            {"internalType": "string", "name": "txId", "type": "string"},
+        ],
+        "name": "getPayment",
+        "outputs": [
+            {
+                "components": [
+                    {"internalType": "string",  "name": "txId",      "type": "string"},
+                    {"internalType": "string",  "name": "memberId",  "type": "string"},
+                    {"internalType": "string",  "name": "loanId",    "type": "string"},
+                    {"internalType": "uint256", "name": "amount",    "type": "uint256"},
+                    {"internalType": "string",  "name": "dataHash",  "type": "string"},
+                    {"internalType": "uint256", "name": "timestamp", "type": "uint256"},
+                    {"internalType": "bool",    "name": "exists",    "type": "bool"},
+                ],
+                "internalType": "struct LeafMPCPayments.PaymentRecord",
+                "name": "",
+                "type": "tuple",
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function",
+    },
 ]
 
 
@@ -107,7 +131,7 @@ def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amoun
             'success':      True,
             'tx_hash':      None,
             'block':        None,
-            'hash':         local_hash[:32] + '...',
+            'hash':         local_hash,
             'network':      'local',
             'explorer_url': None,
         }
@@ -148,7 +172,7 @@ def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amoun
             'success':      receipt['status'] == 1,
             'tx_hash':      tx_hash.hex(),
             'block':        receipt['blockNumber'],
-            'hash':         local_hash[:32] + '...',
+            'hash':         local_hash,
             'network':      'polygon',
             'explorer_url': explorer,
         }
@@ -159,10 +183,49 @@ def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amoun
             'success':      True,
             'tx_hash':      None,
             'block':        None,
-            'hash':         local_hash[:32] + '...',
+            'hash':         local_hash,
             'network':      'local',
             'error':        str(e),
         }
+
+
+# ─── Verify payment integrity (on-chain vs off-chain) ────────────────────────
+def verify_payment_integrity(tx_id: str, member_id: str, loan_id: str, amount) -> dict:
+    """
+    Verify kung hindi na-tamper ang payment data.
+    1. Re-hash ang local data
+    2. Kunin ang hash sa blockchain
+    3. Icompare — MATCH = verified, NO MATCH = tampered!
+    """
+    local_hash = generate_payment_hash(tx_id, member_id, loan_id, amount)
+    w3         = get_web3()
+    config     = get_config()
+
+    if not w3 or not config.get('contract_addr'):
+        return {
+            'verified':   False,
+            'reason':     'Blockchain not connected',
+            'local_hash': local_hash,
+        }
+
+    try:
+        contract     = w3.eth.contract(
+            address=Web3.to_checksum_address(config['contract_addr']),
+            abi=PAYMENT_ABI,
+        )
+        on_chain     = contract.functions.getPayment(tx_id).call()
+        on_chain_hash = on_chain[4]  # dataHash field
+
+        match = (local_hash == on_chain_hash)
+        return {
+            'verified':        match,
+            'local_hash':      local_hash,
+            'blockchain_hash': on_chain_hash,
+            'tampered':        not match,
+            'block_timestamp': on_chain[5],
+        }
+    except Exception as e:
+        return {'verified': False, 'reason': str(e)}
 
 
 # ─── Verify a transaction ─────────────────────────────────────────────────────
@@ -173,9 +236,9 @@ def verify_transaction(tx_hash: str) -> dict:
     try:
         receipt = w3.eth.get_transaction_receipt(tx_hash)
         return {
-            'verified':       receipt['status'] == 1,
-            'block':          receipt['blockNumber'],
-            'confirmations':  w3.eth.block_number - receipt['blockNumber'],
+            'verified':      receipt['status'] == 1,
+            'block':         receipt['blockNumber'],
+            'confirmations': w3.eth.block_number - receipt['blockNumber'],
         }
     except Exception as e:
         return {'verified': False, 'reason': str(e)}

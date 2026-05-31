@@ -14,8 +14,8 @@ class Payment(models.Model):
     balance      = models.DecimalField(max_digits=12, decimal_places=2)
     note         = models.CharField(max_length=200, blank=True)
     recorded_by  = models.CharField(max_length=50)
-    # Local SHA-256 hash (always generated)
-    hash         = models.CharField(max_length=100, blank=True)
+    # Local SHA-256 hash (always generated) — full 64-char hex
+    hash         = models.CharField(max_length=64, blank=True)
     # Polygon blockchain fields
     polygon_tx   = models.CharField(max_length=100, blank=True, null=True,
                                     help_text="Polygon transaction hash (0x...)")
@@ -56,7 +56,13 @@ class Payment(models.Model):
             self.tx_id = f"{prefix}{str(max_num + 1).zfill(3)}"
 
         if not self.hash:
-            payload   = json.dumps({'tx': self.tx_id, 'amount': str(self.amount)}, sort_keys=True)
-            self.hash = hashlib.sha256(payload.encode()).hexdigest()[:32] + '...'
+            # Full SHA-256 hash — matches blockchain generate_payment_hash()
+            payload   = json.dumps({
+                'tx_id':     self.tx_id,
+                'member_id': str(self.member_id),
+                'loan_id':   str(self.loan_id),
+                'amount':    str(self.amount),
+            }, sort_keys=True)
+            self.hash = hashlib.sha256(payload.encode()).hexdigest()
 
         super().save(*args, **kwargs)
