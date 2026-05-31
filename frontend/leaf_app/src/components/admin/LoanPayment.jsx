@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getLoansAPI } from "../../api/loans";
 import { getPaymentsAPI, getPaymentStatsAPI, recordPaymentAPI } from "../../api/payments";
-import { Search, Eye } from "lucide-react";
+import { Search, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import "./LoanPayment.css";
 
 const ROWS_PER_PAGE = 8;
@@ -84,12 +84,8 @@ function RecordModal({ loan, onClose, onSave }) {
 
 function ReceiptModal({ tx, onClose }) {
   if (!tx) return null;
-
   const isOnBlockchain = tx.polygon_tx && tx.network === 'polygon';
-  const explorerUrl = tx.polygon_tx
-    ? `https://polygonscan.com/tx/${tx.polygon_tx}`
-    : null;
-
+  const explorerUrl = tx.polygon_tx ? `https://polygonscan.com/tx/${tx.polygon_tx}` : null;
   const rows = [
     ["Member",        tx.member_name||tx.fullname||""],
     ["Member ID",     tx.member_code||tx.memberId||""],
@@ -103,7 +99,6 @@ function ReceiptModal({ tx, onClose }) {
     ["Polygon TX",    tx.polygon_tx || "—"],
     ["Block Number",  tx.block_number || "—"],
   ];
-
   return (
     <div className="lp-overlay" onClick={onClose}>
       <div className="lp-modal lp-modal-sm" onClick={e=>e.stopPropagation()}>
@@ -138,6 +133,103 @@ function ReceiptModal({ tx, onClose }) {
   );
 }
 
+// ─── Helper: group transactions by date ──────────────────────────────────────
+function groupByDate(transactions) {
+  const groups = {};
+  transactions.forEach(tx => {
+    const dateStr = tx.paid_at ? tx.paid_at.split("T")[0] : "Unknown";
+    if (!groups[dateStr]) groups[dateStr] = [];
+    groups[dateStr].push(tx);
+  });
+  // Sort dates descending
+  return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+function formatDateLabel(dateStr) {
+  if (dateStr === "Unknown") return "Unknown Date";
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const todayStr     = today.toISOString().split("T")[0];
+  const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+  if (dateStr === todayStr)     return "Today";
+  if (dateStr === yesterdayStr) return "Yesterday";
+
+  return date.toLocaleDateString("en-PH", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+}
+
+// ─── Daily Group Row Component ────────────────────────────────────────────────
+function DailyGroup({ dateStr, txList, onViewTx }) {
+  const [expanded, setExpanded] = useState(true);
+  const dailyTotal = txList.reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+
+  return (
+    <div className="lp-daily-group">
+      {/* Date header row */}
+      <div className="lp-daily-header" onClick={() => setExpanded(e => !e)}>
+        <div className="lp-daily-header-left">
+          <span className="lp-daily-chevron">
+            {expanded ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+          </span>
+          <span className="lp-daily-date">{formatDateLabel(dateStr)}</span>
+          <span className="lp-daily-date-sub">{dateStr !== "Unknown" ? dateStr : ""}</span>
+        </div>
+        <div className="lp-daily-header-right">
+          <span className="lp-daily-count">{txList.length} transaction{txList.length !== 1 ? "s" : ""}</span>
+          <span className="lp-daily-total">₱{dailyTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+        </div>
+      </div>
+
+      {/* Transactions under this date */}
+      {expanded && (
+        <table className="lp-table history-table lp-daily-table">
+          <thead>
+            <tr>
+              <th style={{width:"16%"}}>TX ID</th>
+              <th style={{width:"11%"}}>Loan ID</th>
+              <th style={{width:"11%"}}>Member ID</th>
+              <th style={{width:"18%"}}>Full Name</th>
+              <th style={{width:"9%"}}>Amount</th>
+              <th style={{width:"10%"}}>Balance After</th>
+              <th style={{width:"13%"}}>Time</th>
+              <th style={{width:"8%"}}>Hash</th>
+              <th style={{width:"4%", textAlign:"center"}}>View</th>
+            </tr>
+          </thead>
+          <tbody>
+            {txList.map((t, idx) => (
+              <tr key={t.id||t.txId} className={idx % 2 === 0 ? "row-even" : "row-odd"}>
+                <td className="mono cell-id">{t.tx_id}</td>
+                <td className="mono">{t.loan_code}</td>
+                <td className="mono">{t.member_code}</td>
+                <td className="cell-name">{t.member_name}</td>
+                <td className="fw green">₱{Number(t.amount||0).toLocaleString()}</td>
+                <td className="blue">₱{Number(t.balance||0).toLocaleString()}</td>
+                <td className="cell-date">
+                  {t.paid_at ? t.paid_at.split("T")[1]?.substring(0,8) : "—"}
+                </td>
+                <td>
+                  <span className="hash-text">
+                    {t.polygon_tx ? '🔗 '+t.polygon_tx.slice(0,10)+'...' : t.hash?.substring(0,16)+'...'}
+                  </span>
+                </td>
+                <td style={{textAlign:"center"}}>
+                  <button className="lp-view-btn" onClick={() => onViewTx(t)}>
+                    <Eye size={12}/>
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 export default function LoanPayment() {
   const [loans,       setLoans]   = useState([]);
   const [transactions,setTx]      = useState([]);
@@ -150,6 +242,8 @@ export default function LoanPayment() {
   const [recordLoan,  setRecord]  = useState(null);
   const [viewTx,      setViewTx]  = useState(null);
   const [toast,       setToast]   = useState(null);
+  // NEW: view mode for payment history — "daily" or "all"
+  const [historyView, setHistoryView] = useState("daily");
 
   const showToast = (msg,type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3500); };
 
@@ -176,12 +270,7 @@ export default function LoanPayment() {
 
   const handleSave = async ({ loan, amount, note }) => {
     try {
-      await recordPaymentAPI({
-        loan:   loan.id,
-        member: loan.member,
-        amount,
-        note,
-      });
+      await recordPaymentAPI({ loan: loan.id, member: loan.member, amount, note });
       setRecord(null);
       showToast(`Payment of ₱${amount.toLocaleString()} recorded successfully.`);
       fetchData();
@@ -206,18 +295,34 @@ export default function LoanPayment() {
            (t.loan_code||"").toLowerCase().includes(q);
   });
 
-  const list       = activeTab==="loans" ? filteredLoans : filteredTx;
-  const totalPages = Math.max(1, Math.ceil(list.length/ROWS_PER_PAGE));
-  const safePage   = Math.min(page, totalPages);
-  const paginated  = list.slice((safePage-1)*ROWS_PER_PAGE, safePage*ROWS_PER_PAGE);
-  const switchTab  = tab => { setTab(tab); setPage(1); setSearch(""); setFilter("All"); };
+  // For "all" view pagination
+  const totalPages = Math.max(1, Math.ceil(
+    (activeTab==="loans" ? filteredLoans : filteredTx).length / ROWS_PER_PAGE
+  ));
+  const safePage = Math.min(page, totalPages);
 
-  const Pagination = () => (
+  const paginatedLoans = filteredLoans.slice((safePage-1)*ROWS_PER_PAGE, safePage*ROWS_PER_PAGE);
+  const paginatedTx    = filteredTx.slice((safePage-1)*ROWS_PER_PAGE, safePage*ROWS_PER_PAGE);
+
+  const switchTab = tab => { setTab(tab); setPage(1); setSearch(""); setFilter("All"); };
+
+  // Daily groups for history
+  const dailyGroups = groupByDate(filteredTx);
+
+  const Pagination = ({ list }) => (
     <div className="lp-footer">
-      <div className="lp-count">Showing {list.length===0?0:(safePage-1)*ROWS_PER_PAGE+1}–{Math.min(safePage*ROWS_PER_PAGE,list.length)} of {list.length} record{list.length!==1?"s":""}</div>
+      <div className="lp-count">
+        Showing {list.length===0?0:(safePage-1)*ROWS_PER_PAGE+1}–{Math.min(safePage*ROWS_PER_PAGE,list.length)} of {list.length} record{list.length!==1?"s":""}
+      </div>
       <div className="lp-pagination">
         <button className="lp-page-btn" disabled={safePage===1} onClick={()=>setPage(p=>p-1)}>← Prev</button>
-        {Array.from({length:totalPages},(_,i)=>i+1).filter(p=>p===1||p===totalPages||Math.abs(p-safePage)<=1).reduce((acc,p,i,arr)=>{if(i>0&&p-arr[i-1]>1)acc.push("...");acc.push(p);return acc;},[]).map((p,i)=>p==="..."?<span key={`e${i}`} className="lp-ellipsis">…</span>:<button key={p} className={`lp-page-btn lp-page-num ${safePage===p?"active":""}`} onClick={()=>setPage(p)}>{p}</button>)}
+        {Array.from({length:totalPages},(_,i)=>i+1)
+          .filter(p=>p===1||p===totalPages||Math.abs(p-safePage)<=1)
+          .reduce((acc,p,i,arr)=>{if(i>0&&p-arr[i-1]>1)acc.push("...");acc.push(p);return acc;},[])
+          .map((p,i)=>p==="..."
+            ? <span key={`e${i}`} className="lp-ellipsis">…</span>
+            : <button key={p} className={`lp-page-btn lp-page-num ${safePage===p?"active":""}`} onClick={()=>setPage(p)}>{p}</button>
+          )}
         <button className="lp-page-btn" disabled={safePage===totalPages} onClick={()=>setPage(p=>p+1)}>Next →</button>
       </div>
     </div>
@@ -230,7 +335,10 @@ export default function LoanPayment() {
       <ReceiptModal tx={viewTx} onClose={()=>setViewTx(null)}/>
 
       <div className="lp-page-header">
-        <div><div className="lp-page-title">Loan Payment</div><div className="lp-page-sub">Record and track F2F loan payments collected at the office.</div></div>
+        <div>
+          <div className="lp-page-title">Loan Payment</div>
+          <div className="lp-page-sub">Record and track F2F loan payments collected at the office.</div>
+        </div>
       </div>
 
       <div className="lp-summary-grid">
@@ -243,8 +351,12 @@ export default function LoanPayment() {
       <div className="lp-card">
         <div className="lp-toolbar">
           <div className="lp-tabs">
-            <button className={`lp-tab ${activeTab==="loans"?"active":""}`} onClick={()=>switchTab("loans")}>Active Loans <span className="lp-tab-count">{loans.length}</span></button>
-            <button className={`lp-tab ${activeTab==="history"?"active":""}`} onClick={()=>switchTab("history")}>Payment History <span className="lp-tab-count">{transactions.length}</span></button>
+            <button className={`lp-tab ${activeTab==="loans"?"active":""}`} onClick={()=>switchTab("loans")}>
+              Active Loans <span className="lp-tab-count">{loans.length}</span>
+            </button>
+            <button className={`lp-tab ${activeTab==="history"?"active":""}`} onClick={()=>switchTab("history")}>
+              Payment History <span className="lp-tab-count">{transactions.length}</span>
+            </button>
           </div>
           <div className="lp-toolbar-right">
             <div className="lp-search-wrap">
@@ -259,9 +371,23 @@ export default function LoanPayment() {
                 ))}
               </div>
             )}
+            {/* View toggle for history tab */}
+            {activeTab==="history" && (
+              <div className="lp-filter-tabs">
+                <button
+                  className={`lp-filter-tab ${historyView==="daily"?"active ftab-all":""}`}
+                  onClick={()=>setHistoryView("daily")}
+                >📅 Daily View</button>
+                <button
+                  className={`lp-filter-tab ${historyView==="all"?"active ftab-all":""}`}
+                  onClick={()=>setHistoryView("all")}
+                >📋 All Transactions</button>
+              </div>
+            )}
           </div>
         </div>
 
+        {/* ── ACTIVE LOANS TAB ── */}
         {activeTab==="loans" && (
           <div className="lp-table-wrap">
             <table className="lp-table">
@@ -277,8 +403,8 @@ export default function LoanPayment() {
               </tr></thead>
               <tbody>
                 {loading ? <tr><td colSpan={8} className="lp-empty">Loading...</td></tr>
-                : paginated.length===0 ? <tr><td colSpan={8} className="lp-empty">No loans found.</td></tr>
-                : paginated.map((l,idx)=>(
+                : paginatedLoans.length===0 ? <tr><td colSpan={8} className="lp-empty">No loans found.</td></tr>
+                : paginatedLoans.map((l,idx)=>(
                   <tr key={l.id} className={idx%2===0?"row-even":"row-odd"}>
                     <td className="mono cell-id">{l.loan_id}</td>
                     <td className="mono">{l.member_code}</td>
@@ -297,7 +423,28 @@ export default function LoanPayment() {
           </div>
         )}
 
-        {activeTab==="history" && (
+        {/* ── PAYMENT HISTORY TAB — DAILY VIEW ── */}
+        {activeTab==="history" && historyView==="daily" && (
+          <div className="lp-daily-view">
+            {loading ? (
+              <div className="lp-empty">Loading...</div>
+            ) : dailyGroups.length===0 ? (
+              <div className="lp-empty">No transactions found.</div>
+            ) : (
+              dailyGroups.map(([dateStr, txList]) => (
+                <DailyGroup
+                  key={dateStr}
+                  dateStr={dateStr}
+                  txList={txList}
+                  onViewTx={setViewTx}
+                />
+              ))
+            )}
+          </div>
+        )}
+
+        {/* ── PAYMENT HISTORY TAB — ALL VIEW ── */}
+        {activeTab==="history" && historyView==="all" && (
           <div className="lp-table-wrap">
             <table className="lp-table history-table">
               <thead><tr>
@@ -313,8 +460,8 @@ export default function LoanPayment() {
               </tr></thead>
               <tbody>
                 {loading ? <tr><td colSpan={9} className="lp-empty">Loading...</td></tr>
-                : paginated.length===0 ? <tr><td colSpan={9} className="lp-empty">No transactions found.</td></tr>
-                : paginated.map((t,idx)=>(
+                : paginatedTx.length===0 ? <tr><td colSpan={9} className="lp-empty">No transactions found.</td></tr>
+                : paginatedTx.map((t,idx)=>(
                   <tr key={t.id||t.txId} className={idx%2===0?"row-even":"row-odd"}>
                     <td className="mono cell-id">{t.tx_id}</td>
                     <td className="mono">{t.loan_code}</td>
@@ -331,7 +478,22 @@ export default function LoanPayment() {
             </table>
           </div>
         )}
-        <Pagination/>
+
+        {/* Pagination — only for loans tab and "all" history view */}
+        {activeTab==="loans" && <Pagination list={filteredLoans}/>}
+        {activeTab==="history" && historyView==="all" && <Pagination list={filteredTx}/>}
+
+        {/* Daily view summary footer */}
+        {activeTab==="history" && historyView==="daily" && (
+          <div className="lp-footer">
+            <div className="lp-count">
+              {dailyGroups.length} day{dailyGroups.length!==1?"s":""} · {filteredTx.length} total transaction{filteredTx.length!==1?"s":""}
+            </div>
+            <div className="lp-daily-grand-total">
+              Grand Total: <strong>₱{filteredTx.reduce((s,t)=>s+parseFloat(t.amount||0),0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</strong>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
