@@ -7,7 +7,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-leaf-mpc-2026-change-in-production'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-leaf-mpc-2026-change-in-production')
 DEBUG      = True
 ALLOWED_HOSTS = ['*']
 
@@ -44,6 +44,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -69,11 +70,11 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE':   'django.db.backends.postgresql',
-        'NAME':     'leaf_mpc_db',
-        'USER':     'postgres',
-        'PASSWORD': 'admin123',
-        'HOST':     'localhost',
-        'PORT':     '5432',
+        'NAME':     os.getenv('DB_NAME', 'postgres'),
+        'USER':     os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'LEAF-MPC2026'),
+        'HOST':     os.getenv('DB_HOST', 'db.vmicqkrguocawwntvizm.supabase.co'),
+        'PORT':     os.getenv('DB_PORT', '5432'),
     }
 }
 
@@ -106,13 +107,12 @@ TIME_ZONE     = 'Asia/Manila'
 USE_I18N      = True
 USE_TZ        = True
 
-STATIC_URL         = '/static/'
-MEDIA_URL          = '/media/'
-MEDIA_ROOT         = BASE_DIR / 'media'
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-MEDIA_URL  = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+STATIC_URL          = '/static/'
+STATIC_ROOT         = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+MEDIA_URL           = '/media/'
+MEDIA_ROOT          = BASE_DIR / 'media'
+DEFAULT_AUTO_FIELD  = 'django.db.models.BigAutoField'
 
 # ════════════════════════════════════════════════════════════
 # POLYGON BLOCKCHAIN SETTINGS
@@ -123,3 +123,5 @@ POLYGON_CHAIN_ID  = int(os.getenv('POLYGON_CHAIN_ID', '137'))
 POLYGON_PRIVATE_KEY   = os.getenv('POLYGON_PRIVATE_KEY')
 POLYGON_WALLET_ADDR   = os.getenv('POLYGON_WALLET_ADDR')
 POLYGON_CONTRACT_ADDR = os.getenv('POLYGON_CONTRACT_ADDR')
+
+
