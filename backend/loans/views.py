@@ -15,7 +15,6 @@ from .serializers import LoanSerializer, CreateLoanSerializer
 def loan_list_view(request):
     if request.method == 'GET':
         loans = Loan.objects.all()
-        # Members can only see their own loans
         if request.user.role == 'member':
             loans = loans.filter(member__user=request.user)
         if s := request.query_params.get('status'):
@@ -26,8 +25,6 @@ def loan_list_view(request):
                     loans.filter(loan_id__icontains=q)
         return Response(LoanSerializer(loans, many=True).data)
 
-    # POST — create loan application
-    # Pass request in context so serializer can resolve member from user
     s = CreateLoanSerializer(data=request.data, context={'request': request})
     if s.is_valid():
         loan = s.save()
@@ -38,7 +35,6 @@ def loan_list_view(request):
         )
         return Response(LoanSerializer(loan).data, status=201)
 
-    # Log the error for debugging
     print(f"[LOAN CREATE ERROR] {s.errors}")
     return Response(s.errors, status=400)
 
@@ -60,22 +56,50 @@ def loan_detail_view(request, pk):
     new_status = request.data.get('status')
     if new_status:
         if new_status == 'Approved':
+            from decimal import Decimal
+            from members.models import Savings
+            from django.db.models import Sum
+
             loan.status        = 'Active'
             loan.approved_at   = timezone.now()
             loan.approved_by   = request.user.username
             loan.next_due_date = datetime.date.today() + relativedelta(months=1)
 
-            # Add 3% of loan amount to member's share capital (CBU)
-            from decimal import Decimal
+            # ── 1. Share Capital CBU (+3%) ─────────────────────────────────
             share_capital_addition = loan.amount * Decimal('0.03')
             loan.member.share_capital += share_capital_addition
             loan.member.save()
 
+            # ── 2. Savings Deposit (1%) → auto-record in Savings ──────────
+            savings_deposit = loan.amount * Decimal('0.01')
+
+            # Compute current savings balance for balance_after
+            total_dep = Savings.objects.filter(
+                member=loan.member, transaction_type='Deposit'
+            ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+            total_wdr = Savings.objects.filter(
+                member=loan.member, transaction_type='Withdraw'
+            ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+            current_balance = total_dep - total_wdr
+            new_balance     = current_balance + savings_deposit
+
+            Savings.objects.create(
+                member           = loan.member,
+                transaction_type = 'Deposit',
+                amount           = savings_deposit,
+                balance_after    = new_balance,
+                note             = f'Auto-deposit from loan {loan.loan_id} (1% savings deposit)',
+                recorded_by      = request.user.username,
+            )
+
             log_activity(
                 'loan',
-                f'Loan approved & activated: {loan.loan_id} — {loan.member.fullname} — ₱{loan.amount:,.2f} | Share Capital +₱{share_capital_addition:,.2f}',
+                f'Loan approved & activated: {loan.loan_id} — {loan.member.fullname} — ₱{loan.amount:,.2f} | '
+                f'Share Capital +₱{share_capital_addition:,.2f} | '
+                f'Savings Deposit +₱{savings_deposit:,.2f}',
                 request.user
             )
+
         elif new_status == 'Declined':
             loan.status         = 'Declined'
             loan.decline_reason = request.data.get('decline_reason', '')
@@ -97,7 +121,6 @@ def loan_detail_view(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def due_dates_view(request):
-    """Returns active loans grouped by next_due_date for the collection calendar."""
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 

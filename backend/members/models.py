@@ -44,6 +44,7 @@ class LeafMemberInfo(models.Model):
     reviewed_at            = models.DateTimeField(null=True, blank=True)
     reviewed_by            = models.CharField(max_length=100, blank=True)
     reject_reason          = models.TextField(blank=True)
+    is_f2f                 = models.BooleanField(default=False)  # True = walk-in F2F, False = online application
     created_at             = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -127,7 +128,10 @@ class Member(models.Model):
 
     @property
     def email(self):
-        return self.user.email if self.user else ''
+        # Email is stored in LeafMemberInfo (pre_member), not in User
+        if self.pre_member and self.pre_member.email:
+            return self.pre_member.email
+        return ''
 
     @property
     def status(self):
@@ -219,3 +223,28 @@ class JobProfile(models.Model):
 
     def __str__(self):
         return f'{self.member.fullname} — {self.job_type}'
+
+
+# ══════════════════════════════════════════════════════════════════
+# TABLE 6: savings
+# ══════════════════════════════════════════════════════════════════
+class Savings(models.Model):
+    TRANSACTION_TYPE_CHOICES = [
+        ('Deposit',  'Deposit'),
+        ('Withdraw', 'Withdraw'),
+    ]
+
+    member           = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='savings')
+    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPE_CHOICES)
+    amount           = models.DecimalField(max_digits=12, decimal_places=2)
+    balance_after    = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    note             = models.CharField(max_length=200, blank=True)
+    recorded_by      = models.CharField(max_length=100, blank=True)
+    created_at       = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'savings'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.transaction_type} ₱{self.amount} — {self.member.fullname}'

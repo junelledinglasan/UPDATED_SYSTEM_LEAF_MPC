@@ -1,15 +1,17 @@
 import random, string
 from django.utils import timezone
+from django.db.models import Sum
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from auth_app.models import User
 from activity_log.utils import log_activity
-from .models import LeafMemberInfo, Member, StudentProfile, SeniorProfile, JobProfile
+from .models import LeafMemberInfo, Member, StudentProfile, SeniorProfile, JobProfile, Savings
 from .serializers import (
     LeafMemberInfoSerializer, LeafMemberInfoListSerializer,
     MemberSerializer, MemberListSerializer,
+    SavingsSerializer,
 )
 
 
@@ -29,11 +31,9 @@ def gen_username(first_name, last_name):
 
 
 def gen_member_id():
-    """Generate unique member ID based on max existing ID, not count."""
     existing = Member.objects.filter(
         member_id__startswith='LEAF-'
     ).values_list('member_id', flat=True)
-    
     max_num = 0
     for mid in existing:
         try:
@@ -42,9 +42,7 @@ def gen_member_id():
                 max_num = num
         except ValueError:
             pass
-    
     candidate = f'LEAF-{str(max_num + 1).zfill(3)}'
-    # Safety check
     while Member.objects.filter(member_id=candidate).exists():
         max_num += 1
         candidate = f'LEAF-{str(max_num + 1).zfill(3)}'
@@ -52,7 +50,6 @@ def gen_member_id():
 
 
 def save_sub_profile(member, classification, data):
-    """Create or update the sub-profile based on classification."""
     if classification == 'Student':
         StudentProfile.objects.update_or_create(
             member=member,
@@ -93,7 +90,9 @@ def application_list_view(request):
         if request.user.role not in ['admin', 'staff']:
             return Response({'error': 'Unauthorized.'}, status=403)
 
-        apps = LeafMemberInfo.objects.all()
+        # Only show ONLINE applications — exclude F2F walk-in registrations
+        # F2F members have is_f2f=True flag on their LeafMemberInfo
+        apps = LeafMemberInfo.objects.filter(is_f2f=False)
         if s := request.query_params.get('status'):
             apps = apps.filter(application_status=s)
         if q := request.query_params.get('search', '').strip():
@@ -102,7 +101,6 @@ def application_list_view(request):
                    apps.filter(app_id__icontains=q)
         return Response(LeafMemberInfoListSerializer(apps, many=True).data)
 
-    # POST — online application
     user = request.user if request.user.is_authenticated else None
     s    = LeafMemberInfoSerializer(data=request.data)
     if s.is_valid():
@@ -168,7 +166,6 @@ def convert_to_member_view(request, pk):
     if info.application_status != 'Approved':
         return Response({'error': 'Application must be Approved first.'}, status=400)
 
-    # Check if already converted
     if Member.objects.filter(pre_member=info).exists():
         existing = Member.objects.get(pre_member=info)
         return Response({
@@ -176,7 +173,6 @@ def convert_to_member_view(request, pk):
             'member_id': existing.member_id,
         }, status=400)
 
-    # Get or create user account
     user     = info.user
     plain_pw = gen_password()
 
@@ -195,29 +191,35 @@ def convert_to_member_view(request, pk):
         user.set_password(plain_pw)
         user.save()
 
+    # Share capital paid × 2 = actual share capital
+    paid_amount   = float(request.data.get('share_capital', 0) or 0)
+    share_capital = paid_amount * 2  # ₱4,000 paid → ₱8,000 share capital
+
     try:
         member = Member.objects.create(
             user              = user,
             pre_member        = info,
             membership_status = 'Active',
             plain_password    = plain_pw,
+            share_capital     = share_capital,
         )
     except Exception as e:
         return Response({'error': f'Failed to create member: {str(e)}'}, status=500)
 
-    # Create sub-profile
     save_sub_profile(member, info.classification, request.data)
 
     log_activity('member',
-        f'Member converted: {member.fullname} ({member.member_id}) from {info.app_id}',
+        f'Member converted: {member.fullname} ({member.member_id}) from {info.app_id} '
+        f'— Paid: ₱{paid_amount:,.2f} → Share Capital: ₱{share_capital:,.2f}',
         request.user)
 
     return Response({
-        'message':   f'{member.fullname} is now an official member!',
-        'member_id': member.member_id,
-        'username':  user.username,
-        'password':  plain_pw,
-        'member':    MemberSerializer(member).data,
+        'message':       f'{member.fullname} is now an official member!',
+        'member_id':     member.member_id,
+        'username':      user.username,
+        'password':      plain_pw,
+        'share_capital': share_capital,
+        'member':        MemberSerializer(member).data,
     }, status=201)
 
 
@@ -253,7 +255,6 @@ def member_list_view(request):
         role='member', is_active=True,
     )
 
-    # Create LeafMemberInfo
     try:
         info = LeafMemberInfo.objects.create(
             user                   = user,
@@ -266,34 +267,39 @@ def member_list_view(request):
             occupation             = data.get('occupation', ''),
             income                 = data.get('income', 0) or 0,
             contact_number         = data.get('contact_number', data.get('contact', '')),
+            email                  = data.get('email', ''),
             address                = data.get('address', ''),
             classification         = data.get('classification', 'Employed'),
             birth_certificate      = data.get('birth_certificate', False),
             marriage_certificate   = data.get('marriage_certificate', False),
             application_status     = 'Approved',
+            is_f2f                 = True,   # Walk-in F2F — exclude from Online Applications
         )
     except Exception as e:
         user.delete()
         return Response({'error': f'Failed to create info: {str(e)}'}, status=500)
 
-    # Create Member record
+    # Share capital paid × 2 = actual share capital
+    paid_amount   = float(data.get('share_capital', 0) or 0)
+    share_capital = paid_amount * 2  # ₱4,000 paid → ₱8,000 share capital
+
     try:
         member = Member.objects.create(
             user              = user,
             pre_member        = info,
             membership_status = 'Active',
             plain_password    = plain_pw,
-            share_capital     = float(data.get('share_capital', 0) or 0),
+            share_capital     = share_capital,
         )
     except Exception as e:
         info.delete(); user.delete()
         return Response({'error': f'Failed to create member: {str(e)}'}, status=500)
 
-    # Create sub-profile
     save_sub_profile(member, data.get('classification', 'Employed'), data)
 
     log_activity('member',
-        f'New F2F member: {member.fullname} ({member.member_id}) by {request.user.name}',
+        f'New F2F member: {member.fullname} ({member.member_id}) by {request.user.name} '
+        f'— Paid: ₱{paid_amount:,.2f} → Share Capital: ₱{share_capital:,.2f}',
         request.user)
 
     return Response({
@@ -301,6 +307,7 @@ def member_list_view(request):
         'member_id':      member.member_id,
         'username':       uname,
         'plain_password': plain_pw,
+        'share_capital':  share_capital,
         'member':         MemberSerializer(member).data,
     }, status=201)
 
@@ -321,7 +328,6 @@ def member_detail_view(request, pk):
             return Response({'error': 'Unauthorized.'}, status=403)
         data = request.data
 
-        # Update LeafMemberInfo fields
         if member.pre_member:
             info = member.pre_member
             for field in [
@@ -334,13 +340,11 @@ def member_detail_view(request, pk):
                     setattr(info, field, data[field])
             info.save()
 
-        # Update password
         if new_pw := data.get('plain_password', ''):
             member.user.set_password(new_pw)
             member.user.save()
             member.plain_password = new_pw
 
-        # Update membership fields
         if ms := data.get('membership_status', data.get('status', '')):
             member.membership_status = ms
         if sc := data.get('share_capital'):
@@ -348,7 +352,6 @@ def member_detail_view(request, pk):
 
         member.save()
 
-        # Update sub-profile
         if member.pre_member:
             save_sub_profile(member, member.pre_member.classification, data)
 
@@ -411,7 +414,8 @@ def my_profile_view(request):
         return Response(MemberSerializer(member).data)
     except Member.DoesNotExist:
         return Response({'error': 'Not an official member yet.'}, status=404)
-    
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def member_financial_summary_view(request, pk):
@@ -429,24 +433,113 @@ def member_financial_summary_view(request, pk):
     active_loans = loans.filter(status__in=['Active', 'Overdue'])
     total_paid   = sum(float(p.amount) for p in Payment.objects.filter(member=member))
 
+    # Share capital paid = share_capital / 2
+    share_capital = float(member.share_capital or 0)
+    amount_paid   = share_capital / 2
+
     return Response({
-        'share_capital':     float(member.share_capital or 0),
-        'max_loanable':      float(member.share_capital or 0) * 2,
+        'share_capital':     share_capital,
+        'amount_paid':       amount_paid,
+        'max_loanable':      share_capital,
         'total_loans':       loans.count(),
         'active_loans':      active_loans.count(),
-        'total_loan_amount': sum(float(l.amount)   for l in active_loans),
-        'total_balance':     sum(float(l.balance)  for l in active_loans),
+        'total_loan_amount': sum(float(l.amount)  for l in active_loans),
+        'total_balance':     sum(float(l.balance) for l in active_loans),
         'total_paid':        total_paid,
         'loans': [
             {
-                'loan_id':    l.loan_id,
-                'loan_type':  l.loan_type,
-                'amount':     float(l.amount),
-                'balance':    float(l.balance),
+                'loan_id':     l.loan_id,
+                'loan_type':   l.loan_type,
+                'amount':      float(l.amount),
+                'balance':     float(l.balance),
                 'monthly_due': float(l.monthly_due),
-                'status':     l.status,
-                'applied_at': str(l.applied_at)[:10],
+                'status':      l.status,
+                'applied_at':  str(l.applied_at)[:10],
             }
             for l in loans
         ]
+    })
+
+
+# ══════════════════════════════════════════════════════════════════
+# SAVINGS — Deposit & Withdraw
+# ══════════════════════════════════════════════════════════════════
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def savings_list_view(request):
+    if request.method == 'GET':
+        member_id = request.query_params.get('member')
+        savings = Savings.objects.all()
+        if member_id:
+            savings = savings.filter(member_id=member_id)
+        elif request.user.role == 'member':
+            savings = savings.filter(member__user=request.user)
+        return Response(SavingsSerializer(savings, many=True).data)
+
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    member_id        = request.data.get('member')
+    transaction_type = request.data.get('transaction_type')
+    amount           = float(request.data.get('amount', 0))
+    note             = request.data.get('note', '')
+
+    if not member_id or not transaction_type or amount <= 0:
+        return Response({'error': 'member, transaction_type, and amount are required.'}, status=400)
+
+    try:
+        member = Member.objects.get(id=member_id)
+    except Member.DoesNotExist:
+        return Response({'error': 'Member not found.'}, status=404)
+
+    total_deposit   = Savings.objects.filter(member=member, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or 0
+    total_withdraw  = Savings.objects.filter(member=member, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or 0
+    current_balance = float(total_deposit) - float(total_withdraw)
+
+    if transaction_type == 'Withdraw':
+        if amount > current_balance:
+            return Response({'error': f'Insufficient balance. Current balance: ₱{current_balance:,.2f}'}, status=400)
+        new_balance = current_balance - amount
+    else:
+        new_balance = current_balance + amount
+
+    savings_tx = Savings.objects.create(
+        member           = member,
+        transaction_type = transaction_type,
+        amount           = amount,
+        balance_after    = new_balance,
+        note             = note,
+        recorded_by      = request.user.username,
+    )
+
+    log_activity(
+        'savings',
+        f'{transaction_type} ₱{amount:,.2f} for {member.fullname} ({member.member_id}) '
+        f'— Balance: ₱{new_balance:,.2f} — by {request.user.name}',
+        request.user
+    )
+
+    return Response(SavingsSerializer(savings_tx).data, status=201)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def member_savings_summary_view(request, pk):
+    try:
+        member = Member.objects.get(pk=pk)
+    except Member.DoesNotExist:
+        return Response({'error': 'Member not found.'}, status=404)
+
+    savings = Savings.objects.filter(member=member)
+
+    total_deposit  = savings.filter(transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or 0
+    total_withdraw = savings.filter(transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or 0
+    balance        = float(total_deposit) - float(total_withdraw)
+
+    return Response({
+        'balance':        balance,
+        'total_deposit':  float(total_deposit),
+        'total_withdraw': float(total_withdraw),
+        'transactions':   SavingsSerializer(savings, many=True).data,
     })

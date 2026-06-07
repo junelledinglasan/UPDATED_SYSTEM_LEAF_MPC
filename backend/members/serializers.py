@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import LeafMemberInfo, Member, StudentProfile, SeniorProfile, JobProfile
+from .models import LeafMemberInfo, Member, StudentProfile, SeniorProfile, JobProfile, Savings
 
 
 class StudentProfileSerializer(serializers.ModelSerializer):
@@ -94,6 +94,7 @@ class MemberListSerializer(serializers.ModelSerializer):
     status         = serializers.ReadOnlyField()
     classification = serializers.ReadOnlyField()
     application_id = serializers.ReadOnlyField()
+    birth_date     = serializers.SerializerMethodField()
 
     class Meta:
         model  = Member
@@ -101,4 +102,23 @@ class MemberListSerializer(serializers.ModelSerializer):
             'id', 'member_id', 'fullname', 'first_name', 'last_name',
             'contact', 'share_capital', 'status', 'membership_status',
             'classification', 'membership_date', 'application_id',
+            'birth_date',
         ]
+
+    def get_birth_date(self, obj):
+        return str(obj.pre_member.birth_date) if obj.pre_member and obj.pre_member.birth_date else None
+
+
+# ── Savings Serializer ─────────────────────────────────────────────────────────
+class SavingsSerializer(serializers.ModelSerializer):
+    member_name = serializers.CharField(source='member.fullname',  read_only=True)
+    member_code = serializers.CharField(source='member.member_id', read_only=True)
+
+    class Meta:
+        model  = Savings
+        fields = [
+            'id', 'member', 'member_name', 'member_code',
+            'transaction_type', 'amount', 'balance_after',
+            'note', 'recorded_by', 'created_at',
+        ]
+        read_only_fields = ['balance_after', 'recorded_by', 'created_at']
