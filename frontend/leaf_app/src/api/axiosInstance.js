@@ -3,11 +3,16 @@ import axios from "axios";
 // ─── Dynamic BASE URL ─────────────────────────────────────────────────────────
 // Kapag naka-mobile (hindi localhost), gamitin ang actual IP ng PC
 const getBaseURL = () => {
+  // Kapag may VITE_API_URL sa .env — gamitin yan (production)
+  if (import.meta.env.VITE_API_URL) {
+    return `${import.meta.env.VITE_API_URL}/api`;
+  }
+  // Kapag local development
   const hostname = window.location.hostname;
   if (hostname === "localhost" || hostname === "127.0.0.1") {
     return "http://127.0.0.1:8000/api";
   }
-  // Mobile access — gamitin ang same IP ng frontend server
+  // Mobile access
   return `http://${hostname}:8000/api`;
 };
 
