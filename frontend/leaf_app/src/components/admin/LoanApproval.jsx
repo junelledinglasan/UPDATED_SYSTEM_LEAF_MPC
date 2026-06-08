@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { getLoansAPI, updateLoanStatusAPI } from "../../api/loans";
-import { Search } from "lucide-react";
+import { Search, Clock, CheckCircle2, XCircle, Wallet } from "lucide-react";
 import "./LoanApproval.css";
 
 const LOAN_TYPES  = ["Regular Loan","Emergency Loan","Salary Loan","Housing Loan","Business Loan","Other Loan"];
@@ -247,19 +247,19 @@ export default function LoanApproval() {
 
       <div className="la-summary-grid">
         <div className="la-summary-card clickable" onClick={()=>{setFilter("For Review");setPage(1);}}>
-          <div className="la-sum-icon" style={{background:"#fff8e1"}}>⏳</div>
+          <div className="la-sum-icon" style={{background:"#fff8e1",display:"flex",alignItems:"center",justifyContent:"center"}}><Clock size={20} color="#e65100"/></div>
           <div><div className="la-sum-val orange">{counts.forReview}</div><div className="la-sum-label">For Review</div></div>
         </div>
         <div className="la-summary-card clickable" onClick={()=>{setFilter("Active");setPage(1);}}>
-          <div className="la-sum-icon" style={{background:"#e8f5e9"}}>✓</div>
+          <div className="la-sum-icon" style={{background:"#e8f5e9",display:"flex",alignItems:"center",justifyContent:"center"}}><CheckCircle2 size={20} color="#2e7d32"/></div>
           <div><div className="la-sum-val green">{counts.approved}</div><div className="la-sum-label">Active Loans</div></div>
         </div>
         <div className="la-summary-card clickable" onClick={()=>{setFilter("Declined");setPage(1);}}>
-          <div className="la-sum-icon" style={{background:"#fce4ec"}}>✗</div>
+          <div className="la-sum-icon" style={{background:"#fce4ec",display:"flex",alignItems:"center",justifyContent:"center"}}><XCircle size={20} color="#c62828"/></div>
           <div><div className="la-sum-val red">{counts.declined}</div><div className="la-sum-label">Declined</div></div>
         </div>
         <div className="la-summary-card">
-          <div className="la-sum-icon" style={{background:"#e3f2fd"}}>💰</div>
+          <div className="la-sum-icon" style={{background:"#e3f2fd",display:"flex",alignItems:"center",justifyContent:"center"}}><Wallet size={20} color="#1565c0"/></div>
           <div><div className="la-sum-val blue">₱{counts.totalAmt.toLocaleString()}</div><div className="la-sum-label">Total Approved Amount</div></div>
         </div>
       </div>

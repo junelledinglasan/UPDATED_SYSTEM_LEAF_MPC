@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getLoansAPI } from "../../api/loans";
 import { getPaymentsAPI, getPaymentStatsAPI, recordPaymentAPI } from "../../api/payments";
-import { Search, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Eye, ChevronDown, ChevronUp, Wallet, AlertTriangle, BarChart3, Receipt, Printer } from "lucide-react";
 import "./LoanPayment.css";
 
 const ROWS_PER_PAGE = 8;
@@ -342,10 +342,10 @@ export default function LoanPayment() {
       </div>
 
       <div className="lp-summary-grid">
-        <div className="lp-summary-card"><div className="lp-sum-icon" style={{background:"#e8f5e9"}}>💰</div><div><div className="lp-sum-val">₱{totalCollected.toLocaleString()}</div><div className="lp-sum-label">Total Collected</div></div></div>
-        <div className="lp-summary-card clickable" onClick={()=>{switchTab("loans");setFilter("Overdue");}}><div className="lp-sum-icon" style={{background:"#fce4ec"}}>⚠</div><div><div className="lp-sum-val danger">{overdueCount}</div><div className="lp-sum-label">Overdue Loans</div></div></div>
-        <div className="lp-summary-card"><div className="lp-sum-icon" style={{background:"#e3f2fd"}}>📊</div><div><div className="lp-sum-val blue">₱{totalOutstanding.toLocaleString()}</div><div className="lp-sum-label">Total Outstanding</div></div></div>
-        <div className="lp-summary-card clickable" onClick={()=>switchTab("history")}><div className="lp-sum-icon" style={{background:"#f3e5f5"}}>🧾</div><div><div className="lp-sum-val purple">{transactions.length}</div><div className="lp-sum-label">Transactions Recorded</div></div></div>
+        <div className="lp-summary-card"><div className="lp-sum-icon" style={{background:"#e8f5e9",display:"flex",alignItems:"center",justifyContent:"center"}}><Wallet size={20} color="#2e7d32"/></div><div><div className="lp-sum-val">₱{totalCollected.toLocaleString()}</div><div className="lp-sum-label">Total Collected</div></div></div>
+        <div className="lp-summary-card clickable" onClick={()=>{switchTab("loans");setFilter("Overdue");}}><div className="lp-sum-icon" style={{background:"#fce4ec",display:"flex",alignItems:"center",justifyContent:"center"}}><AlertTriangle size={20} color="#c62828"/></div><div><div className="lp-sum-val danger">{overdueCount}</div><div className="lp-sum-label">Overdue Loans</div></div></div>
+        <div className="lp-summary-card"><div className="lp-sum-icon" style={{background:"#e3f2fd",display:"flex",alignItems:"center",justifyContent:"center"}}><BarChart3 size={20} color="#1565c0"/></div><div><div className="lp-sum-val blue">₱{totalOutstanding.toLocaleString()}</div><div className="lp-sum-label">Total Outstanding</div></div></div>
+        <div className="lp-summary-card clickable" onClick={()=>switchTab("history")}><div className="lp-sum-icon" style={{background:"#f3e5f5",display:"flex",alignItems:"center",justifyContent:"center"}}><Receipt size={20} color="#6a1b9a"/></div><div><div className="lp-sum-val purple">{transactions.length}</div><div className="lp-sum-label">Transactions Recorded</div></div></div>
       </div>
 
       <div className="lp-card">

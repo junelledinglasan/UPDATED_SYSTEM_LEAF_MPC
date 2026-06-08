@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getMyProfileAPI, getMyApplicationAPI } from "../api/members";
+import { LayoutDashboard, CreditCard, Bell, Megaphone, FileText, UserCircle, Lock } from "lucide-react";
 import "./MemberLayout.css";
 import logo from "../assets/logo.png";
 
@@ -12,19 +13,19 @@ const LOCKED_ROUTES = [
 ];
 
 const NAV_ITEMS = [
-  { to: "/member/dashboard",     icon: "🏠", label: "Dashboard",      locked: true  },
-  { to: "/member/my-loans",      icon: "💳", label: "My Loans",       locked: true  },
-  { to: "/member/notifications", icon: "🔔", label: "Notifications",  locked: false },
-  { to: "/member/announcements", icon: "📢", label: "Announcements",  locked: false },
-  { to: "/member/apply",         icon: "📝", label: "Apply for Loan", locked: true  },
-  { to: "/member/profile",       icon: "👤", label: "My Profile",     locked: false },
+  { to: "/member/dashboard",     icon: <LayoutDashboard size={16}/>, label: "Dashboard",      locked: true  },
+  { to: "/member/my-loans",      icon: <CreditCard      size={16}/>, label: "My Loans",       locked: true  },
+  { to: "/member/notifications", icon: <Bell            size={16}/>, label: "Notifications",  locked: false },
+  { to: "/member/announcements", icon: <Megaphone       size={16}/>, label: "Announcements",  locked: false },
+  { to: "/member/apply",         icon: <FileText        size={16}/>, label: "Apply for Loan", locked: true  },
+  { to: "/member/profile",       icon: <UserCircle      size={16}/>, label: "My Profile",     locked: false },
 ];
 
 function OfficialMemberGate({ onClose, onApply }) {
   return (
     <div className="ml-gate-overlay" onClick={onClose}>
       <div className="ml-gate-box" onClick={e => e.stopPropagation()}>
-        <div className="ml-gate-icon">🔒</div>
+        <div className="ml-gate-icon"><Lock size={48} color="#c62828"/></div>
         <div className="ml-gate-title">Official Members Only</div>
         <div className="ml-gate-text">
           This feature is only available to official LEAF MPC members.
@@ -32,7 +33,7 @@ function OfficialMemberGate({ onClose, onApply }) {
         </div>
         <div className="ml-gate-features">
           <div className="ml-gate-feature-title">Unlock these features:</div>
-          <div className="ml-gate-feature-item">🏠 Dashboard & loan overview</div>
+          <div className="ml-gate-feature-item">📊 Dashboard & loan overview</div>
           <div className="ml-gate-feature-item">💳 My Loans & payment history</div>
           <div className="ml-gate-feature-item">📝 Apply for loans online</div>
         </div>
@@ -165,7 +166,7 @@ export default function MemberLayout() {
                 {item.to === "/member/notifications" && notifCount > 0 && (
                   <span className="ml-notif-badge">{notifCount}</span>
                 )}
-                {isLocked && <span className="ml-lock-icon">🔒</span>}
+                {isLocked && <span className="ml-lock-icon"><Lock size={11}/></span>}
               </NavLink>
             );
           })}
@@ -192,7 +193,7 @@ export default function MemberLayout() {
           <div className="ml-topbar-title">MEMBER</div>
           <div className="ml-topbar-right">
             <button className="ml-notif-btn" onClick={() => navigate("/member/notifications")}>
-              🔔
+              <Bell size={20} color="#2d5a1b"/>
               {notifCount > 0 && <span className="ml-notif-dot">{notifCount}</span>}
             </button>
             <div className="ml-topbar-avatar">{member.initials}</div>

@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
+import { Home, AlertTriangle, Briefcase, HardHat, Store, CheckCircle, Calculator } from "lucide-react";
 import { getMyProfileAPI } from "../../api/members";
 import { createLoanAPI } from "../../api/loans";
 import "./LoanApplication.css";
 
 const LOAN_TYPES = [
-  { type:"Regular Loan",   icon:"🏠", desc:"For personal or household needs",     maxAmt:50000,  maxTerm:24 },
-  { type:"Emergency Loan", icon:"🚨", desc:"For urgent and unexpected expenses",   maxAmt:20000,  maxTerm:12 },
-  { type:"Salary Loan",    icon:"💼", desc:"Based on your monthly salary",          maxAmt:30000,  maxTerm:12 },
-  { type:"Housing Loan",   icon:"🏗",  desc:"For home repair or construction",      maxAmt:100000, maxTerm:48 },
-  { type:"Business Loan",  icon:"🏪", desc:"For business capital or expansion",    maxAmt:80000,  maxTerm:36 },
+  { type:"Regular Loan",   icon:<Home          size={28} color="#2e7d32"/>, color:"#e8f5e9", border:"#a5d6a7", desc:"For personal or household needs",   maxAmt:50000,  maxTerm:24 },
+  { type:"Emergency Loan", icon:<AlertTriangle size={28} color="#c62828"/>, color:"#fce4ec", border:"#ef9a9a", desc:"For urgent and unexpected expenses",  maxAmt:20000,  maxTerm:12 },
+  { type:"Salary Loan",    icon:<Briefcase     size={28} color="#1565c0"/>, color:"#e3f2fd", border:"#90caf9", desc:"Based on your monthly salary",        maxAmt:30000,  maxTerm:12 },
+  { type:"Housing Loan",   icon:<HardHat       size={28} color="#e65100"/>, color:"#fff8e1", border:"#ffcc80", desc:"For home repair or construction",     maxAmt:100000, maxTerm:48 },
+  { type:"Business Loan",  icon:<Store         size={28} color="#6a1b9a"/>, color:"#f3e5f5", border:"#ce93d8", desc:"For business capital or expansion",   maxAmt:80000,  maxTerm:36 },
 ];
 
 export default function LoanApplication() {
@@ -31,26 +32,23 @@ export default function LoanApplication() {
       .finally(() => setLoadingProfile(false));
   }, []);
 
-  const amount      = parseFloat(form.amount) || 0;
-  const term        = parseInt(form.term) || 12;
-  const selectedType= LOAN_TYPES.find(l => l.type === selType);
+  const amount       = parseFloat(form.amount) || 0;
+  const term         = parseInt(form.term) || 12;
+  const selectedType = LOAN_TYPES.find(l => l.type === selType);
 
-  // Interest rates per LEAF MPC schedule
-  const monthlyRate = amount <= 50000 ? 0.0125 : amount <= 150000 ? 0.01125 : 0.01;
+  const monthlyRate  = amount <= 50000 ? 0.0125 : amount <= 150000 ? 0.01125 : 0.01;
+  const interest     = monthlyRate * amount * term;
+  const serviceFee   = amount * 0.03;
+  const filingFee    = amount <= 50000 ? 50 : 100;
+  const insurance    = amount * 0.0125;
+  const sd           = amount * 0.01;
+  const sc           = amount * 0.03;
+  const totalDed     = interest + serviceFee + filingFee + insurance + sd + sc;
+  const netProceeds  = amount - totalDed;
+  const monthlyEst   = amount > 0 ? (amount + interest) / term : 0;
 
-  // Upfront deductions
-  const interest    = monthlyRate * amount * term;
-  const serviceFee  = amount * 0.03;
-  const filingFee   = amount <= 50000 ? 50 : 100;
-  const insurance   = amount * 0.0125;
-  const sd          = amount * 0.01;
-  const sc          = amount * 0.03;
-  const totalDed    = interest + serviceFee + filingFee + insurance + sd + sc;
-  const netProceeds = amount - totalDed;
-  const monthlyEst  = amount > 0 ? (amount + interest) / term : 0;
-
-  // Share capital info (display only, no hard limit)
-  const basedLoanable = shareCapital * 2;
+  // Max loanable = share capital (not ×2)
+  const maxLoanable     = shareCapital;
   const showComputation = amount >= 3000 && selType && step === 2;
 
   const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
@@ -83,11 +81,11 @@ export default function LoanApplication() {
     } finally { setLoading(false); }
   };
 
-  // ── Success Screen ────────────────────────────────────────────────────────
+  // ── Success Screen ─────────────────────────────────────────────────────────
   if (submitted) return (
     <div className="la-wrapper">
       <div className="la-success-card">
-        <div className="la-success-icon">🎉</div>
+        <div className="la-success-icon"><CheckCircle size={56} color="#2e7d32"/></div>
         <div className="la-success-title">Application Submitted!</div>
         <div className="la-success-text">
           Your <strong>{selType}</strong> application for{" "}
@@ -123,8 +121,8 @@ export default function LoanApplication() {
         </div>
         <div className="la-elig-divider"/>
         <div className="la-elig-item">
-          <span className="la-elig-label">Based Loanable (×2)</span>
-          <span className="la-elig-val green">₱{basedLoanable.toLocaleString()}</span>
+          <span className="la-elig-label">Max Loanable</span>
+          <span className="la-elig-val green">₱{maxLoanable.toLocaleString()}</span>
         </div>
         <div className="la-elig-divider"/>
         <div className="la-elig-item">
@@ -153,8 +151,18 @@ export default function LoanApplication() {
                 key={lt.type}
                 className={`la-type-card ${selType===lt.type?"selected":""}`}
                 onClick={() => setSelType(lt.type)}
+                style={selType===lt.type ? {borderColor: lt.border, background: lt.color} : {}}
               >
-                <div className="la-type-icon">{lt.icon}</div>
+                <div className="la-type-icon" style={{
+                  background:   lt.color,
+                  border:       `1.5px solid ${lt.border}`,
+                  borderRadius: 14,
+                  width: 56, height: 56, minWidth: 56,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  margin:"0 auto 10px",
+                }}>
+                  {lt.icon}
+                </div>
                 <div className="la-type-name">{lt.type}</div>
                 <div className="la-type-desc">{lt.desc}</div>
                 <div className="la-type-max">Up to ₱{lt.maxAmt.toLocaleString()} · {lt.maxTerm} months max</div>
@@ -173,9 +181,20 @@ export default function LoanApplication() {
       {/* Step 2 — Loan Details */}
       {step === 2 && selectedType && (
         <div className="la-card">
-          <div className="la-card-title">Loan Details — {selectedType.type}</div>
-          <div className="la-form-grid">
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+            <div style={{
+              background: selectedType.color,
+              border: `1.5px solid ${selectedType.border}`,
+              borderRadius:12, width:44, height:44,
+              display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+            }}>{selectedType.icon}</div>
+            <div>
+              <div className="la-card-title" style={{margin:0}}>Loan Details</div>
+              <div style={{fontSize:11,color:"#aaa",marginTop:2}}>{selectedType.type}</div>
+            </div>
+          </div>
 
+          <div className="la-form-grid">
             <div className="la-field">
               <label className="la-label">Loan Amount (₱) <span className="la-req">*</span></label>
               <div className="la-amount-wrap">
@@ -229,8 +248,9 @@ export default function LoanApplication() {
           {/* Loan Computation */}
           {showComputation && (
             <div className="la-computation">
-              <div className="la-comp-title">🧮 Loan Computation (LEAF MPC)</div>
-
+              <div className="la-comp-title" style={{display:"flex",alignItems:"center",gap:8}}>
+                <Calculator size={14}/> Loan Computation (LEAF MPC)
+              </div>
               <div className="la-comp-summary">
                 <div className="la-comp-row">
                   <span>Interest Rate</span>
@@ -245,7 +265,6 @@ export default function LoanApplication() {
                   <span className="green fw">₱{monthlyEst.toFixed(2)}</span>
                 </div>
               </div>
-
               <div className="la-comp-deductions">
                 <div className="la-comp-ded-title">💰 Upfront Deductions (from Loan Release)</div>
                 <div className="la-ded-row"><span>Loan Amount</span><span>₱{amount.toLocaleString()}</span></div>
@@ -267,7 +286,7 @@ export default function LoanApplication() {
                   <span className="red">− ₱{insurance.toFixed(2)}</span>
                 </div>
                 <div className="la-ded-row">
-                  <span>Savings Deposit <span className="la-ded-rate">(1%)</span></span>
+                  <span>Savings Deposit <span className="la-ded-rate">(1% → auto-added to your savings)</span></span>
                   <span className="red">− ₱{sd.toFixed(2)}</span>
                 </div>
                 <div className="la-ded-row">
@@ -303,7 +322,18 @@ export default function LoanApplication() {
       {/* Step 3 — Review */}
       {step === 3 && (
         <div className="la-card">
-          <div className="la-card-title">Review Application</div>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+            <div style={{
+              background: selectedType?.color, border:`1.5px solid ${selectedType?.border}`,
+              borderRadius:12, width:44, height:44,
+              display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+            }}>{selectedType?.icon}</div>
+            <div>
+              <div className="la-card-title" style={{margin:0}}>Review Application</div>
+              <div style={{fontSize:11,color:"#aaa",marginTop:2}}>Please verify all details before submitting</div>
+            </div>
+          </div>
+
           <div className="la-review-grid">
             {[
               ["Loan Type",      selType],
@@ -337,7 +367,6 @@ export default function LoanApplication() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

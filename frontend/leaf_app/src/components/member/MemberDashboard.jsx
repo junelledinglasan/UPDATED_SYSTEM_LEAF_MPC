@@ -6,6 +6,7 @@ import {
   PointElement, LineElement, ArcElement,
   Title, Tooltip, Legend, Filler,
 } from "chart.js";
+import { Wallet, CalendarClock, CheckCircle2, TrendingUp, CreditCard, Megaphone, Bell } from "lucide-react";
 import { getLoansAPI } from "../../api/loans";
 import { getPaymentsAPI } from "../../api/payments";
 import { getAnnouncementsAPI } from "../../api/announcements";
@@ -131,7 +132,7 @@ export default function MemberDashboard() {
 
       <div className="md-kpi-grid">
         <div className="md-kpi-card md-kpi-danger">
-          <div className="md-kpi-icon"></div>
+          <div className="md-kpi-icon"><Wallet size={22} color="#c62828"/></div>
           <div>
             <div className="md-kpi-label">Remaining Balance</div>
             <div className="md-kpi-val red">₱{balance.toLocaleString()}</div>
@@ -139,7 +140,7 @@ export default function MemberDashboard() {
           </div>
         </div>
         <div className="md-kpi-card">
-          <div className="md-kpi-icon"></div>
+          <div className="md-kpi-icon"><CalendarClock size={22} color="#e65100"/></div>
           <div>
             <div className="md-kpi-label">Next Payment Due</div>
             <div className="md-kpi-val orange">₱{monthlyDue.toLocaleString()}</div>
@@ -147,7 +148,7 @@ export default function MemberDashboard() {
           </div>
         </div>
         <div className="md-kpi-card">
-          <div className="md-kpi-icon"></div>
+          <div className="md-kpi-icon"><CheckCircle2 size={22} color="#2e7d32"/></div>
           <div>
             <div className="md-kpi-label">Total Paid</div>
             <div className="md-kpi-val green">₱{totalPaid.toLocaleString()}</div>
@@ -155,11 +156,11 @@ export default function MemberDashboard() {
           </div>
         </div>
         <div className="md-kpi-card">
-          <div className="md-kpi-icon"></div>
+          <div className="md-kpi-icon"><TrendingUp size={22} color="#1565c0"/></div>
           <div>
             <div className="md-kpi-label">Share Capital</div>
             <div className="md-kpi-val blue">₱{shareCapital.toLocaleString()}</div>
-            <div className="md-kpi-sub">Max loanable: ₱{(shareCapital * 3).toLocaleString()}</div>
+            <div className="md-kpi-sub">Max loanable: ₱{shareCapital.toLocaleString()}</div>
           </div>
         </div>
       </div>
@@ -210,7 +211,7 @@ export default function MemberDashboard() {
               ? <div style={{textAlign:"center",padding:"20px",color:"#aaa",fontSize:12}}>No transactions yet.</div>
               : payments.slice(0,5).map((tx,i)=>(
                 <div key={i} className="md-tx-item">
-                  <div className="md-tx-icon payment">💳</div>
+                  <div className="md-tx-icon payment"><CreditCard size={16} color="#2e7d32"/></div>
                   <div className="md-tx-info"><div className="md-tx-desc">Loan Payment</div><div className="md-tx-date">{tx.paid_at}</div></div>
                   <div className="md-tx-amount red">−₱{Number(tx.amount).toLocaleString()}</div>
                 </div>
@@ -227,7 +228,7 @@ export default function MemberDashboard() {
               ? <div style={{textAlign:"center",padding:"20px",color:"#aaa",fontSize:12}}>No announcements yet.</div>
               : notifs.map((n,i)=>(
                 <div key={i} className="md-notif-item">
-                  <div className="md-notif-icon">📢</div>
+                  <div className="md-notif-icon"><Megaphone size={16} color="#1565c0"/></div>
                   <div className="md-notif-body">
                     <div className="md-notif-msg">{n.title}</div>
                     <div className="md-notif-time">{n.created_at}</div>
