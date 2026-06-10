@@ -58,34 +58,18 @@ function AgeGroupChart({ members }) {
   const total = members.length;
 
   return (
-    <div style={{
-      background:"#fff", borderRadius:12, border:"1px solid #e8f5e9",
-      padding:"16px 18px", marginBottom:16,
-    }}>
-      <div style={{fontSize:13,fontWeight:700,color:"#1b5e20",marginBottom:14}}>
-        👥 Members by Age Group
-      </div>
+    <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e8f5e9", padding:"16px 18px", marginBottom:16 }}>
+      <div style={{fontSize:13,fontWeight:700,color:"#1b5e20",marginBottom:14}}>👥 Members by Age Group</div>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {Object.entries(groups).filter(([,v]) => v > 0 || true).map(([label, count]) => (
+        {Object.entries(groups).map(([label, count]) => (
           <div key={label} style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:52,fontSize:11,fontWeight:600,color:"#555",textAlign:"right",flexShrink:0}}>
-              {label}
-            </div>
+            <div style={{width:52,fontSize:11,fontWeight:600,color:"#555",textAlign:"right",flexShrink:0}}>{label}</div>
             <div style={{flex:1,background:"#f5f5f5",borderRadius:20,overflow:"hidden",height:18}}>
-              <div style={{
-                width: count === 0 ? "0%" : `${Math.max((count/max)*100, 4)}%`,
-                background: colors[label],
-                height:"100%", borderRadius:20,
-                transition:"width 0.6s ease",
-              }}/>
+              <div style={{ width: count === 0 ? "0%" : `${Math.max((count/max)*100, 4)}%`, background: colors[label], height:"100%", borderRadius:20, transition:"width 0.6s ease" }}/>
             </div>
             <div style={{width:40,fontSize:11,fontWeight:700,color:"#333",flexShrink:0}}>
               {count}
-              {count > 0 && (
-                <span style={{fontSize:9,color:"#aaa",fontWeight:400,marginLeft:2}}>
-                  ({Math.round((count/total)*100)}%)
-                </span>
-              )}
+              {count > 0 && <span style={{fontSize:9,color:"#aaa",fontWeight:400,marginLeft:2}}>({Math.round((count/total)*100)}%)</span>}
             </div>
           </div>
         ))}
@@ -138,10 +122,11 @@ function RegisterField({ label, name, type="text", options=null, full=false, for
 
 // ─── Financial Summary ────────────────────────────────────────────────────────
 function FinancialSummary({ memberId }) {
-  const [summary,    setSummary]   = useState(null);
-  const [savings,    setSavings]   = useState(null);
-  const [loading,    setLoading]   = useState(true);
-  const [historyTab, setHistoryTab]= useState("savings");
+  const [summary,      setSummary]      = useState(null);
+  const [savings,      setSavings]      = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [historyTab,   setHistoryTab]   = useState("savings");
+  const [activeLoanId, setActiveLoanId] = useState(null);
 
   useEffect(() => {
     Promise.allSettled([
@@ -156,10 +141,9 @@ function FinancialSummary({ memberId }) {
   if (loading) return <div style={{textAlign:"center",padding:"20px",color:"#888",fontSize:13}}>Loading financial data...</div>;
   if (!summary) return null;
 
-  const statusColor = {
-    Active:"#2e7d32",Overdue:"#c62828",Completed:"#1565c0",
-    "For Review":"#e65100",Approved:"#558b2f",Declined:"#757575",
-  };
+  const statusColor = { Active:"#2e7d32", Overdue:"#c62828", Completed:"#1565c0", "For Review":"#e65100", Approved:"#558b2f", Declined:"#757575" };
+  const statusBg    = { Active:"#e8f5e9", Overdue:"#ffebee", Completed:"#e3f2fd", "For Review":"#fff8e1", Approved:"#f1f8e9", Declined:"#f5f5f5" };
+
   const savingsBalance = savings?.balance        || 0;
   const totalDeposit   = savings?.total_deposit  || 0;
   const totalWithdraw  = savings?.total_withdraw || 0;
@@ -168,13 +152,13 @@ function FinancialSummary({ memberId }) {
   return (
     <div style={{marginTop:16}}>
       <div className="mm-view-section-title">Financial Overview</div>
+
+      {/* KPI Cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:16}}>
         <div style={{background:"#e8f5e9",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
           <div style={{fontSize:11,color:"#558b2f",fontWeight:600,marginBottom:4}}>💰 Share Capital</div>
           <div style={{fontSize:18,fontWeight:800,color:"#1b5e20"}}>₱{Number(summary.share_capital).toLocaleString()}</div>
-          <div style={{fontSize:10,color:"#888",marginTop:2}}>
-            Paid: ₱{Number(summary.amount_paid||summary.share_capital/2).toLocaleString()} · Max Loanable: ₱{Number(summary.share_capital).toLocaleString()}
-          </div>
+          <div style={{fontSize:10,color:"#888",marginTop:2}}>Paid: ₱{Number(summary.amount_paid||summary.share_capital/2).toLocaleString()} · Max Loanable: ₱{Number(summary.share_capital).toLocaleString()}</div>
         </div>
         <div style={{background:"#e3f2fd",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
           <div style={{fontSize:11,color:"#1565c0",fontWeight:600,marginBottom:4}}>📋 Active Loans</div>
@@ -193,17 +177,18 @@ function FinancialSummary({ memberId }) {
         </div>
       </div>
 
+      {/* Tab switcher */}
       <div style={{display:"flex",borderBottom:"2px solid #f0f0f0",marginBottom:12}}>
         {[
-          {key:"savings",label:"🏦 Savings History",count:savingsTxList.length},
-          {key:"loans",  label:"📋 Loan History",   count:summary.loans.length},
+          {key:"savings", label:"🏦 Savings History", count:savingsTxList.length},
+          {key:"loans",   label:"📋 Loan History",    count:summary.loans.length},
         ].map(t => (
           <button key={t.key} onClick={() => setHistoryTab(t.key)} style={{
-            flex:1,padding:"8px 6px",fontSize:12,fontWeight:600,cursor:"pointer",
-            border:"none",background:"none",
+            flex:1, padding:"8px 6px", fontSize:12, fontWeight:600, cursor:"pointer",
+            border:"none", background:"none",
             color:historyTab===t.key?"#2e7d32":"#aaa",
             borderBottom:historyTab===t.key?"2px solid #2e7d32":"2px solid transparent",
-            marginBottom:-2,display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+            marginBottom:-2, display:"flex", alignItems:"center", justifyContent:"center", gap:6,
           }}>
             {t.label}
             <span style={{background:historyTab===t.key?"#e8f5e9":"#f0f0f0",color:historyTab===t.key?"#2e7d32":"#aaa",borderRadius:10,padding:"1px 7px",fontSize:10,fontWeight:700}}>
@@ -213,6 +198,7 @@ function FinancialSummary({ memberId }) {
         ))}
       </div>
 
+      {/* ── Savings History ─────────────────────────────────────────────────── */}
       {historyTab==="savings" && (savingsTxList.length > 0 ? (
         <div style={{borderRadius:8,overflow:"hidden",border:"1px solid #ffe082"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
@@ -244,30 +230,105 @@ function FinancialSummary({ memberId }) {
         <div style={{textAlign:"center",padding:"20px",color:"#bbb",fontSize:12,background:"#fffde7",borderRadius:8,border:"1px solid #ffe082"}}>No savings transactions yet.</div>
       ))}
 
+      {/* ── Loan History — clickable rows with expandable payment history ───── */}
       {historyTab==="loans" && (summary.loans.length > 0 ? (
-        <div style={{borderRadius:8,overflow:"hidden",border:"1px solid #e0e0e0"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead><tr style={{background:"#f5f5f5"}}>
-              <th style={{padding:"8px 10px",textAlign:"left",fontWeight:600,color:"#555"}}>Loan ID</th>
-              <th style={{padding:"8px 10px",textAlign:"left",fontWeight:600,color:"#555"}}>Type</th>
-              <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,color:"#555"}}>Amount</th>
-              <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,color:"#555"}}>Balance</th>
-              <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,color:"#555"}}>Monthly</th>
-              <th style={{padding:"8px 10px",textAlign:"center",fontWeight:600,color:"#555"}}>Status</th>
-            </tr></thead>
-            <tbody>{summary.loans.map((loan,idx) => (
-              <tr key={loan.loan_id} style={{background:idx%2===0?"#fff":"#fafafa",borderTop:"1px solid #f0f0f0"}}>
-                <td style={{padding:"8px 10px",fontFamily:"monospace",color:"#1b5e20",fontWeight:600}}>{loan.loan_id}</td>
-                <td style={{padding:"8px 10px",color:"#555"}}>{loan.loan_type}</td>
-                <td style={{padding:"8px 10px",textAlign:"right",fontWeight:600}}>₱{Number(loan.amount).toLocaleString()}</td>
-                <td style={{padding:"8px 10px",textAlign:"right",color:loan.balance>0?"#c62828":"#2e7d32",fontWeight:600}}>₱{Number(loan.balance).toLocaleString()}</td>
-                <td style={{padding:"8px 10px",textAlign:"right",color:"#555"}}>₱{Number(loan.monthly_due).toLocaleString()}</td>
-                <td style={{padding:"8px 10px",textAlign:"center"}}>
-                  <span style={{background:(statusColor[loan.status]||"#757575")+"20",color:statusColor[loan.status]||"#757575",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700}}>{loan.status}</span>
-                </td>
-              </tr>
-            ))}</tbody>
-          </table>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {summary.loans.map((loan, idx) => {
+            const isExpanded    = activeLoanId === loan.loan_id;
+            const isPaid        = loan.balance === 0 || loan.status === "Completed";
+            const displayStatus = isPaid ? "Paid" : loan.status;
+            const sColor        = isPaid ? "#1565c0" : (statusColor[loan.status] || "#757575");
+            const sBg           = isPaid ? "#e3f2fd"  : (statusBg[loan.status]   || "#f5f5f5");
+
+            return (
+              <div key={loan.loan_id} style={{ borderRadius:10, border:`1px solid ${isExpanded?"#a5d6a7":"#e0e0e0"}`, overflow:"hidden", transition:"border 0.2s" }}>
+
+                {/* Loan row — click to expand/collapse */}
+                <div
+                  onClick={() => setActiveLoanId(isExpanded ? null : loan.loan_id)}
+                  style={{
+                    display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr auto",
+                    padding:"10px 14px", cursor:"pointer", gap:8,
+                    background: isExpanded ? "#f1f8e9" : idx%2===0 ? "#fff" : "#fafafa",
+                    alignItems:"center",
+                  }}
+                >
+                  <div>
+                    <div style={{fontFamily:"monospace",color:"#1b5e20",fontWeight:700,fontSize:12}}>{loan.loan_id}</div>
+                    <div style={{fontSize:10,color:"#888",marginTop:1}}>{loan.loan_type}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:10,color:"#999"}}>Amount</div>
+                    <div style={{fontWeight:700,fontSize:13}}>₱{Number(loan.amount).toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:10,color:"#999"}}>Balance</div>
+                    <div style={{fontWeight:700,fontSize:13,color:isPaid?"#2e7d32":"#c62828"}}>
+                      {isPaid ? "₱0 ✓" : `₱${Number(loan.balance).toLocaleString()}`}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{background:sBg,color:sColor,border:`1px solid ${sColor}33`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>
+                      {displayStatus}
+                    </span>
+                  </div>
+                  <div style={{fontSize:13,color:"#bbb",userSelect:"none",paddingRight:4}}>
+                    {isExpanded ? "▲" : "▼"}
+                  </div>
+                </div>
+
+                {/* Expanded payment history */}
+                {isExpanded && (
+                  <div style={{borderTop:"1px solid #e8f5e9",background:"#f9fef9"}}>
+                    <div style={{padding:"8px 14px 4px",fontSize:11,fontWeight:700,color:"#2e7d32",display:"flex",alignItems:"center",gap:8}}>
+                      💳 Payment History — {loan.loan_id}
+                      <span style={{fontWeight:400,color:"#aaa",fontSize:10}}>
+                        ({loan.payments?.length || 0} payment{loan.payments?.length !== 1 ? "s" : ""})
+                      </span>
+                    </div>
+
+                    {!loan.payments || loan.payments.length === 0 ? (
+                      <div style={{padding:"12px 14px",color:"#bbb",fontSize:12,textAlign:"center"}}>No payments recorded yet.</div>
+                    ) : (
+                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                        <thead>
+                          <tr style={{background:"#e8f5e9"}}>
+                            <th style={{padding:"6px 14px",textAlign:"left",color:"#558b2f",fontWeight:600}}>Date</th>
+                            <th style={{padding:"6px 14px",textAlign:"left",color:"#558b2f",fontWeight:600}}>TX ID</th>
+                            <th style={{padding:"6px 14px",textAlign:"right",color:"#558b2f",fontWeight:600}}>Amount Paid</th>
+                            <th style={{padding:"6px 14px",textAlign:"right",color:"#558b2f",fontWeight:600}}>Balance After</th>
+                            <th style={{padding:"6px 14px",textAlign:"left",color:"#558b2f",fontWeight:600}}>Recorded By</th>
+                            <th style={{padding:"6px 14px",textAlign:"left",color:"#558b2f",fontWeight:600}}>Note</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {loan.payments.map((p, pi) => (
+                            <tr key={p.tx_id} style={{background:pi%2===0?"#fff":"#f1f8e9",borderTop:"1px solid #e8f5e9"}}>
+                              <td style={{padding:"6px 14px",color:"#666"}}>{p.paid_at}</td>
+                              <td style={{padding:"6px 14px",fontFamily:"monospace",color:"#1b5e20",fontSize:10}}>{p.tx_id}</td>
+                              <td style={{padding:"6px 14px",textAlign:"right",fontWeight:700,color:"#2e7d32"}}>₱{Number(p.amount).toLocaleString()}</td>
+                              <td style={{padding:"6px 14px",textAlign:"right",fontWeight:600,color:p.balance===0?"#1565c0":"#c62828"}}>
+                                {p.balance === 0 ? "₱0 ✓ Fully Paid" : `₱${Number(p.balance).toLocaleString()}`}
+                              </td>
+                              <td style={{padding:"6px 14px",color:"#888"}}>{p.recorded_by}</td>
+                              <td style={{padding:"6px 14px",color:"#aaa"}}>{p.note}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+
+                    {/* Summary footer */}
+                    <div style={{padding:"8px 14px",display:"flex",gap:16,fontSize:11,color:"#888",borderTop:"1px solid #e8f5e9",flexWrap:"wrap"}}>
+                      <span>Monthly Due: <strong style={{color:"#555"}}>₱{Number(loan.monthly_due).toLocaleString()}</strong></span>
+                      <span>Total Paid: <strong style={{color:"#2e7d32"}}>₱{Number(loan.payments?.reduce((s,p) => s + p.amount, 0) || 0).toLocaleString()}</strong></span>
+                      <span>Remaining: <strong style={{color:isPaid?"#1565c0":"#c62828"}}>{isPaid ? "₱0 — Fully Paid ✓" : `₱${Number(loan.balance).toLocaleString()}`}</strong></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div style={{textAlign:"center",padding:"20px",color:"#aaa",fontSize:13,background:"#fafafa",borderRadius:8}}>No loans found for this member.</div>
@@ -564,7 +625,12 @@ function RegisterMemberModal({ onClose, onSuccess }) {
   const handle=e=>{const val=e.target.type==="checkbox"?e.target.checked:e.target.value;setForm(p=>({...p,[e.target.name]:val}));setErrors(p=>({...p,[e.target.name]:""}));};
   const validate=()=>{const e={};if(!form.first_name.trim())e.first_name="Required";if(!form.last_name.trim())e.last_name="Required";if(!form.birth_date)e.birth_date="Required";if(!form.contact_number.trim())e.contact_number="Required";if(!form.address.trim())e.address="Required";if(form.classification==="Student"&&!form.school_name.trim())e.school_name="Required";if(form.classification==="Student"&&!form.year_level.trim())e.year_level="Required";return e;};
   const handleSubmit=async()=>{const e=validate();if(Object.keys(e).length){setErrors(e);const pf=["first_name","last_name","birth_date","contact_number","address"];const cf=["school_name","year_level"];if(pf.some(f=>e[f])){setTab("personal");return;}if(cf.some(f=>e[f])){setTab("classification");return;}return;}
-    setLoading(true);try{const res=await registerMemberAPI({first_name:form.first_name,last_name:form.last_name,middle_name:form.middle_name,birth_date:form.birth_date,civil_status:form.civil_status,educational_attainment:form.educational_attainment,occupation:form.occupation,income:form.income||0,contact_number:form.contact_number,address:form.address,birth_certificate:form.birth_certificate,marriage_certificate:form.marriage_certificate,classification:form.classification,share_capital:form.share_capital||0,school_name:form.school_name,year_level:form.year_level,allowance:form.allowance||0,pension_income:form.pension_income||0,job_type:form.job_type,monthly_income:form.monthly_income||0});setResult(res);setTab("account");onSuccess();}catch(err){const msg=err.response?.data?.error||"Failed to register member.";setErrors({first_name:msg});setTab("personal");}finally{setLoading(false);}};
+    setLoading(true);try{const res=await registerMemberAPI({first_name:form.first_name,last_name:form.last_name,middle_name:form.middle_name,birth_date:form.birth_date,civil_status:form.civil_status,educational_attainment:form.educational_attainment,occupation:form.occupation,income:form.income||0,contact_number:form.contact_number,address:form.address,birth_certificate:form.birth_certificate,marriage_certificate:form.marriage_certificate,classification:form.classification,share_capital:form.share_capital||0,school_name:form.school_name,year_level:form.year_level,allowance:form.allowance||0,pension_income:form.pension_income||0,job_type:form.job_type,monthly_income:form.monthly_income||0});
+      // Pass the new member data and close modal — list updates instantly
+      await onSuccess(res.member || res);
+      setResult(res);
+      setTab("account");
+    }catch(err){const msg=err.response?.data?.error||"Failed to register member.";setErrors({first_name:msg});setTab("personal");}finally{setLoading(false);}};
   return(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box mm-view-modal" onClick={e=>e.stopPropagation()}>
@@ -652,8 +718,8 @@ export default function ManageMember() {
 
   const showToast = (msg,type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [mem,st,apps] = await Promise.allSettled([getMembersAPI(),getMemberStatsAPI(),getApplicationsAPI({status:"Approved"})]);
       if (mem.status==="fulfilled")  setMembers(mem.value);
@@ -663,13 +729,12 @@ export default function ManageMember() {
         setPending(apps.value.filter(a=>!convertedIds.includes(a.id)));
       }
     } catch(e) { console.error(e); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   };
 
-  useEffect(()=>{ fetchData(); },[]);
+  useEffect(() => { fetchData(); }, []);
   useEffect(()=>{ const h=e=>{if(e.detail?.action==="register")setShowRegister(true);}; window.addEventListener("staff-action",h); return ()=>window.removeEventListener("staff-action",h); },[]);
 
-  // Filter + Sort
   const filtered = useMemo(() => {
     let list = members.filter(m => {
       const matchStatus = filterStatus==="All" || m.status===filterStatus;
@@ -690,14 +755,22 @@ export default function ManageMember() {
   const safePage   = Math.min(currentPage,totalPages);
   const paginated  = filtered.slice((safePage-1)*ROWS_PER_PAGE,safePage*ROWS_PER_PAGE);
 
-  const handleSaveEdit = async (id,form) => { try{await updateMemberAPI(id,form);showToast("Member updated successfully.");fetchData();}catch{showToast("Failed to update member.","danger");} };
-  const handleDelete   = async (id)      => { try{await deleteMemberAPI(id);setDeleteMember(null);showToast("Member deleted.","danger");fetchData();}catch{showToast("Failed to delete member.","danger");} };
-  const handleConvert  = async (app)     => { try{const r=await convertToMemberAPI(app.id);setPending(prev=>prev.filter(p=>p.id!==app.id));setViewPending(null);showToast(`✓ ${app.first_name} ${app.last_name} is now an official member! ID: ${r.member_id}`,"success");fetchData();}catch(err){showToast(err.response?.data?.error||"Failed to convert member.","danger");} };
+  const handleSaveEdit = async (id,form) => { try{await updateMemberAPI(id,form);showToast("Member updated successfully.");fetchData(true);}catch{showToast("Failed to update member.","danger");} };
+  const handleDelete   = async (id)      => { try{await deleteMemberAPI(id);setDeleteMember(null);showToast("Member deleted.","danger");fetchData(true);}catch{showToast("Failed to delete member.","danger");} };
+  const handleConvert  = async (app)     => { try{const r=await convertToMemberAPI(app.id);setPending(prev=>prev.filter(p=>p.id!==app.id));setViewPending(null);showToast(`✓ ${app.first_name} ${app.last_name} is now an official member! ID: ${r.member_id}`,"success");fetchData(true);}catch(err){showToast(err.response?.data?.error||"Failed to convert member.","danger");} };
 
   return (
     <div className="mm-wrapper">
       {toast && <div className={`mm-toast mm-toast-${toast.type}`}>{toast.msg}</div>}
-      {showRegister && <RegisterMemberModal onClose={()=>setShowRegister(false)} onSuccess={()=>{fetchData();showToast("Member registered successfully!","success");}}/>}
+      {showRegister && <RegisterMemberModal
+        onClose={()=>setShowRegister(false)}
+        onSuccess={async (newMember)=>{
+          // Directly add the new member to state — instant, no refetch needed
+          setMembers(prev => [newMember, ...prev]);
+          setStats(prev => ({...prev, total:(prev.total||0)+1, active:(prev.active||0)+1}));
+          showToast("Member registered successfully!","success");
+        }}
+      />}
       {viewMember   && <ViewEditModal member={viewMember}   onClose={()=>setViewMember(null)}   onSave={handleSaveEdit}/>}
       {viewPending  && <PendingModal  app={viewPending}     onClose={()=>setViewPending(null)}  onConvert={handleConvert}/>}
       <DeleteModal member={deleteMember} onClose={()=>setDeleteMember(null)} onConfirm={handleDelete}/>
@@ -731,7 +804,6 @@ export default function ManageMember() {
 
       {mainTab==="official" && (
         <div className="mm-card">
-          {/* Age Group Chart Toggle */}
           <div style={{padding:"10px 16px 0",display:"flex",justifyContent:"flex-end"}}>
             <button onClick={()=>setShowAgeChart(p=>!p)} style={{
               fontSize:12, fontWeight:600, padding:"5px 14px",
@@ -754,7 +826,6 @@ export default function ManageMember() {
               {search&&<button className="mm-clear-btn" onClick={()=>{setSearch("");setPage(1);}}>✕</button>}
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-              {/* Sort Dropdown */}
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <ArrowUpDown size={13} color="#888"/>
                 <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{
@@ -787,8 +858,8 @@ export default function ManageMember() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? <tr><td colSpan={5} className="mm-empty">Loading members...</td></tr>
-                : paginated.length===0 ? <tr><td colSpan={5} className="mm-empty">No members found.</td></tr>
+                {loading ? <tr><td colSpan={6} className="mm-empty">Loading members...</td></tr>
+                : paginated.length===0 ? <tr><td colSpan={6} className="mm-empty">No members found.</td></tr>
                 : paginated.map((m,idx)=>(
                   <tr key={m.id} className={idx%2===0?"row-even":"row-odd"} onClick={()=>setViewMember(m)} style={{cursor:"pointer"}}>
                     <td className="mono cell-id">{m.member_id}</td>

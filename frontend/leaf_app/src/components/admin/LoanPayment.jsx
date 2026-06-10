@@ -133,7 +133,6 @@ function ReceiptModal({ tx, onClose }) {
   );
 }
 
-// ─── Helper: group transactions by date ──────────────────────────────────────
 function groupByDate(transactions) {
   const groups = {};
   transactions.forEach(tx => {
@@ -141,7 +140,6 @@ function groupByDate(transactions) {
     if (!groups[dateStr]) groups[dateStr] = [];
     groups[dateStr].push(tx);
   });
-  // Sort dates descending
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
 }
 
@@ -151,29 +149,21 @@ function formatDateLabel(dateStr) {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-
   const todayStr     = today.toISOString().split("T")[0];
   const yesterdayStr = yesterday.toISOString().split("T")[0];
-
   if (dateStr === todayStr)     return "Today";
   if (dateStr === yesterdayStr) return "Yesterday";
-
   return date.toLocaleDateString("en-PH", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 }
 
-// ─── Daily Group Row Component ────────────────────────────────────────────────
 function DailyGroup({ dateStr, txList, onViewTx }) {
   const [expanded, setExpanded] = useState(true);
   const dailyTotal = txList.reduce((s, t) => s + parseFloat(t.amount || 0), 0);
-
   return (
     <div className="lp-daily-group">
-      {/* Date header row */}
       <div className="lp-daily-header" onClick={() => setExpanded(e => !e)}>
         <div className="lp-daily-header-left">
-          <span className="lp-daily-chevron">
-            {expanded ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
-          </span>
+          <span className="lp-daily-chevron">{expanded ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}</span>
           <span className="lp-daily-date">{formatDateLabel(dateStr)}</span>
           <span className="lp-daily-date-sub">{dateStr !== "Unknown" ? dateStr : ""}</span>
         </div>
@@ -182,8 +172,6 @@ function DailyGroup({ dateStr, txList, onViewTx }) {
           <span className="lp-daily-total">₱{dailyTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
         </div>
       </div>
-
-      {/* Transactions under this date */}
       {expanded && (
         <table className="lp-table history-table lp-daily-table">
           <thead>
@@ -208,19 +196,9 @@ function DailyGroup({ dateStr, txList, onViewTx }) {
                 <td className="cell-name">{t.member_name}</td>
                 <td className="fw green">₱{Number(t.amount||0).toLocaleString()}</td>
                 <td className="blue">₱{Number(t.balance||0).toLocaleString()}</td>
-                <td className="cell-date">
-                  {t.paid_at ? t.paid_at.split("T")[1]?.substring(0,8) : "—"}
-                </td>
-                <td>
-                  <span className="hash-text">
-                    {t.polygon_tx ? '🔗 '+t.polygon_tx.slice(0,10)+'...' : t.hash?.substring(0,16)+'...'}
-                  </span>
-                </td>
-                <td style={{textAlign:"center"}}>
-                  <button className="lp-view-btn" onClick={() => onViewTx(t)}>
-                    <Eye size={12}/>
-                  </button>
-                </td>
+                <td className="cell-date">{t.paid_at ? t.paid_at.split("T")[1]?.substring(0,8) : "—"}</td>
+                <td><span className="hash-text">{t.polygon_tx ? '🔗 '+t.polygon_tx.slice(0,10)+'...' : t.hash?.substring(0,16)+'...'}</span></td>
+                <td style={{textAlign:"center"}}><button className="lp-view-btn" onClick={() => onViewTx(t)}><Eye size={12}/></button></td>
               </tr>
             ))}
           </tbody>
@@ -242,7 +220,6 @@ export default function LoanPayment() {
   const [recordLoan,  setRecord]  = useState(null);
   const [viewTx,      setViewTx]  = useState(null);
   const [toast,       setToast]   = useState(null);
-  // NEW: view mode for payment history — "daily" or "all"
   const [historyView, setHistoryView] = useState("daily");
 
   const showToast = (msg,type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3500); };
@@ -268,12 +245,33 @@ export default function LoanPayment() {
   const overdueCount     = loans.filter(l=>l.status==="Overdue").length;
   const totalOutstanding = loans.reduce((s,l)=>s+parseFloat(l.balance||0),0);
 
+  // ── FIXED: Update state directly — no refetch, no loading flicker ──────────
   const handleSave = async ({ loan, amount, note }) => {
     try {
-      await recordPaymentAPI({ loan: loan.id, member: loan.member, amount, note });
+      const payment = await recordPaymentAPI({ loan: loan.id, member: loan.member, amount, note });
       setRecord(null);
       showToast(`Payment of ₱${amount.toLocaleString()} recorded successfully.`);
-      fetchData();
+
+      // Update loan balance directly in state
+      const newBalance = Math.max(0, parseFloat(loan.balance||0) - amount);
+      const isFullyPaid = newBalance <= 0;
+
+      setLoans(prev =>
+        prev
+          .map(l => l.id === loan.id ? { ...l, balance: newBalance, status: isFullyPaid ? "Completed" : l.status } : l)
+          .filter(l => l.status !== "Completed") // remove from active list if fully paid
+      );
+
+      // Add new payment to top of transactions list instantly
+      if (payment) setTx(prev => [payment, ...prev]);
+
+      // Update KPI stats
+      setPStats(prev => ({
+        ...prev,
+        total_collected:   (parseFloat(prev.total_collected||0) + amount).toFixed(2),
+        transaction_count: (parseInt(prev.transaction_count||0) + 1),
+      }));
+
     } catch { showToast("Failed to record payment.", "danger"); }
   };
 
@@ -295,18 +293,15 @@ export default function LoanPayment() {
            (t.loan_code||"").toLowerCase().includes(q);
   });
 
-  // For "all" view pagination
   const totalPages = Math.max(1, Math.ceil(
     (activeTab==="loans" ? filteredLoans : filteredTx).length / ROWS_PER_PAGE
   ));
   const safePage = Math.min(page, totalPages);
-
   const paginatedLoans = filteredLoans.slice((safePage-1)*ROWS_PER_PAGE, safePage*ROWS_PER_PAGE);
   const paginatedTx    = filteredTx.slice((safePage-1)*ROWS_PER_PAGE, safePage*ROWS_PER_PAGE);
 
   const switchTab = tab => { setTab(tab); setPage(1); setSearch(""); setFilter("All"); };
 
-  // Daily groups for history
   const dailyGroups = groupByDate(filteredTx);
 
   const Pagination = ({ list }) => (
@@ -371,23 +366,15 @@ export default function LoanPayment() {
                 ))}
               </div>
             )}
-            {/* View toggle for history tab */}
             {activeTab==="history" && (
               <div className="lp-filter-tabs">
-                <button
-                  className={`lp-filter-tab ${historyView==="daily"?"active ftab-all":""}`}
-                  onClick={()=>setHistoryView("daily")}
-                >📅 Daily View</button>
-                <button
-                  className={`lp-filter-tab ${historyView==="all"?"active ftab-all":""}`}
-                  onClick={()=>setHistoryView("all")}
-                >📋 All Transactions</button>
+                <button className={`lp-filter-tab ${historyView==="daily"?"active ftab-all":""}`} onClick={()=>setHistoryView("daily")}>📅 Daily View</button>
+                <button className={`lp-filter-tab ${historyView==="all"?"active ftab-all":""}`} onClick={()=>setHistoryView("all")}>📋 All Transactions</button>
               </div>
             )}
           </div>
         </div>
 
-        {/* ── ACTIVE LOANS TAB ── */}
         {activeTab==="loans" && (
           <div className="lp-table-wrap">
             <table className="lp-table">
@@ -423,27 +410,16 @@ export default function LoanPayment() {
           </div>
         )}
 
-        {/* ── PAYMENT HISTORY TAB — DAILY VIEW ── */}
         {activeTab==="history" && historyView==="daily" && (
           <div className="lp-daily-view">
-            {loading ? (
-              <div className="lp-empty">Loading...</div>
-            ) : dailyGroups.length===0 ? (
-              <div className="lp-empty">No transactions found.</div>
-            ) : (
-              dailyGroups.map(([dateStr, txList]) => (
-                <DailyGroup
-                  key={dateStr}
-                  dateStr={dateStr}
-                  txList={txList}
-                  onViewTx={setViewTx}
-                />
-              ))
-            )}
+            {loading ? <div className="lp-empty">Loading...</div>
+            : dailyGroups.length===0 ? <div className="lp-empty">No transactions found.</div>
+            : dailyGroups.map(([dateStr, txList]) => (
+              <DailyGroup key={dateStr} dateStr={dateStr} txList={txList} onViewTx={setViewTx}/>
+            ))}
           </div>
         )}
 
-        {/* ── PAYMENT HISTORY TAB — ALL VIEW ── */}
         {activeTab==="history" && historyView==="all" && (
           <div className="lp-table-wrap">
             <table className="lp-table history-table">
@@ -479,11 +455,9 @@ export default function LoanPayment() {
           </div>
         )}
 
-        {/* Pagination — only for loans tab and "all" history view */}
         {activeTab==="loans" && <Pagination list={filteredLoans}/>}
         {activeTab==="history" && historyView==="all" && <Pagination list={filteredTx}/>}
 
-        {/* Daily view summary footer */}
         {activeTab==="history" && historyView==="daily" && (
           <div className="lp-footer">
             <div className="lp-count">

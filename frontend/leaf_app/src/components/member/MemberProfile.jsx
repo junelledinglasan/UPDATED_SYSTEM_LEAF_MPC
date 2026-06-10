@@ -4,6 +4,17 @@ import { getMyProfileAPI, getMyApplicationAPI, updateMemberAPI } from "../../api
 import api from "../../api/axiosInstance";
 import "./MemberProfile.css";
 
+// ─── Helper: compute age ──────────────────────────────────────────────────────
+function computeAge(birthDate) {
+  if (!birthDate) return null;
+  const today = new Date();
+  const bd    = new Date(birthDate);
+  let age = today.getFullYear() - bd.getFullYear();
+  const m = today.getMonth() - bd.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
+  return age;
+}
+
 export default function MemberProfile() {
   const { user } = useAuth();
   const [profile,     setProfile]    = useState(null);
@@ -15,7 +26,6 @@ export default function MemberProfile() {
   const [form, setForm] = useState({ contact_number:"", email:"", address:"", occupation:"" });
   const [saved,       setSaved]      = useState(false);
 
-  // Security state
   const [username,    setUsername]   = useState(user?.username || "");
   const [newUsername, setNewUsername]= useState("");
   const [unError,     setUnError]    = useState("");
@@ -45,7 +55,7 @@ export default function MemberProfile() {
         try {
           const app = await getMyApplicationAPI();
           setApplication(app);
-        } catch { /* no application yet */ }
+        } catch {}
       } finally { setLoading(false); }
     };
     load();
@@ -115,7 +125,6 @@ export default function MemberProfile() {
             </div>
           </div>
         </div>
-
         <div className="mp-card">
           <div className="mp-card-title">Membership Application Status</div>
           {!appStatus ? (
@@ -123,52 +132,31 @@ export default function MemberProfile() {
               <div style={{fontSize:36,marginBottom:8}}>📋</div>
               <div style={{fontWeight:700,color:"#1b5e20",marginBottom:6}}>No application submitted yet</div>
               <div style={{fontSize:12,color:"#888",marginBottom:16}}>Submit a membership application to become an official member.</div>
-              <a href="/member/apply-membership" style={{
-                background:"#2e7d32",color:"#fff",borderRadius:8,
-                padding:"10px 24px",fontWeight:700,fontSize:13,textDecoration:"none",
-              }}>Apply for Membership</a>
+              <a href="/member/apply-membership" style={{background:"#2e7d32",color:"#fff",borderRadius:8,padding:"10px 24px",fontWeight:700,fontSize:13,textDecoration:"none"}}>Apply for Membership</a>
             </div>
           ) : (
             <div>
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                <div style={{fontSize:32}}>
-                  {appStatus==="Pending"?"⏳":appStatus==="Approved"?"✅":"❌"}
-                </div>
+                <div style={{fontSize:32}}>{appStatus==="Pending"?"⏳":appStatus==="Approved"?"✅":"❌"}</div>
                 <div>
-                  <div style={{fontWeight:700,fontSize:15,color:
-                    appStatus==="Approved"?"#1b5e20":appStatus==="Rejected"?"#c62828":"#f57c00"
-                  }}>{appStatus}</div>
-                  <div style={{fontSize:12,color:"#888"}}>
-                    Application ID: {application.app_id} · Submitted {application.created_at?.slice(0,10)}
-                  </div>
+                  <div style={{fontWeight:700,fontSize:15,color:appStatus==="Approved"?"#1b5e20":appStatus==="Rejected"?"#c62828":"#f57c00"}}>{appStatus}</div>
+                  <div style={{fontSize:12,color:"#888"}}>Application ID: {application.app_id} · Submitted {application.created_at?.slice(0,10)}</div>
                 </div>
               </div>
-              {appStatus === "Pending" && (
-                <div style={{background:"#fff8e1",border:"1px solid #ffe082",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#5d4037"}}>
-                  ⏳ Your application is currently under review. The admin or staff will notify you once processed.
-                </div>
-              )}
-              {appStatus === "Approved" && (
-                <div style={{background:"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#1b5e20"}}>
-                  ✅ Your application has been <strong>approved!</strong> Please visit the LEAF MPC office to complete the process.
-                </div>
-              )}
-              {appStatus === "Rejected" && (
+              {appStatus==="Pending" && <div style={{background:"#fff8e1",border:"1px solid #ffe082",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#5d4037"}}>⏳ Your application is currently under review.</div>}
+              {appStatus==="Approved" && <div style={{background:"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#1b5e20"}}>✅ Your application has been <strong>approved!</strong> Please visit the LEAF MPC office to complete the process.</div>}
+              {appStatus==="Rejected" && (
                 <div>
                   <div style={{background:"#ffebee",border:"1px solid #ef9a9a",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#c62828",marginBottom:8}}>
                     ❌ Your application was <strong>not approved</strong>.
                     {application.reject_reason && <div style={{marginTop:6,fontStyle:"italic"}}>Reason: {application.reject_reason}</div>}
                   </div>
-                  <a href="/member/apply-membership" style={{
-                    display:"inline-block",background:"#2e7d32",color:"#fff",borderRadius:8,
-                    padding:"8px 20px",fontWeight:700,fontSize:13,textDecoration:"none",marginTop:8,
-                  }}>Re-apply for Membership</a>
+                  <a href="/member/apply-membership" style={{display:"inline-block",background:"#2e7d32",color:"#fff",borderRadius:8,padding:"8px 20px",fontWeight:700,fontSize:13,textDecoration:"none",marginTop:8}}>Re-apply for Membership</a>
                 </div>
               )}
             </div>
           )}
         </div>
-
         <div className="mp-card">
           <div className="mp-card-title">Account Information</div>
           <div className="mp-info-grid">
@@ -179,6 +167,9 @@ export default function MemberProfile() {
       </div>
     );
   }
+
+  // ── Compute age ───────────────────────────────────────────────────────────
+  const age = computeAge(PM.birth_date);
 
   // ── Official member view ──────────────────────────────────────────────────
   return (
@@ -211,7 +202,7 @@ export default function MemberProfile() {
         </div>
       </div>
 
-      {/* Tabs — only Personal Info and Security */}
+      {/* Tabs */}
       <div className="mp-tabs">
         {[["info","Personal Info"],["security","Security"]].map(([k,l]) => (
           <button key={k} className={`mp-tab ${tab===k?"active":""}`} onClick={() => setTab(k)}>{l}</button>
@@ -234,13 +225,15 @@ export default function MemberProfile() {
           </div>
           <div className="mp-info-grid">
             {[
-              ["Last Name",       PROFILE.last_name  || PM.last_name   || "—"],
-              ["First Name",      PROFILE.first_name || PM.first_name  || "—"],
-              ["Middle Name",     PM.middle_name     || "—"],
-              ["Birthdate",       PM.birth_date      || "—"],
-              ["Civil Status",    PM.civil_status    || "—"],
-              ["Classification",  PM.classification  || PROFILE.classification || "—"],
-              ["Educ. Attainment",PM.educational_attainment || "—"],
+              ["Last Name",        PROFILE.last_name  || PM.last_name  || "—"],
+              ["First Name",       PROFILE.first_name || PM.first_name || "—"],
+              ["Middle Name",      PM.middle_name     || "—"],
+              ["Birthdate",        PM.birth_date      || "—"],
+              // ── NEW: Age field ────────────────────────────────────────────
+              ["Age",              age !== null ? `${age} years old` : "—"],
+              ["Civil Status",     PM.civil_status    || "—"],
+              ["Classification",   PM.classification  || PROFILE.classification || "—"],
+              ["Educ. Attainment", PM.educational_attainment || "—"],
             ].map(([k,v]) => (
               <div key={k} className="mp-info-item">
                 <span className="mp-info-key">{k}</span>
@@ -248,7 +241,7 @@ export default function MemberProfile() {
               </div>
             ))}
 
-            {/* Editable: Contact */}
+            {/* Editable fields */}
             <div className="mp-info-item">
               <span className="mp-info-key">Contact No.</span>
               {editing
@@ -256,8 +249,6 @@ export default function MemberProfile() {
                 : <span className="mp-info-val">{form.contact_number || PM.contact_number || "—"}</span>
               }
             </div>
-
-            {/* Editable: Email */}
             <div className="mp-info-item">
               <span className="mp-info-key">Email</span>
               {editing
@@ -265,8 +256,6 @@ export default function MemberProfile() {
                 : <span className="mp-info-val">{form.email || PM.email || "—"}</span>
               }
             </div>
-
-            {/* Editable: Occupation */}
             <div className="mp-info-item">
               <span className="mp-info-key">Occupation</span>
               {editing
@@ -274,8 +263,6 @@ export default function MemberProfile() {
                 : <span className="mp-info-val">{form.occupation || PM.occupation || "—"}</span>
               }
             </div>
-
-            {/* Editable: Address — full width */}
             <div className="mp-info-item mp-full">
               <span className="mp-info-key">Address</span>
               {editing
@@ -290,27 +277,15 @@ export default function MemberProfile() {
       {/* Security tab */}
       {tab === "security" && (
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
-
-          {/* Account Info */}
           <div className="mp-card">
             <div className="mp-card-title">Account Information</div>
             <div className="mp-cred-info-card">
-              <div className="mp-cred-row">
-                <span className="mp-cred-label">Member ID</span>
-                <span className="mp-cred-val">{PROFILE.member_id || "—"}</span>
-              </div>
-              <div className="mp-cred-row">
-                <span className="mp-cred-label">Username</span>
-                <span className="mp-cred-val">{username}</span>
-              </div>
-              <div className="mp-cred-row">
-                <span className="mp-cred-label">Status</span>
-                <span className="mp-cred-val" style={{color:"#69f0ae",fontWeight:700}}>Active</span>
-              </div>
+              <div className="mp-cred-row"><span className="mp-cred-label">Member ID</span><span className="mp-cred-val">{PROFILE.member_id || "—"}</span></div>
+              <div className="mp-cred-row"><span className="mp-cred-label">Username</span><span className="mp-cred-val">{username}</span></div>
+              <div className="mp-cred-row"><span className="mp-cred-label">Status</span><span className="mp-cred-val" style={{color:"#69f0ae",fontWeight:700}}>Active</span></div>
             </div>
           </div>
 
-          {/* Change Username */}
           <div className="mp-card">
             <div className="mp-card-title">Change Username</div>
             <div className="mp-card-sub2">Current username: <strong>{username}</strong></div>
@@ -318,23 +293,14 @@ export default function MemberProfile() {
             <div className="mp-sec-form">
               <div className="mp-sec-field">
                 <label className="mp-info-key">New Username</label>
-                <input
-                  className={`mp-sec-input ${unError?"mp-sec-err":""}`}
-                  type="text"
-                  placeholder="Enter new username (min. 4 chars)"
-                  value={newUsername}
-                  onChange={e => { setNewUsername(e.target.value); setUnError(""); }}
-                />
+                <input className={`mp-sec-input ${unError?"mp-sec-err":""}`} type="text" placeholder="Enter new username (min. 4 chars)" value={newUsername} onChange={e => { setNewUsername(e.target.value); setUnError(""); }}/>
                 {unError && <div className="mp-sec-error-msg">{unError}</div>}
               </div>
               <button className="mp-save-btn" onClick={handleUsernameChange}>Change Username</button>
             </div>
-            <div className="mp-sec-hint">
-              💡 Your username is used to log in to the LEAF MPC member portal.
-            </div>
+            <div className="mp-sec-hint">💡 Your username is used to log in to the LEAF MPC member portal.</div>
           </div>
 
-          {/* Change Password */}
           <div className="mp-card">
             <div className="mp-card-title">Change Password</div>
             <div className="mp-card-sub2">Keep your account secure with a strong password.</div>
@@ -344,28 +310,14 @@ export default function MemberProfile() {
               <div className="mp-sec-field">
                 <label className="mp-info-key">Current Password</label>
                 <div className="mp-pass-wrap">
-                  <input
-                    className="mp-sec-input"
-                    type={showCurr?"text":"password"}
-                    name="current"
-                    placeholder="Enter current password"
-                    value={passForm.current}
-                    onChange={e => { handlePass(e); setPassError(""); }}
-                  />
+                  <input className="mp-sec-input" type={showCurr?"text":"password"} name="current" placeholder="Enter current password" value={passForm.current} onChange={e => { handlePass(e); setPassError(""); }}/>
                   <button type="button" className="mp-eye" onClick={() => setShowCurr(s=>!s)}>{showCurr?"🙈":"👁"}</button>
                 </div>
               </div>
               <div className="mp-sec-field">
                 <label className="mp-info-key">New Password</label>
                 <div className="mp-pass-wrap">
-                  <input
-                    className="mp-sec-input"
-                    type={showNew?"text":"password"}
-                    name="newPass"
-                    placeholder="New password (min. 6 characters)"
-                    value={passForm.newPass}
-                    onChange={e => { handlePass(e); setPassError(""); }}
-                  />
+                  <input className="mp-sec-input" type={showNew?"text":"password"} name="newPass" placeholder="New password (min. 6 characters)" value={passForm.newPass} onChange={e => { handlePass(e); setPassError(""); }}/>
                   <button type="button" className="mp-eye" onClick={() => setShowNew(s=>!s)}>{showNew?"🙈":"👁"}</button>
                 </div>
                 {passForm.newPass && (
@@ -373,33 +325,21 @@ export default function MemberProfile() {
                     {["weak","fair","strong"].map((s,i) => (
                       <div key={s} className={`mp-strength-bar ${passForm.newPass.length >= [1,5,8][i] ? s : ""}`}/>
                     ))}
-                    <span className="mp-strength-label">
-                      {passForm.newPass.length < 5 ? "Weak" : passForm.newPass.length < 8 ? "Fair" : "Strong"}
-                    </span>
+                    <span className="mp-strength-label">{passForm.newPass.length < 5 ? "Weak" : passForm.newPass.length < 8 ? "Fair" : "Strong"}</span>
                   </div>
                 )}
               </div>
               <div className="mp-sec-field">
                 <label className="mp-info-key">Confirm New Password</label>
                 <div className="mp-pass-wrap">
-                  <input
-                    className="mp-sec-input"
-                    type={showConf?"text":"password"}
-                    name="confirm"
-                    placeholder="Re-enter new password"
-                    value={passForm.confirm}
-                    onChange={e => { handlePass(e); setPassError(""); }}
-                  />
+                  <input className="mp-sec-input" type={showConf?"text":"password"} name="confirm" placeholder="Re-enter new password" value={passForm.confirm} onChange={e => { handlePass(e); setPassError(""); }}/>
                   <button type="button" className="mp-eye" onClick={() => setShowConf(s=>!s)}>{showConf?"🙈":"👁"}</button>
                 </div>
               </div>
               <button className="mp-save-btn" onClick={handlePasswordChange}>Change Password</button>
             </div>
-            <div className="mp-sec-hint">
-              💡 If you forgot your current password, please visit the LEAF MPC office for a password reset.
-            </div>
+            <div className="mp-sec-hint">💡 If you forgot your current password, please visit the LEAF MPC office for a password reset.</div>
           </div>
-
         </div>
       )}
     </div>

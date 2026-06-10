@@ -39,7 +39,6 @@ export default function MyLoans() {
   const totalPaid  = principal - balance;
   const monthlyDue = parseFloat(selectedLoan?.monthly_due || 0);
   const paidPct    = principal > 0 ? Math.round((totalPaid / principal) * 100) : 0;
-
   const totalInterest = (parseFloat(selectedLoan?.interest_amount || 0)).toFixed(2);
 
   return (
@@ -125,7 +124,9 @@ export default function MyLoans() {
                 </tr>
               </thead>
               <tbody>
-                {payments.filter(p => p.loan === selectedLoan?.id).map((p, i) => (
+                {payments.filter(p => p.loan === selectedLoan?.id).length === 0 ? (
+                  <tr><td colSpan={4} style={{textAlign:"center",color:"#aaa",padding:20}}>No payments yet.</td></tr>
+                ) : payments.filter(p => p.loan === selectedLoan?.id).map((p, i) => (
                   <tr key={i}>
                     <td className="cell-date">{p.paid_at}</td>
                     <td className="green fw">₱{Number(p.amount).toLocaleString()}</td>
@@ -138,7 +139,7 @@ export default function MyLoans() {
           </div>
         )}
 
-        {/* Schedule tab */}
+        {/* Schedule / Amortization tab */}
         {tab === "schedule" && (
           <div className="ml-payments-table-wrap">
             <table className="ml-payments-table">
@@ -151,23 +152,36 @@ export default function MyLoans() {
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: selectedLoan?.term_months || 0 }, (_, i) => {
-                  const d = new Date(selectedLoan?.approved_at || selectedLoan?.applied_at || Date.now());
-                  d.setMonth(d.getMonth() + i + 1);
-                  const paid = i < payments.filter(p => p.loan===selectedLoan?.id).length;
-                  return (
-                    <tr key={i}>
-                      <td className="cell-center">{i + 1}</td>
-                      <td className="cell-date">{d.toISOString().slice(0,10)}</td>
-                      <td className="fw">₱{monthlyDue.toLocaleString()}</td>
-                      <td>
-                        <span className={`ml-sched-badge ${paid ? "paid" : "upcoming"}`}>
-                          {paid ? "✓ Paid" : "Upcoming"}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {(() => {
+                  // ── FIXED: compute months paid based on TOTAL AMOUNT paid ÷ monthly due
+                  // NOT based on number of payment transactions
+                  // Example: monthly_due = ₱3,458.33
+                  //   paid ₱500  → totalPaid=500  → monthsPaid = floor(500/3458.33)  = 0 → 0 months paid
+                  //   paid ₱3,458.33 → monthsPaid = floor(3458.33/3458.33) = 1 → 1 month paid
+                  //   paid ₱7,000  → monthsPaid = floor(7000/3458.33) = 2 → 2 months paid
+                  const loanPayments  = payments.filter(p => p.loan === selectedLoan?.id);
+                  const totalPaidAmt  = loanPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+                  const monthlyDueAmt = parseFloat(selectedLoan?.monthly_due || 0);
+                  const monthsPaid    = monthlyDueAmt > 0 ? Math.floor(totalPaidAmt / monthlyDueAmt) : 0;
+
+                  return Array.from({ length: selectedLoan?.term_months || 0 }, (_, i) => {
+                    const d = new Date(selectedLoan?.approved_at || selectedLoan?.applied_at || Date.now());
+                    d.setMonth(d.getMonth() + i + 1);
+                    const isPaid = i < monthsPaid;
+                    return (
+                      <tr key={i}>
+                        <td className="cell-center">{i + 1}</td>
+                        <td className="cell-date">{d.toISOString().slice(0,10)}</td>
+                        <td className="fw">₱{monthlyDue.toLocaleString()}</td>
+                        <td>
+                          <span className={`ml-sched-badge ${isPaid ? "paid" : "upcoming"}`}>
+                            {isPaid ? "✓ Paid" : "Upcoming"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>

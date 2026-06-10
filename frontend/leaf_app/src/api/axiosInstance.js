@@ -1,18 +1,14 @@
 import axios from "axios";
 
 // ─── Dynamic BASE URL ─────────────────────────────────────────────────────────
-// Kapag naka-mobile (hindi localhost), gamitin ang actual IP ng PC
 const getBaseURL = () => {
-  // Kapag may VITE_API_URL sa .env — gamitin yan (production)
   if (import.meta.env.VITE_API_URL) {
     return `${import.meta.env.VITE_API_URL}/api`;
   }
-  // Kapag local development
   const hostname = window.location.hostname;
   if (hostname === "localhost" || hostname === "127.0.0.1") {
     return "http://127.0.0.1:8000/api";
   }
-  // Mobile access
   return `http://${hostname}:8000/api`;
 };
 
@@ -20,14 +16,24 @@ const BASE_URL = getBaseURL();
 
 const api = axios.create({
   baseURL: BASE_URL,
-  headers: { "Content-Type": "application/json" },
+  // ── REMOVED hardcoded Content-Type ─────────────────────────────────────────
+  // Dati: headers: { "Content-Type": "application/json" }
+  // Ito ang nagdudulot ng error kapag nag-upload ng image (FormData)
+  // Hayaan na si axios mag-auto-set ng tamang Content-Type
 });
 
-// ─── Attach JWT token sa bawat request ───────────────────────────────────────
+// ─── Attach JWT token + Smart Content-Type ───────────────────────────────────
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("leaf_access_token");
     if (token) config.headers.Authorization = `Bearer ${token}`;
+
+    // Kapag FormData (file upload) — huwag mag-set ng Content-Type
+    // Kapag regular JSON request — i-set ang application/json
+    if (!(config.data instanceof FormData)) {
+      config.headers["Content-Type"] = "application/json";
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
