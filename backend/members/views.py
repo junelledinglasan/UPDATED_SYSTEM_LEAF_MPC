@@ -425,18 +425,17 @@ def member_financial_summary_view(request, pk):
         member = Member.objects.get(pk=pk)
     except Member.DoesNotExist:
         return Response({'error': 'Not found.'}, status=404)
-
+ 
     from loans.models import Loan
     from payments.models import Payment
-
+ 
     loans        = Loan.objects.filter(member=member)
     active_loans = loans.filter(status__in=['Active', 'Overdue'])
     total_paid   = sum(float(p.amount) for p in Payment.objects.filter(member=member))
-
-    # Share capital paid = share_capital / 2
+ 
     share_capital = float(member.share_capital or 0)
     amount_paid   = share_capital / 2
-
+ 
     return Response({
         'share_capital':     share_capital,
         'amount_paid':       amount_paid,
@@ -455,11 +454,22 @@ def member_financial_summary_view(request, pk):
                 'monthly_due': float(l.monthly_due),
                 'status':      l.status,
                 'applied_at':  str(l.applied_at)[:10],
+                # ── NEW: payment history per loan ──────────────────
+                'payments': [
+                    {
+                        'tx_id':       p.tx_id,
+                        'amount':      float(p.amount),
+                        'balance':     float(p.balance),
+                        'paid_at':     p.paid_at.strftime('%Y-%m-%d %H:%M'),
+                        'recorded_by': p.recorded_by,
+                        'note':        p.note or '—',
+                    }
+                    for p in Payment.objects.filter(loan=l).order_by('-paid_at')
+                ],
             }
-            for l in loans
+            for l in loans.order_by('-applied_at')
         ]
     })
-
 
 # ══════════════════════════════════════════════════════════════════
 # SAVINGS — Deposit & Withdraw

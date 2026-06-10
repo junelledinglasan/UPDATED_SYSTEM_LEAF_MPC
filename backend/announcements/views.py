@@ -1,4 +1,4 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -8,31 +8,39 @@ from .models import Announcement, AnnouncementComment
 from .serializers import AnnouncementSerializer, CommentSerializer
 
 
+def serialize_ann(ann_or_qs, request, many=False):
+    """Helper — always pass request so image_url becomes absolute."""
+    return AnnouncementSerializer(
+        ann_or_qs, many=many, context={'request': request}
+    ).data
+
+
 @api_view(['GET', 'POST'])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def announcement_list_view(request):
     if request.method == 'GET':
         anns = Announcement.objects.filter(is_active=True)
         if t := request.query_params.get('type'):
             anns = anns.filter(type=t)
-        return Response(AnnouncementSerializer(anns, many=True).data)
+        return Response(serialize_ann(anns, request, many=True))
 
-    # POST
     if not request.user.is_authenticated:
         return Response({'error': 'Authentication required.'}, status=401)
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
-    s = AnnouncementSerializer(data=request.data)
+    s = AnnouncementSerializer(data=request.data, context={'request': request})
     if s.is_valid():
-        ann = s.save(posted_by=request.user)
+        ann = s.save(posted_by=request.user, is_active=True)  # ← force is_active=True
         log_activity('announcement', f'Announcement posted: "{ann.title}" by {request.user.name}', request.user)
-        return Response(AnnouncementSerializer(ann).data, status=201)
+        return Response(serialize_ann(ann, request), status=201)
 
     print("[ANNOUNCEMENT CREATE ERROR]", s.errors)
     return Response(s.errors, status=400)
 
 
 @api_view(['GET', 'PUT', 'DELETE'])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def announcement_detail_view(request, pk):
     try:
         ann = Announcement.objects.get(pk=pk)
@@ -40,7 +48,7 @@ def announcement_detail_view(request, pk):
         return Response({'error': 'Not found.'}, status=404)
 
     if request.method == 'GET':
-        return Response(AnnouncementSerializer(ann).data)
+        return Response(serialize_ann(ann, request))
 
     if not request.user.is_authenticated:
         return Response({'error': 'Authentication required.'}, status=401)
@@ -48,11 +56,11 @@ def announcement_detail_view(request, pk):
     if request.method == 'PUT':
         if request.user.role not in ['admin', 'staff']:
             return Response({'error': 'Unauthorized.'}, status=403)
-        s = AnnouncementSerializer(ann, data=request.data, partial=True)
+        s = AnnouncementSerializer(ann, data=request.data, partial=True, context={'request': request})
         if s.is_valid():
             s.save()
             log_activity('announcement', f'Announcement updated: "{ann.title}" by {request.user.name}', request.user)
-            return Response(AnnouncementSerializer(ann).data)
+            return Response(serialize_ann(ann, request))
         print("[ANNOUNCEMENT UPDATE ERROR]", s.errors)
         return Response(s.errors, status=400)
 

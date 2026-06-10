@@ -21,7 +21,6 @@ def overview_view(request):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
-    # ── ADDED: year filter ────────────────────────────────────────
     year = int(request.query_params.get('year', timezone.now().year))
 
     total_releases = float(
@@ -34,27 +33,26 @@ def overview_view(request):
     )
     rate = round((total_paid / total_releases) * 100, 1) if total_releases else 0
 
-    # ── ADDED: savings balance (net of all deposits minus withdrawals) ─
-    deposits   = float(Savings.objects.filter(transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or 0)
-    withdrawals= float(Savings.objects.filter(transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or 0)
+    # Savings — filtered by year
+    deposits    = float(Savings.objects.filter(transaction_type='Deposit',  created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
+    withdrawals = float(Savings.objects.filter(transaction_type='Withdraw', created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
     total_savings_balance = deposits - withdrawals
 
     return Response({
-        'total_members':           Member.objects.count(),
-        'active_members':          Member.objects.filter(membership_status='Active').count(),
-        'inactive_members':        Member.objects.filter(membership_status='Inactive').count(),
-        'pending_applications':    LeafMemberInfo.objects.filter(application_status='Pending').count(),
-        'approved_applications':   LeafMemberInfo.objects.filter(application_status='Approved').count(),
-        'total_loans':             Loan.objects.filter(applied_at__year=year).count(),
-        'active_loans':            Loan.objects.filter(status='Active').count(),
-        'overdue_loans':           Loan.objects.filter(status='Overdue').count(),
-        'pending_loans':           Loan.objects.filter(status='For Review').count(),
-        'total_releases':          total_releases,
-        'avg_loan_amount':         float(Loan.objects.filter(applied_at__year=year).aggregate(a=Avg('amount'))['a'] or 0),
-        'total_collection':        total_paid,
-        'collection_rate':         rate,
-        # ── NEW ──
-        'total_savings_balance':   total_savings_balance,
+        'total_members':         Member.objects.count(),
+        'active_members':        Member.objects.filter(membership_status='Active').count(),
+        'inactive_members':      Member.objects.filter(membership_status='Inactive').count(),
+        'pending_applications':  LeafMemberInfo.objects.filter(application_status='Pending').count(),
+        'approved_applications': LeafMemberInfo.objects.filter(application_status='Approved').count(),
+        'total_loans':           Loan.objects.filter(applied_at__year=year).count(),
+        'active_loans':          Loan.objects.filter(status='Active', applied_at__year=year).count(),
+        'overdue_loans':         Loan.objects.filter(status='Overdue', applied_at__year=year).count(),
+        'pending_loans':         Loan.objects.filter(status='For Review', applied_at__year=year).count(),
+        'total_releases':        total_releases,
+        'avg_loan_amount':       float(Loan.objects.filter(applied_at__year=year).aggregate(a=Avg('amount'))['a'] or 0),
+        'total_collection':      total_paid,
+        'collection_rate':       rate,
+        'total_savings_balance': total_savings_balance,
     })
 
 
@@ -64,12 +62,11 @@ def monthly_collection_view(request):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
-    # ── ADDED: year filter ────────────────────────────────────────
     year = int(request.query_params.get('year', timezone.now().year))
 
     data = (
         Payment.objects
-        .filter(paid_at__year=year)          # <── filter by year
+        .filter(paid_at__year=year)
         .annotate(month=TruncMonth('paid_at'))
         .values('month')
         .annotate(total=Sum('amount'))
@@ -87,7 +84,6 @@ def loan_status_view(request):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
-    # ── ADDED: year filter ────────────────────────────────────────
     year = int(request.query_params.get('year', timezone.now().year))
 
     data = Loan.objects.filter(applied_at__year=year).values('status').annotate(count=Count('id'))
@@ -100,7 +96,6 @@ def loan_type_view(request):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
-    # ── ADDED: year filter ────────────────────────────────────────
     year = int(request.query_params.get('year', timezone.now().year))
 
     data = Loan.objects.filter(applied_at__year=year).values('loan_type').annotate(count=Count('id'))
@@ -113,10 +108,10 @@ def payment_behavior_view(request):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
-    # ── ADDED: year filter ────────────────────────────────────────
     year = int(request.query_params.get('year', timezone.now().year))
 
-    overdue_count = Loan.objects.filter(status='Overdue').count()
+    # Overdue loans also filtered by year
+    overdue_count = Loan.objects.filter(status='Overdue', applied_at__year=year).count()
     payments = Payment.objects.filter(paid_at__year=year).select_related('loan').all()
     on_time = late = 0
     for p in payments:
@@ -142,7 +137,16 @@ def payment_behavior_view(request):
 def audit_log_view(request):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
-    payments = Payment.objects.select_related('member', 'loan').order_by('-paid_at')[:50]
+
+    # Year filter added
+    year = int(request.query_params.get('year', timezone.now().year))
+
+    payments = (
+        Payment.objects
+        .filter(paid_at__year=year)
+        .select_related('member', 'loan')
+        .order_by('-paid_at')[:50]
+    )
     return Response([{
         'tx_id':       p.tx_id,
         'member':      p.member.fullname,
@@ -175,7 +179,8 @@ def classification_analytics_view(request):
         members_in_cls = Member.objects.filter(pre_member__classification=cls)
         member_ids = list(members_in_cls.values_list('id', flat=True))
 
-        loans    = Loan.objects.filter(member_id__in=member_ids)
+        # Loans and payments filtered by year
+        loans    = Loan.objects.filter(member_id__in=member_ids, applied_at__year=year)
         payments = Payment.objects.filter(member_id__in=member_ids, paid_at__year=year)
 
         on_time = late = 0
@@ -189,12 +194,11 @@ def classification_analytics_view(request):
                 on_time += 1
 
         total_payments = on_time + late
-        on_time_pct = round((on_time / total_payments) * 100, 1) if total_payments else 0
+        on_time_pct    = round((on_time / total_payments) * 100, 1) if total_payments else 0
 
-        # ── ADDED: savings per classification ────────────────────
-        dep = float(Savings.objects.filter(member_id__in=member_ids, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or 0)
-        wth = float(Savings.objects.filter(member_id__in=member_ids, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or 0)
-        total_savings = dep - wth
+        # Savings filtered by year
+        dep = float(Savings.objects.filter(member_id__in=member_ids, transaction_type='Deposit',  created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
+        wth = float(Savings.objects.filter(member_id__in=member_ids, transaction_type='Withdraw', created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
 
         result.append({
             'classification':   cls,
@@ -208,7 +212,7 @@ def classification_analytics_view(request):
             'late_payments':    late,
             'on_time_rate':     on_time_pct,
             'avg_loan_amount':  float(loans.aggregate(a=Avg('amount'))['a'] or 0),
-            'total_savings':    total_savings,   # ← NEW
+            'total_savings':    dep - wth,
         })
 
     return Response(result)
@@ -223,13 +227,12 @@ def member_performance_view(request):
     year  = int(request.query_params.get('year', timezone.now().year))
     limit = int(request.query_params.get('limit', 20))
 
-    members = Member.objects.filter(loans__isnull=False).distinct()
+    # Only members who have loans in selected year
+    members = Member.objects.filter(loans__applied_at__year=year).distinct()
     result  = []
 
     for m in members:
-        payments = Payment.objects.filter(
-            member=m, paid_at__year=year
-        ).select_related('loan')
+        payments = Payment.objects.filter(member=m, paid_at__year=year).select_related('loan')
 
         on_time = late = 0
         for p in payments:
@@ -243,32 +246,30 @@ def member_performance_view(request):
 
         total_payments = on_time + late
         on_time_pct    = round((on_time / total_payments) * 100, 1) if total_payments else 0
-        total_loans    = Loan.objects.filter(member=m).count()
-        overdue        = Loan.objects.filter(member=m, status='Overdue').count()
+        total_loans    = Loan.objects.filter(member=m, applied_at__year=year).count()
+        overdue        = Loan.objects.filter(member=m, status='Overdue', applied_at__year=year).count()
         total_paid     = float(payments.aggregate(t=Sum('amount'))['t'] or 0)
+        score          = max(0, min(100, on_time_pct - (overdue * 10)))
 
-        score = max(0, min(100, on_time_pct - (overdue * 10)))
-
-        # ── ADDED: savings balance per member ────────────────────
-        dep = float(Savings.objects.filter(member=m, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or 0)
-        wth = float(Savings.objects.filter(member=m, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or 0)
-        savings_balance = dep - wth
+        # Savings filtered by year
+        dep = float(Savings.objects.filter(member=m, transaction_type='Deposit',  created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
+        wth = float(Savings.objects.filter(member=m, transaction_type='Withdraw', created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
 
         if total_payments > 0:
             result.append({
-                'member_id':      m.member_id,
-                'name':           m.fullname,
-                'classification': m.pre_member.classification if hasattr(m, 'pre_member') and m.pre_member else '—',
-                'total_loans':    total_loans,
-                'total_payments': total_payments,
-                'on_time':        on_time,
-                'late':           late,
-                'overdue_loans':  overdue,
-                'on_time_rate':   on_time_pct,
-                'total_paid':     total_paid,
-                'score':          score,
-                'rating':         'Excellent' if score >= 90 else 'Good' if score >= 70 else 'Fair' if score >= 50 else 'Poor',
-                'savings_balance': savings_balance,   # ← NEW
+                'member_id':       m.member_id,
+                'name':            m.fullname,
+                'classification':  m.pre_member.classification if hasattr(m, 'pre_member') and m.pre_member else '—',
+                'total_loans':     total_loans,
+                'total_payments':  total_payments,
+                'on_time':         on_time,
+                'late':            late,
+                'overdue_loans':   overdue,
+                'on_time_rate':    on_time_pct,
+                'total_paid':      total_paid,
+                'score':           score,
+                'rating':          'Excellent' if score >= 90 else 'Good' if score >= 70 else 'Fair' if score >= 50 else 'Poor',
+                'savings_balance': dep - wth,
             })
 
     result.sort(key=lambda x: x['score'], reverse=True)
@@ -287,11 +288,7 @@ def top_borrowers_view(request):
     data = (
         Loan.objects.filter(applied_at__year=year)
         .values('member__member_id', 'member__id')
-        .annotate(
-            loan_count=Count('id'),
-            total_amount=Sum('amount'),
-            avg_amount=Avg('amount'),
-        )
+        .annotate(loan_count=Count('id'), total_amount=Sum('amount'), avg_amount=Avg('amount'))
         .order_by('-loan_count')[:limit]
     )
 
@@ -301,19 +298,18 @@ def top_borrowers_view(request):
             member = Member.objects.get(id=d['member__id'])
             pm     = getattr(member, 'pre_member', None)
 
-            # ── ADDED: savings balance ───────────────────────────
-            dep = float(Savings.objects.filter(member=member, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or 0)
-            wth = float(Savings.objects.filter(member=member, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or 0)
+            dep = float(Savings.objects.filter(member=member, transaction_type='Deposit',  created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
+            wth = float(Savings.objects.filter(member=member, transaction_type='Withdraw', created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
 
             result.append({
-                'member_id':      member.member_id,
-                'name':           member.fullname,
-                'classification': pm.classification if pm else '—',
-                'loan_count':     d['loan_count'],
-                'total_amount':   float(d['total_amount'] or 0),
-                'avg_amount':     float(d['avg_amount'] or 0),
-                'share_capital':  float(member.share_capital or 0),
-                'savings_balance': dep - wth,   # ← NEW
+                'member_id':       member.member_id,
+                'name':            member.fullname,
+                'classification':  pm.classification if pm else '—',
+                'loan_count':      d['loan_count'],
+                'total_amount':    float(d['total_amount'] or 0),
+                'avg_amount':      float(d['avg_amount'] or 0),
+                'share_capital':   float(member.share_capital or 0),
+                'savings_balance': dep - wth,
             })
         except Member.DoesNotExist:
             pass
@@ -327,6 +323,9 @@ def loan_amount_distribution_view(request):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
+    # Year filter added
+    year = int(request.query_params.get('year', timezone.now().year))
+
     ranges = [
         ('₱3,000 - ₱10,000',   3000,   10000),
         ('₱10,001 - ₱30,000',  10001,  30000),
@@ -337,11 +336,9 @@ def loan_amount_distribution_view(request):
 
     result = []
     for label, min_amt, max_amt in ranges:
-        count = Loan.objects.filter(amount__gte=min_amt, amount__lte=max_amt).count()
-        total = float(
-            Loan.objects.filter(amount__gte=min_amt, amount__lte=max_amt)
-            .aggregate(t=Sum('amount'))['t'] or 0
-        )
+        qs    = Loan.objects.filter(applied_at__year=year, amount__gte=min_amt, amount__lte=max_amt)
+        count = qs.count()
+        total = float(qs.aggregate(t=Sum('amount'))['t'] or 0)
         result.append({'range': label, 'count': count, 'total': total})
 
     return Response(result)
@@ -358,22 +355,11 @@ def yearly_comparison_view(request):
 
     result = []
     for year in years:
-        collections = float(
-            Payment.objects.filter(paid_at__year=year)
-            .aggregate(t=Sum('amount'))['t'] or 0
-        )
+        collections = float(Payment.objects.filter(paid_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
         loan_count  = Loan.objects.filter(applied_at__year=year).count()
-        loan_amount = float(
-            Loan.objects.filter(applied_at__year=year)
-            .aggregate(t=Sum('amount'))['t'] or 0
-        )
+        loan_amount = float(Loan.objects.filter(applied_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
         new_members = Member.objects.filter(membership_date__year=year).count()
-
-        # ── ADDED: savings deposits per year ─────────────────────
-        savings_dep = float(
-            Savings.objects.filter(transaction_type='Deposit', created_at__year=year)
-            .aggregate(t=Sum('amount'))['t'] or 0
-        )
+        savings_dep = float(Savings.objects.filter(transaction_type='Deposit', created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
 
         result.append({
             'year':        year,
@@ -381,7 +367,7 @@ def yearly_comparison_view(request):
             'loan_count':  loan_count,
             'loan_amount': loan_amount,
             'new_members': new_members,
-            'savings_dep': savings_dep,   # ← NEW
+            'savings_dep': savings_dep,
         })
 
     return Response(result)
@@ -393,30 +379,39 @@ def share_capital_growth_view(request):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
-    members = Member.objects.filter(share_capital__gt=0).order_by('-share_capital')[:20]
+    # Year filter added — members who have loans in selected year
+    year = int(request.query_params.get('year', timezone.now().year))
+
+    member_ids_with_loans = Loan.objects.filter(
+        applied_at__year=year,
+        status__in=['Active', 'Completed']
+    ).values_list('member_id', flat=True).distinct()
+
+    members = Member.objects.filter(
+        id__in=member_ids_with_loans,
+        share_capital__gt=0
+    ).order_by('-share_capital')[:20]
 
     result = []
     for m in members:
-        loan_count  = Loan.objects.filter(member=m, status__in=['Active', 'Completed']).count()
+        loan_count  = Loan.objects.filter(member=m, status__in=['Active', 'Completed'], applied_at__year=year).count()
         total_loans = float(
-            Loan.objects.filter(member=m, status__in=['Active', 'Completed'])
+            Loan.objects.filter(member=m, status__in=['Active', 'Completed'], applied_at__year=year)
             .aggregate(t=Sum('amount'))['t'] or 0
         )
-        pm = getattr(m, 'pre_member', None)
-
-        # ── ADDED: savings balance ───────────────────────────────
-        dep = float(Savings.objects.filter(member=m, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or 0)
-        wth = float(Savings.objects.filter(member=m, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or 0)
+        pm  = getattr(m, 'pre_member', None)
+        dep = float(Savings.objects.filter(member=m, transaction_type='Deposit',  created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
+        wth = float(Savings.objects.filter(member=m, transaction_type='Withdraw', created_at__year=year).aggregate(t=Sum('amount'))['t'] or 0)
 
         result.append({
-            'member_id':      m.member_id,
-            'name':           m.fullname,
-            'classification': pm.classification if pm else '—',
-            'share_capital':  float(m.share_capital),
-            'max_loanable':   float(m.share_capital),
-            'loan_count':     loan_count,
-            'total_loaned':   total_loans,
-            'savings_balance': dep - wth,   # ← NEW
+            'member_id':       m.member_id,
+            'name':            m.fullname,
+            'classification':  pm.classification if pm else '—',
+            'share_capital':   float(m.share_capital),
+            'max_loanable':    float(m.share_capital),
+            'loan_count':      loan_count,
+            'total_loaned':    total_loans,
+            'savings_balance': dep - wth,
         })
 
     return Response(result)
@@ -428,7 +423,10 @@ def overdue_analysis_view(request):
     if request.user.role not in ['admin', 'staff']:
         return Response({'error': 'Unauthorized.'}, status=403)
 
-    overdue_loans    = Loan.objects.filter(status='Overdue').select_related('member')
+    # Year filter added — overdue loans applied in selected year
+    year = int(request.query_params.get('year', timezone.now().year))
+
+    overdue_loans     = Loan.objects.filter(status='Overdue', applied_at__year=year).select_related('member')
     by_classification = {}
 
     for loan in overdue_loans:
@@ -519,10 +517,7 @@ def build_report_data(report_type, date_from_str, date_to_str):
             .annotate(total=Sum('amount'), count=Count('id'))
             .order_by('month')
         )
-        total_all = float(
-            Payment.objects.filter(paid_at__date__gte=df, paid_at__date__lte=dt)
-            .aggregate(t=Sum('amount'))['t'] or 0
-        )
+        total_all = float(Payment.objects.filter(paid_at__date__gte=df, paid_at__date__lte=dt).aggregate(t=Sum('amount'))['t'] or 0)
         rows = [[m['month'].strftime('%B %Y'), m['count'], f'₱{float(m["total"]):,.2f}'] for m in monthly]
         return {
             'summary':        [('Total Collected', f'₱{total_all:,.2f}'), ('Months with Data', len(rows))],
@@ -546,9 +541,9 @@ def build_report_data(report_type, date_from_str, date_to_str):
         return {
             'summary': [
                 ('Total Loans',           loans.count()),
-                ('Total Amount Released',  f'₱{total_amt:,.2f}'),
-                ('Active Loans',           loans.filter(status='Active').count()),
-                ('Overdue Loans',          loans.filter(status='Overdue').count()),
+                ('Total Amount Released', f'₱{total_amt:,.2f}'),
+                ('Active Loans',          loans.filter(status='Active').count()),
+                ('Overdue Loans',         loans.filter(status='Overdue').count()),
             ],
             'columns':        ['Loan ID', 'Member Name', 'Member ID', 'Type', 'Amount', 'Balance', 'Monthly Due', 'Term', 'Status', 'Date Applied'],
             'rows':           rows,
@@ -583,7 +578,7 @@ def build_report_data(report_type, date_from_str, date_to_str):
 
     elif report_type == 'Payment Behavior':
         payments      = Payment.objects.filter(paid_at__date__gte=df, paid_at__date__lte=dt).select_related('loan', 'member')
-        overdue_count = Loan.objects.filter(status='Overdue').count()
+        overdue_count = Loan.objects.filter(status='Overdue', applied_at__date__gte=df, applied_at__date__lte=dt).count()
         on_time = late = 0
         rows = []
         for p in payments.order_by('-paid_at'):
@@ -649,12 +644,12 @@ def build_report_data(report_type, date_from_str, date_to_str):
                         late += 1
                 else:
                     on_time += 1
-            total_p  = on_time + late
-            rate     = round((on_time / total_p) * 100, 1) if total_p else 0
-            overdue  = Loan.objects.filter(member=m, status='Overdue').count()
-            score    = max(0, min(100, rate - (overdue * 10)))
-            rating   = 'Excellent' if score >= 90 else 'Good' if score >= 70 else 'Fair' if score >= 50 else 'Poor'
-            pm       = getattr(m, 'pre_member', None)
+            total_p = on_time + late
+            rate    = round((on_time / total_p) * 100, 1) if total_p else 0
+            overdue = Loan.objects.filter(member=m, status='Overdue', applied_at__date__gte=df, applied_at__date__lte=dt).count()
+            score   = max(0, min(100, rate - (overdue * 10)))
+            rating  = 'Excellent' if score >= 90 else 'Good' if score >= 70 else 'Fair' if score >= 50 else 'Poor'
+            pm      = getattr(m, 'pre_member', None)
             if total_p > 0:
                 rows.append([
                     m.member_id, m.fullname,
@@ -711,7 +706,6 @@ def build_report_data(report_type, date_from_str, date_to_str):
             'col_widths_pdf': [2.8, 2, 1.8, 2, 1.8, 1.5, 2.5, 3],
         }
 
-    # ── NEW: Savings Report ───────────────────────────────────────────────────
     elif report_type == 'Savings Report':
         savings = Savings.objects.filter(
             created_at__date__gte=df, created_at__date__lte=dt
@@ -733,14 +727,13 @@ def build_report_data(report_type, date_from_str, date_to_str):
                 s.note or '—',
                 s.recorded_by or '—',
             ])
-
         return {
             'summary': [
-                ('Total Deposits',    f'₱{total_deposits:,.2f}'),
-                ('Total Withdrawals', f'₱{total_withdrawals:,.2f}'),
-                ('Net Savings',       f'₱{net_savings:,.2f}'),
+                ('Total Deposits',     f'₱{total_deposits:,.2f}'),
+                ('Total Withdrawals',  f'₱{total_withdrawals:,.2f}'),
+                ('Net Savings',        f'₱{net_savings:,.2f}'),
                 ('Total Transactions', savings.count()),
-                ('Period',            f'{date_from_str} to {date_to_str}'),
+                ('Period',             f'{date_from_str} to {date_to_str}'),
             ],
             'columns':        ['Date', 'Member ID', 'Member Name', 'Type', 'Amount', 'Balance After', 'Note', 'Recorded By'],
             'rows':           rows,
@@ -787,7 +780,7 @@ def export_pdf_view(request):
     from .exporters import generate_pdf
     data     = build_report_data(report_type, date_from, date_to)
     buf      = generate_pdf(report_type, date_from, date_to, data)
-    filename = f"LEAF_MPC_{report_type.replace(' ', '_')}_{date_from}_to_{date_to}.xlsx"
+    filename = f"LEAF_MPC_{report_type.replace(' ', '_')}_{date_from}_to_{date_to}.pdf"
     response = HttpResponse(buf.read(), content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
