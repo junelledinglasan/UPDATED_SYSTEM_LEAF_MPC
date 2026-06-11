@@ -61,7 +61,7 @@ def generate_excel(report_type, date_from, date_to, data):
 
     ws.merge_cells(f'A3:{get_column_letter(ncols)}3')
     t3 = ws['A3']
-    t3.value     = f'Period: {date_from}  to  {date_to}   |   Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}'
+    t3.value     = f'Period: {date_from}  to  {date_to}   |   Generated: {__import__('datetime').datetime.now().strftime("%B %d, %Y %I:%M %p")}'
     t3.font      = sub_font
     t3.alignment = center
     ws.row_dimensions[3].height = 18
@@ -144,7 +144,10 @@ def generate_pdf(report_type, date_from, date_to, data):
     page_size = landscape(A4) if use_landscape else A4
     doc = SimpleDocTemplate(buf, pagesize=page_size,
         leftMargin=1.5*cm, rightMargin=1.5*cm,
-        topMargin=1.5*cm, bottomMargin=1.5*cm)
+        topMargin=1.5*cm, bottomMargin=1.5*cm,
+        title=f'LEAF MPC — {report_type}',
+        author='LEAF MPC Cooperative Management System')
+
 
     GREEN     = colors.HexColor('#1B5E20')
     LT_GREEN  = colors.HexColor('#E8F5E9')
@@ -207,8 +210,11 @@ def generate_pdf(report_type, date_from, date_to, data):
     if cols and rows:
         page_w = landscape(A4)[0] - 3*cm if use_landscape else A4[0] - 3*cm
         col_widths = data.get('col_widths_pdf', None)
-        if not col_widths:
+        if col_widths:
+            col_widths = [w * cm for w in col_widths]
+        else:
             col_widths = [page_w / len(cols)] * len(cols)
+
 
         table_data = [cols] + [[str(v) if v is not None else '' for v in row] for row in rows]
         table = Table(table_data, colWidths=col_widths, repeatRows=1)

@@ -558,7 +558,8 @@ def build_report_data(report_type, date_from_str, date_to_str):
             pm = getattr(m, 'pre_member', None)
             rows.append([
                 m.member_id, m.last_name, m.first_name,
-                pm.classification if pm else '—', m.contact,
+                pm.classification if pm else '—',
+                pm.contact_number if pm else '—',
                 m.membership_status, m.membership_date.strftime('%Y-%m-%d'),
             ])
         return {

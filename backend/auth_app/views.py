@@ -14,6 +14,24 @@ from .serializers import (
 )
 
 
+def get_user_label(user):
+    """
+    Returns a human-readable label for activity logs.
+    - admin/staff → their role
+    - member with official Member record → 'member'
+    - member without official record → 'user' (applicant/registered only)
+    """
+    if user.role in ('admin', 'staff'):
+        return user.role
+    # Check if they have an official member record
+    try:
+        from members.models import Member
+        Member.objects.get(user=user)
+        return 'member'
+    except Exception:
+        return 'user'
+
+
 # ─── Register (Create Account — public) ───────────────────────────────────────
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -51,8 +69,9 @@ class LoginView(TokenObtainPairView):
         if response.status_code == 200:
             user_data = response.data.get('user', {})
             try:
-                user = User.objects.get(username=user_data.get('username'))
-                log_activity('login', f'{user.name} ({user.role}) logged in', user)
+                user  = User.objects.get(username=user_data.get('username'))
+                label = get_user_label(user)
+                log_activity('login', f'{user.name} ({label}) logged in', user)
             except Exception:
                 pass
         return response
@@ -63,7 +82,8 @@ class LoginView(TokenObtainPairView):
 @permission_classes([IsAuthenticated])
 def logout_view(request):
     try:
-        log_activity('login', f'{request.user.name} ({request.user.role}) logged out', request.user)
+        label = get_user_label(request.user)
+        log_activity('login', f'{request.user.name} ({label}) logged out', request.user)
         token = RefreshToken(request.data.get('refresh'))
         token.blacklist()
     except Exception:
@@ -154,7 +174,8 @@ def update_me_view(request):
         user.username = new_username
         user.save()
     return Response({'username': user.username, 'message': 'Updated successfully.'})
- 
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def change_password_view(request):

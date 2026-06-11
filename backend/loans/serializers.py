@@ -24,7 +24,6 @@ class CreateLoanSerializer(serializers.ModelSerializer):
     def validate(self, data):
         request = self.context.get('request')
 
-        # ── Auto-resolve member from logged-in user (member role) ────────────
         if not data.get('member'):
             if request and getattr(request.user, 'role', None) == 'member':
                 from members.models import Member
@@ -37,7 +36,6 @@ class CreateLoanSerializer(serializers.ModelSerializer):
             else:
                 raise serializers.ValidationError({'member': 'Member is required.'})
 
-        # ── Validate amount ──────────────────────────────────────────────────
         amount = float(data.get('amount', 0))
         if amount < 3000:
             raise serializers.ValidationError(
@@ -50,7 +48,6 @@ class CreateLoanSerializer(serializers.ModelSerializer):
         amount = float(validated_data['amount'])
         term   = int(validated_data['term_months'])
 
-        # ── LEAF MPC Interest Rate ────────────────────────────────────────────
         if amount <= 50000:
             monthly_rate = 0.0125
         elif amount <= 150000:
@@ -58,13 +55,10 @@ class CreateLoanSerializer(serializers.ModelSerializer):
         else:
             monthly_rate = 0.01
 
-        # ── Compute monthly_due and balance ───────────────────────────────────
         interest    = monthly_rate * amount * term
         monthly_due = (amount + interest) / term
-        balance     = amount   # balance starts at full loan amount
-
-        # ── Compute interest_rate (annualized for model field) ────────────────
-        interest_rate = monthly_rate * 12 * 100  # store as percent per year
+        balance     = amount
+        interest_rate = monthly_rate * 12 * 100
 
         loan = Loan.objects.create(
             **validated_data,

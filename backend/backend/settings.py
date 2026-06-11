@@ -103,7 +103,7 @@ CORS_ALLOW_ALL_ORIGINS  = True
 CORS_ALLOW_CREDENTIALS  = True
 
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE     = 'Asia/Manila'
+TIME_ZONE = 'Asia/Manila'
 USE_I18N      = True
 USE_TZ        = True
 
