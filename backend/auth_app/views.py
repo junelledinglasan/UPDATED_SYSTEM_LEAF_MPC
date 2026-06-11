@@ -183,7 +183,7 @@ def change_password_view(request):
     user = request.user
     current = request.data.get('current_password', '')
     new_pw  = request.data.get('new_password', '')
-    if not user.check_password(current):
+    if not user.check_password(curent):
         return Response({'detail': 'Current password is incorrect.'}, status=400)
     if len(new_pw) < 6:
         return Response({'detail': 'New password must be at least 6 characters.'}, status=400)
