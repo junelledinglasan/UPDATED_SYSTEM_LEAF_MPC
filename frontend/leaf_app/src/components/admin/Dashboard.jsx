@@ -229,11 +229,13 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
+        const currentYear = new Date().getFullYear();
         const [overview, mon, ls, lt, audit, memberStats, apps, activity, activeLoansRes] = await Promise.allSettled([
-          getOverviewAPI(), getMonthlyCollectionAPI(), getLoanStatusAPI(),
-          getLoanTypeAPI(), getAuditLogAPI(), getMemberStatsAPI(), getApplicationsAPI(),
+          getOverviewAPI(currentYear), getMonthlyCollectionAPI(currentYear), getLoanStatusAPI(currentYear),
+          getLoanTypeAPI(currentYear), getAuditLogAPI(currentYear), getMemberStatsAPI(), getApplicationsAPI(),
           getActivityLogAPI(7), getLoansAPI(),
         ]);
+
         if (overview.status==="fulfilled") {
           const d = overview.value;
           setStats({

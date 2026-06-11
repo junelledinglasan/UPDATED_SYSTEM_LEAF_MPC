@@ -34,7 +34,6 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 }
 
-// ─── Notification Detail Modal ─────────────────────────────────────────────────
 function NotifModal({ notif, onClose, onNavigate }) {
   if (!notif) return null;
   const meta = TYPE_META[notif.type] || TYPE_META.system;
@@ -43,7 +42,6 @@ function NotifModal({ notif, onClose, onNavigate }) {
       <div className="nf-modal-box" onClick={e => e.stopPropagation()}>
         <div className="nf-modal-header" style={{ borderBottom: `3px solid ${meta.border}` }}>
           <div className="nf-modal-icon-wrap" style={{ background: meta.bg, borderRadius: 12, width: 52, height: 52, display:"flex", alignItems:"center", justifyContent:"center", flexShrink: 0 }}>
-            {/* Large version of icon */}
             {notif.type === "due"        && <CalendarClock size={28} color="#e65100"/>}
             {notif.type === "notice"     && <Megaphone     size={28} color="#1565c0"/>}
             {notif.type === "approved"   && <CheckCircle2  size={28} color="#1b5e20"/>}
@@ -121,11 +119,11 @@ export default function Notifications() {
           }
         } catch {}
 
-        // Announcements
+        // ── FIXED: use a.body instead of a.content ──
         const anns = await getAnnouncementsAPI().catch(() => []);
         anns.forEach(a => built.push({
           id:`ann-${a.id}`, type:"notice", title:a.title,
-          msg:a.content||a.caption||"No content available.",
+          msg:a.body || a.caption || a.content || "No content available.",
           time:timeAgo(a.created_at||a.posted_at), date:a.created_at||a.posted_at,
           read:false, route:"/member/announcements", actionLabel:"View Announcement",
         }));
@@ -210,7 +208,6 @@ export default function Notifications() {
         )}
       </div>
 
-      {/* Summary chips */}
       <div className="nf-summary-row">
         <div className="nf-chip total">  <span>{notifs.length}</span> Total</div>
         <div className="nf-chip unread"> <span>{unreadCount}</span> Unread</div>
@@ -218,7 +215,6 @@ export default function Notifications() {
         <div className="nf-chip notice"> <span>{notifs.filter(n=>n.type==="notice").length}</span> Notices</div>
       </div>
 
-      {/* Filter tabs */}
       <div className="nf-filter-tabs">
         {FILTERS.map(f => (
           <button key={f} className={`nf-filter-tab ${filter===f?"active":""}`} onClick={() => setFilter(f)}>
@@ -228,7 +224,6 @@ export default function Notifications() {
         ))}
       </div>
 
-      {/* Notification list */}
       <div className="nf-card">
         {loading ? (
           <div className="nf-empty">

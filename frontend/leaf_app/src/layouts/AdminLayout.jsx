@@ -3,13 +3,20 @@ import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   LayoutDashboard, Users, UserCog, FileText,
-  CreditCard, CheckSquare, Megaphone, BarChart2, Leaf
+  CreditCard, CheckSquare, Megaphone, BarChart2,
+  GraduationCap, UserRound, BriefcaseBusiness
 } from "lucide-react";
 import { getLoansAPI, createLoanAPI, updateLoanStatusAPI } from "../api/loans";
 import { getMembersAPI, registerMemberAPI, recordSavingsAPI, getMemberSavingsAPI } from "../api/members";
 import { recordPaymentAPI } from "../api/payments";
 import "./AdminLayout.css";
 import logo from '../assets/logo.png';
+
+const CLASS_OPTIONS = [
+  { key: "Student",  icon: <GraduationCap     size={32} strokeWidth={1.5} color="#2e7d32"/>, label: "Student"  },
+  { key: "Senior",   icon: <UserRound         size={32} strokeWidth={1.5} color="#2e7d32"/>, label: "Senior"   },
+  { key: "Employed", icon: <BriefcaseBusiness size={32} strokeWidth={1.5} color="#2e7d32"/>, label: "Employed" },
+];
 
 const NAV_ITEMS = [
   { to: "/admin/dashboard",    icon: <LayoutDashboard size={15} />, label: "Dashboard"          },
@@ -26,18 +33,14 @@ const PAGE_CONFIG = {
   "/admin/dashboard": {
     title: "Office Operations Dashboard",
     sub:   "Manage LEAF MPC member records and financial audits.",
-    actions: [
-      { label: "⬇ Export Excel",    cls: "btn-outline", action: "export"   },
-      { label: "+ New F2F Payment", cls: "btn-blue",    action: "f2f"      },
-      { label: "+ Register Member", cls: "btn-green",   action: "register" },
-    ],
+    actions: []
   },
   "/admin/members": {
     title: "Manage Members",
     sub:   "View, edit, and manage all registered LEAF MPC members.",
     actions: [
-      { label: "🏦 Savings",        cls: "btn-savings", action: "savings"  },
-      { label: "+ Register Member", cls: "btn-green",   action: "register" },
+      { label: "🏦 Savings/Deposit", cls: "btn-savings", action: "savings"  },
+      { label: "+ Register Member",  cls: "btn-green",   action: "register" },
     ],
   },
   "/admin/staff": {
@@ -268,7 +271,6 @@ function SavingsModal({ onClose }) {
       .finally(() => setFetch(false));
   }, []);
 
-  // Fetch all savings history when History tab is opened
   useEffect(() => {
     if (mainTab !== "history") return;
     setHistLoading(true);
@@ -338,7 +340,6 @@ function SavingsModal({ onClose }) {
   return (
     <div className="al-overlay" onClick={onClose}>
       <div className="al-modal" style={{maxWidth: mainTab === "history" ? 620 : 480}} onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="al-modal-header">
           <div>
             <div className="al-modal-title">🏦 Savings Transaction</div>
@@ -351,7 +352,6 @@ function SavingsModal({ onClose }) {
           <button className="al-modal-close" onClick={onClose}>✕</button>
         </div>
 
-        {/* Main Tabs */}
         <div style={{display:"flex",borderBottom:"2px solid #f0f0f0",flexShrink:0}}>
           {[
             {key:"new",     label:"💰 New Transaction"},
@@ -367,9 +367,7 @@ function SavingsModal({ onClose }) {
           ))}
         </div>
 
-        {/* ══ NEW TRANSACTION TAB ══ */}
         {mainTab === "new" && (<>
-          {/* Step 1 */}
           {step === 1 && (
             <>
               <div className="al-modal-body">
@@ -422,8 +420,6 @@ function SavingsModal({ onClose }) {
               </div>
             </>
           )}
-
-          {/* Step 2 */}
           {step === 2 && (
             <>
               <div className="al-modal-body">
@@ -440,7 +436,6 @@ function SavingsModal({ onClose }) {
                     <div style={{fontSize:16,fontWeight:800,color:"#e65100"}}>₱{balance.toLocaleString()}</div>
                   </div>
                 </div>
-
                 <div className="al-field">
                   <label className="al-label">Transaction Type</label>
                   <div style={{display:"flex",gap:8}}>
@@ -457,7 +452,6 @@ function SavingsModal({ onClose }) {
                     ))}
                   </div>
                 </div>
-
                 <div className="al-field">
                   <label className="al-label">Amount (₱) <span className="al-req">*</span></label>
                   <div className="al-amount-wrap">
@@ -466,16 +460,13 @@ function SavingsModal({ onClose }) {
                       value={amount} onChange={e => { setAmount(e.target.value); setError(""); }} autoFocus />
                   </div>
                 </div>
-
                 <div className="al-field">
                   <label className="al-label">Note (optional)</label>
                   <input className="al-input" type="text" value={note}
                     onChange={e => setNote(e.target.value)}
                     placeholder="e.g. Monthly deposit, emergency withdrawal..." maxLength={100} />
                 </div>
-
                 {error && <div className="al-error">⚠ {error}</div>}
-
                 {isValid && (
                   <div className="al-preview">
                     <div className="al-prev-row"><span>Current Balance</span><span>₱{balance.toLocaleString()}</span></div>
@@ -505,11 +496,9 @@ function SavingsModal({ onClose }) {
           )}
         </>)}
 
-        {/* ══ HISTORY TAB ══ */}
         {mainTab === "history" && (
           <>
             <div className="al-modal-body" style={{gap:10}}>
-              {/* Summary row */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
                 <div style={{background:"#e8f5e9",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
                   <div style={{fontSize:10,color:"#558b2f",fontWeight:600}}>Total Deposits</div>
@@ -524,15 +513,11 @@ function SavingsModal({ onClose }) {
                   <div style={{fontSize:15,fontWeight:800,color:"#e65100"}}>{allSavings.length}</div>
                 </div>
               </div>
-
-              {/* Search */}
               <div className="al-search-wrap">
                 <span>🔍</span>
                 <input className="al-search-in" placeholder="Search by member name or ID..."
                   value={histSearch} onChange={e => setHistSearch(e.target.value)} />
               </div>
-
-              {/* Table */}
               {histLoading ? (
                 <div style={{textAlign:"center",padding:24,color:"#aaa",fontSize:13}}>Loading history...</div>
               ) : filteredHist.length === 0 ? (
@@ -553,9 +538,7 @@ function SavingsModal({ onClose }) {
                     <tbody>
                       {filteredHist.map((tx, idx) => (
                         <tr key={tx.id} style={{background:idx%2===0?"#fff":"#fffde7",borderTop:"1px solid #f5f5f5"}}>
-                          <td style={{padding:"7px 10px",color:"#888",fontSize:10,whiteSpace:"nowrap"}}>
-                            {tx.created_at?.split("T")[0]}
-                          </td>
+                          <td style={{padding:"7px 10px",color:"#888",fontSize:10,whiteSpace:"nowrap"}}>{tx.created_at?.split("T")[0]}</td>
                           <td style={{padding:"7px 10px"}}>
                             <div style={{fontWeight:600,fontSize:11,color:"#222"}}>{tx.member_name}</div>
                             <div style={{fontSize:9,color:"#aaa",fontFamily:"monospace"}}>{tx.member_code}</div>
@@ -569,13 +552,10 @@ function SavingsModal({ onClose }) {
                               {tx.transaction_type==="Deposit"?"💰":"💸"} {tx.transaction_type}
                             </span>
                           </td>
-                          <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700,
-                            color:tx.transaction_type==="Deposit"?"#2e7d32":"#c62828"}}>
+                          <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700,color:tx.transaction_type==="Deposit"?"#2e7d32":"#c62828"}}>
                             {tx.transaction_type==="Deposit"?"+":"−"}₱{Number(tx.amount).toLocaleString()}
                           </td>
-                          <td style={{padding:"7px 10px",textAlign:"right",fontWeight:600,color:"#333"}}>
-                            ₱{Number(tx.balance_after).toLocaleString()}
-                          </td>
+                          <td style={{padding:"7px 10px",textAlign:"right",fontWeight:600,color:"#333"}}>₱{Number(tx.balance_after).toLocaleString()}</td>
                           <td style={{padding:"7px 10px",color:"#888",fontSize:10}}>{tx.note||"—"}</td>
                         </tr>
                       ))}
@@ -593,7 +573,6 @@ function SavingsModal({ onClose }) {
     </div>
   );
 }
-
 
 // ─── FormField ────────────────────────────────────────────────────────────────
 function RegField({ name, label, type="text", options=null, required=false, form, errors, handle, clearErr }) {
@@ -664,8 +643,8 @@ function RegisterModal({ onClose }) {
       setErrors(e);
       const personalFields = ["first_name","last_name","birth_date","contact_number","address"];
       const classFields    = ["school_name","year_level"];
-      if (personalFields.some(f => e[f])) { setTab("personal");        return; }
-      if (classFields.some(f => e[f]))    { setTab("classification");   return; }
+      if (personalFields.some(f => e[f])) { setTab("personal");      return; }
+      if (classFields.some(f => e[f]))    { setTab("classification"); return; }
       return;
     }
     setLoading(true);
@@ -746,26 +725,17 @@ function RegisterModal({ onClose }) {
                 <label className="al-label">Amount Paid for Membership (₱)</label>
                 <div className="al-amount-wrap">
                   <span className="al-peso">₱</span>
-                  <input
-                    className="al-amount-in"
-                    type="number" name="share_capital"
-                    value={form.share_capital||""}
-                    onChange={e => { handle(e); }}
-                    placeholder="e.g. 4000"
-                    style={{fontSize:14}}
-                  />
+                  <input className="al-amount-in" type="number" name="share_capital"
+                    value={form.share_capital||""} onChange={e => { handle(e); }}
+                    placeholder="e.g. 4000" style={{fontSize:14}}/>
                 </div>
                 {form.share_capital > 0 && (
-                  <div style={{
-                    marginTop:6, padding:"6px 10px",
-                    background:"#e8f5e9", borderRadius:8,
-                    fontSize:11, color:"#2e7d32", fontWeight:600,
-                  }}>
+                  <div style={{marginTop:6,padding:"6px 10px",background:"#e8f5e9",borderRadius:8,fontSize:11,color:"#2e7d32",fontWeight:600}}>
                     💡 Share Capital = ₱{(parseFloat(form.share_capital||0)*2).toLocaleString()} (paid × 2) · Max Loanable = ₱{(parseFloat(form.share_capital||0)*2).toLocaleString()}
                   </div>
                 )}
               </div>
-              <RegField name="income"                 label="Monthly Income (₱)"     type="number" form={form} errors={errors} handle={handle}/>
+              <RegField name="income" label="Monthly Income (₱)" type="number" form={form} errors={errors} handle={handle}/>
               <div className="al-field al-full">
                 <label className="al-label">Address <span className="al-req">*</span></label>
                 <input className={`al-input ${errors.address ? "al-input-err" : ""}`} name="address" value={form.address} onChange={handle} placeholder="Full address"/>
@@ -791,15 +761,15 @@ function RegisterModal({ onClose }) {
               <div className="al-field al-full">
                 <label className="al-label">Member Classification <span className="al-req">*</span></label>
                 <div style={{display:"flex",gap:12,marginTop:8}}>
-                  {["Student","Senior","Employed"].map(c => (
-                    <div key={c} onClick={() => setForm(p => ({...p, classification: c}))}
+                  {CLASS_OPTIONS.map(c => (
+                    <div key={c.key} onClick={() => setForm(p => ({...p, classification: c.key}))}
                       style={{
-                        flex:1, border:`2px solid ${form.classification===c?"#2e7d32":"#e0e0e0"}`,
+                        flex:1, border:`2px solid ${form.classification===c.key?"#2e7d32":"#e0e0e0"}`,
                         borderRadius:10, padding:"16px 10px", textAlign:"center", cursor:"pointer",
-                        background: form.classification===c ? "#e8f5e9" : "#fafafa", transition:"all 0.2s",
+                        background: form.classification===c.key ? "#e8f5e9" : "#fafafa", transition:"all 0.2s",
                       }}>
-                      <div style={{fontSize:26,marginBottom:6}}>{c==="Student"?"🎓":c==="Senior"?"👴":"💼"}</div>
-                      <div style={{fontSize:12,fontWeight:700,color:"#2e7d32"}}>{c}</div>
+                      <div style={{marginBottom:6,display:"flex",justifyContent:"center"}}>{c.icon}</div>
+                      <div style={{fontSize:12,fontWeight:700,color:"#2e7d32"}}>{c.label}</div>
                     </div>
                   ))}
                 </div>
@@ -808,7 +778,7 @@ function RegisterModal({ onClose }) {
                 <RegField name="school_name" label="School Name" required form={form} errors={errors} handle={handle} clearErr={n => setErrors(p=>({...p,[n]:""})) }/>
                 <RegField name="year_level"  label="Year Level"  required form={form} errors={errors} handle={handle}
                   options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]}/>
-                <RegField name="allowance"   label="Monthly Allowance (₱)" type="number" form={form} errors={errors} handle={handle}/>
+                <RegField name="allowance" label="Monthly Allowance (₱)" type="number" form={form} errors={errors} handle={handle}/>
               </>)}
               {form.classification === "Senior" && (<>
                 <RegField name="educational_attainment" label="Educational Attainment"
@@ -907,18 +877,13 @@ function NewLoanModal({ onClose }) {
   const [monthlyResult, setMonthlyResult] = useState(0);
   const [members,       setMembers]       = useState([]);
   const [fetching,      setFetching]      = useState(true);
-
-  const handle   = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
-
-  const [showRateEdit, setShowRateEdit] = useState(false);
+  const [showRateEdit,  setShowRateEdit]  = useState(false);
   const [rates, setRates] = useState({
-    serviceFeePct:    3,
-    insurancePct:     1.25,
-    sdPct:            1,
-    scPct:            3,
-    filingFeeAmt:     50,   // updated when amount changes
-    interestOverride: 0,    // 0 = use default tiered rate
+    serviceFeePct: 3, insurancePct: 1.25, sdPct: 1, scPct: 3,
+    filingFeeAmt: 50, interestOverride: 0,
   });
+
+  const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
 
   useEffect(() => {
     getMembersAPI()
@@ -934,7 +899,6 @@ function NewLoanModal({ onClose }) {
 
   const shareCapital = selMember ? parseFloat(selMember.share_capital||0) : 0;
   const maxLoanable  = shareCapital;
-
   const amount       = parseFloat(form.amount) || 0;
   const term         = parseInt(form.term) || 12;
   const defaultRate  = amount <= 50000 ? 0.0125 : amount <= 150000 ? 0.01125 : 0.01;
@@ -948,7 +912,6 @@ function NewLoanModal({ onClose }) {
   const totalDed     = interest + serviceFee + filingFee + insurance + sd + sc;
   const netProceeds  = amount - totalDed;
   const monthly      = amount > 0 ? ((amount + interest) / term).toFixed(2) : 0;
-  const monthlyRate  = effectiveRate; // keep for display
 
   const validate = () => {
     const e = {};
@@ -1062,7 +1025,6 @@ function NewLoanModal({ onClose }) {
                   <div className="al-loan-meta">{selMember.member_id} · Share Capital: ₱{shareCapital.toLocaleString()} · Max Loanable: ₱{maxLoanable.toLocaleString()}</div>
                 </div>
               </div>
-
               <div className="al-form-grid">
                 <div className="al-field al-full">
                   <label className="al-label">Loan Type</label>
@@ -1114,27 +1076,21 @@ function NewLoanModal({ onClose }) {
                       {showRateEdit ? "✓ Done Editing" : "✏ Edit Rates"}
                     </button>
                   </div>
-
-                  {/* Editable Rates Panel */}
                   {showRateEdit && (
                     <div style={{background:"#fff8e1",border:"1px solid #ffe082",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
                       <div style={{fontSize:11,fontWeight:700,color:"#f57f17",marginBottom:10}}>⚙ Customize Rates</div>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                         {[
-                          ["Service Fee",     "serviceFeePct",  "%"],
-                          ["Insurance",       "insurancePct",   "%"],
-                          ["Savings Deposit", "sdPct",          "%"],
-                          ["Share Cap CBU",   "scPct",          "%"],
-                          ["Filing Fee",      "filingFeeAmt",   "₱ (flat)"],
+                          ["Service Fee","serviceFeePct","%"],["Insurance","insurancePct","%"],
+                          ["Savings Deposit","sdPct","%"],["Share Cap CBU","scPct","%"],
+                          ["Filing Fee","filingFeeAmt","₱ (flat)"],
                         ].map(([label, key, unit]) => (
                           <div key={key}>
                             <div style={{fontSize:10,color:"#888",fontWeight:600,marginBottom:3}}>{label} ({unit})</div>
                             <div style={{display:"flex",alignItems:"center",gap:4,background:"#fff",border:"1px solid #ffe082",borderRadius:8,padding:"4px 8px"}}>
                               <input type="number" step="0.01" min="0" max={unit==="₱ (flat)"?9999:100}
-                                value={rates[key]}
-                                onChange={e => setRates(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
-                                style={{border:"none",outline:"none",width:"100%",fontSize:12,fontWeight:700,color:"#333"}}
-                              />
+                                value={rates[key]} onChange={e => setRates(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
+                                style={{border:"none",outline:"none",width:"100%",fontSize:12,fontWeight:700,color:"#333"}}/>
                               <span style={{fontSize:10,color:"#aaa",flexShrink:0}}>{unit==="₱ (flat)"?"₱":"%"}</span>
                             </div>
                           </div>
@@ -1143,22 +1099,19 @@ function NewLoanModal({ onClose }) {
                           <div style={{fontSize:10,color:"#888",fontWeight:600,marginBottom:3}}>Interest Rate Override (%/mo)</div>
                           <div style={{display:"flex",alignItems:"center",gap:4,background:"#fff",border:"1px solid #ffe082",borderRadius:8,padding:"4px 8px"}}>
                             <input type="number" step="0.001" min="0" max="100"
-                              value={rates.interestOverride}
-                              onChange={e => setRates(p=>({...p,interestOverride:parseFloat(e.target.value)||0}))}
-                              style={{border:"none",outline:"none",width:"100%",fontSize:12,fontWeight:700,color:"#333"}}
-                            />
+                              value={rates.interestOverride} onChange={e => setRates(p=>({...p,interestOverride:parseFloat(e.target.value)||0}))}
+                              style={{border:"none",outline:"none",width:"100%",fontSize:12,fontWeight:700,color:"#333"}}/>
                             <span style={{fontSize:10,color:"#aaa"}}>%</span>
                           </div>
                           <div style={{fontSize:9,color:"#bbb",marginTop:2}}>0 = use default tiered rate</div>
                         </div>
                       </div>
-                      <button type="button" onClick={() => setRates({ serviceFeePct:3, insurancePct:1.25, sdPct:1, scPct:3, filingFeeAmt: amount<=50000?50:100, interestOverride:0 })}
+                      <button type="button" onClick={() => setRates({serviceFeePct:3,insurancePct:1.25,sdPct:1,scPct:3,filingFeeAmt:amount<=50000?50:100,interestOverride:0})}
                         style={{marginTop:10,fontSize:10,color:"#c62828",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>
                         ↺ Reset to defaults
                       </button>
                     </div>
                   )}
-
                   <div className="al-deduct-box">
                     <div className="al-deduct-row"><span className="al-deduct-label">Loan Amount</span><span className="al-deduct-val">₱{amount.toLocaleString()}</span></div>
                     <div className="al-deduct-row"><span className="al-deduct-label">Interest Rate</span><span className="al-deduct-val">{(effectiveRate*100).toFixed(3)}%/mo × {term} months{rates.interestOverride>0?" (custom)":""}</span></div>
@@ -1166,31 +1119,13 @@ function NewLoanModal({ onClose }) {
                     <div className="al-deduct-divider"/>
                     <div style={{fontSize:11,fontWeight:600,color:"#555",margin:"4px 0 4px"}}>Upfront Deductions from Loan Release:</div>
                     <div className="al-deduct-row"><span className="al-deduct-label">Interest</span><span className="al-deduct-val al-deduct-red">− ₱{interest.toFixed(2)}</span></div>
-                    <div className="al-deduct-row">
-                      <span className="al-deduct-label">Service Fee ({rates.serviceFeePct}%)</span>
-                      <span className="al-deduct-val al-deduct-red">− ₱{serviceFee.toFixed(2)}</span>
-                    </div>
-                    <div className="al-deduct-row">
-                      <span className="al-deduct-label">Filing Fee (₱{rates.filingFeeAmt})</span>
-                      <span className="al-deduct-val al-deduct-red">− ₱{filingFee.toFixed(2)}</span>
-                    </div>
-                    <div className="al-deduct-row">
-                      <span className="al-deduct-label">Insurance ({rates.insurancePct}%)</span>
-                      <span className="al-deduct-val al-deduct-red">− ₱{insurance.toFixed(2)}</span>
-                    </div>
-                    <div className="al-deduct-row">
-                      <span className="al-deduct-label">Savings Deposit ({rates.sdPct}%)</span>
-                      <span className="al-deduct-val al-deduct-red">− ₱{sd.toFixed(2)}</span>
-                    </div>
-                    <div className="al-deduct-row">
-                      <span className="al-deduct-label">Share Capital CBU ({rates.scPct}%)</span>
-                      <span className="al-deduct-val al-deduct-red">− ₱{sc.toFixed(2)}</span>
-                    </div>
+                    <div className="al-deduct-row"><span className="al-deduct-label">Service Fee ({rates.serviceFeePct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{serviceFee.toFixed(2)}</span></div>
+                    <div className="al-deduct-row"><span className="al-deduct-label">Filing Fee (₱{rates.filingFeeAmt})</span><span className="al-deduct-val al-deduct-red">− ₱{filingFee.toFixed(2)}</span></div>
+                    <div className="al-deduct-row"><span className="al-deduct-label">Insurance ({rates.insurancePct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{insurance.toFixed(2)}</span></div>
+                    <div className="al-deduct-row"><span className="al-deduct-label">Savings Deposit ({rates.sdPct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{sd.toFixed(2)}</span></div>
+                    <div className="al-deduct-row"><span className="al-deduct-label">Share Capital CBU ({rates.scPct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{sc.toFixed(2)}</span></div>
                     <div className="al-deduct-divider"/>
-                    <div className="al-deduct-row al-deduct-net">
-                      <span className="al-deduct-label">Net Proceeds</span>
-                      <span className="al-net-val">₱{netProceeds.toFixed(2)}</span>
-                    </div>
+                    <div className="al-deduct-row al-deduct-net"><span className="al-deduct-label">Net Proceeds</span><span className="al-net-val">₱{netProceeds.toFixed(2)}</span></div>
                   </div>
                   <div className="al-deduct-notice">
                     💡 Member will receive <strong>₱{netProceeds.toFixed(2)}</strong> after all deductions.
@@ -1211,15 +1146,15 @@ function NewLoanModal({ onClose }) {
 
 // ─── Main Layout ──────────────────────────────────────────────────────────────
 export default function AdminLayout() {
-  const [clock,       setClock]    = useState("");
-  const [showF2F,     setF2F]      = useState(false);
-  const [showReg,     setReg]      = useState(false);
-  const [showLoan,    setLoan]     = useState(false);
-  const [showSavings, setShowSav]  = useState(false);
-  const [sidebarOpen, setSidebar]  = useState(false);
-  const navigate                   = useNavigate();
-  const location                   = useLocation();
-  const { logout, user }           = useAuth();
+  const [clock,       setClock]   = useState("");
+  const [showF2F,     setF2F]     = useState(false);
+  const [showReg,     setReg]     = useState(false);
+  const [showLoan,    setLoan]    = useState(false);
+  const [showSavings, setShowSav] = useState(false);
+  const [sidebarOpen, setSidebar] = useState(false);
+  const navigate                  = useNavigate();
+  const location                  = useLocation();
+  const { logout, user }          = useAuth();
 
   useEffect(() => { setSidebar(false); }, [location.pathname]);
 
@@ -1246,10 +1181,7 @@ export default function AdminLayout() {
     if (action === "export")   alert("Export feature will be connected to the backend.");
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
+  const handleLogout = () => { logout(); navigate("/login"); };
 
   return (
     <div className="admin-layout">
@@ -1292,9 +1224,7 @@ export default function AdminLayout() {
             {config.actions.map((action, i) => (
               <button key={i}
                 className={action.cls !== "btn-savings" ? `btn ${action.cls}` : "btn"}
-                style={action.cls === "btn-savings" ? {
-                  background:"#f57f17", borderColor:"#f57f17", color:"#fff"
-                } : {}}
+                style={action.cls === "btn-savings" ? { background:"#f57f17", borderColor:"#f57f17", color:"#fff" } : {}}
                 onClick={() => handleAction(action.action)}>
                 {action.label}
               </button>

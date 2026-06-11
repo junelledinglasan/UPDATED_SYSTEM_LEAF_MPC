@@ -18,6 +18,8 @@ import {
   Wallet, ClipboardList, Users2, Landmark, AlertTriangle, Clock, PiggyBank,
 } from "lucide-react";
 import "./Reports.css";
+import logo from "../../assets/logo.png";
+
 
 ChartJS.register(
   CategoryScale, LinearScale, BarElement, ArcElement,
@@ -78,7 +80,11 @@ function ReportPreviewModal({ type, dateFrom, dateTo, onClose }) {
           {loading ? <div className="rp-loading">Loading report...</div> : !data ? <div className="rp-no-data">Failed to load.</div> : (
             <>
               <div className="rp-preview-header">
-                <div className="rp-preview-logo">🌿 LEAF MPC</div>
+                <div className="rp-preview-logo">
+                  <img src={logo} alt="LEAF MPC Logo"
+                  style={{ height: "40px", objectFit: "contain" }}
+                />
+              </div>
                 <div className="rp-preview-info">
                   <div className="rp-preview-title">{type}</div>
                   <div className="rp-preview-period">Period: {dateFrom} – {dateTo}</div>

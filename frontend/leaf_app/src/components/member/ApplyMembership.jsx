@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { submitApplicationAPI } from "../../api/members";
+import { GraduationCap, UserRound, BriefcaseBusiness } from "lucide-react";
 import "./ApplyMembership.css";
 
 // ─── FormField OUTSIDE component — prevents re-mount on every keystroke ────
@@ -29,6 +30,12 @@ function FormField({ name, label, type="text", options=null, required=false, ful
   );
 }
 
+const CLASS_OPTIONS = [
+  { key: "Student",  icon: <GraduationCap     size={40} strokeWidth={1.5} color="#2e7d32"/>, label: "Student"  },
+  { key: "Senior",   icon: <UserRound         size={40} strokeWidth={1.5} color="#2e7d32"/>, label: "Senior"   },
+  { key: "Employed", icon: <BriefcaseBusiness size={40} strokeWidth={1.5} color="#2e7d32"/>, label: "Employed" },
+];
+
 export default function ApplyMembership() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -39,7 +46,6 @@ export default function ApplyMembership() {
   const [loading, setLoading]= useState(false);
 
   const [form, setForm] = useState({
-    // Personal Info
     first_name:             user?.name?.split(" ")[0] || "",
     last_name:              user?.name?.split(" ").slice(-1)[0] || "",
     middle_name:            "",
@@ -53,7 +59,6 @@ export default function ApplyMembership() {
     income:                 "",
     birth_certificate:      false,
     marriage_certificate:   false,
-    // Classification
     classification:  "Employed",
     school_name:     "",
     year_level:      "",
@@ -77,7 +82,6 @@ export default function ApplyMembership() {
     if (!form.contact_number.trim())  e.contact_number  = "Required";
     if (!form.address.trim())         e.address         = "Required";
     if (!form.occupation.trim())      e.occupation      = "Required";
-    // Classification-specific
     if (form.classification === "Student" && !form.school_name.trim()) e.school_name = "Required";
     if (form.classification === "Student" && !form.year_level.trim())  e.year_level  = "Required";
     return e;
@@ -89,8 +93,8 @@ export default function ApplyMembership() {
       setErrors(e);
       const personalFields = ["first_name","last_name","birth_date","contact_number","address","occupation"];
       const classFields    = ["school_name","year_level"];
-      if (personalFields.some(f => e[f])) { setTab("personal");        return; }
-      if (classFields.some(f => e[f]))    { setTab("classification");   return; }
+      if (personalFields.some(f => e[f])) { setTab("personal");      return; }
+      if (classFields.some(f => e[f]))    { setTab("classification"); return; }
       return;
     }
 
@@ -127,11 +131,10 @@ export default function ApplyMembership() {
   };
 
   const TABS = [
-    { key: "personal",       label: "👤 Personal Info" },
+    { key: "personal",       label: "👤 Personal Info"  },
     { key: "classification", label: "📋 Classification" },
   ];
 
-  // ── Success Screen ──
   if (done) return (
     <div className="am-wrap">
       <div className="am-success-card">
@@ -162,17 +165,13 @@ export default function ApplyMembership() {
 
   return (
     <div className="am-wrap">
-
-      {/* Form Card — title, notice, tabs, and form all inside one card */}
       <div className="am-card">
 
-        {/* Card Header */}
         <div className="am-card-header">
           <div className="am-title">Apply for Official Membership</div>
           <div className="am-sub">Fill out the form below. Your application will be sent to the admin for review.</div>
         </div>
 
-        {/* Info notice */}
         <div className="am-info-notice">
           <div className="am-notice-icon">ℹ️</div>
           <div>
@@ -181,14 +180,9 @@ export default function ApplyMembership() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="am-tabs">
           {TABS.map((t, i) => (
-            <button
-              key={t.key}
-              className={`am-tab ${tab === t.key ? "active" : ""}`}
-              onClick={() => setTab(t.key)}
-            >
+            <button key={t.key} className={`am-tab ${tab === t.key ? "active" : ""}`} onClick={() => setTab(t.key)}>
               <span className="am-tab-num">{i + 1}</span> {t.label}
             </button>
           ))}
@@ -233,13 +227,13 @@ export default function ApplyMembership() {
               <div className="am-field am-full">
                 <label className="am-label">Member Classification <span className="am-req">*</span></label>
                 <div className="am-class-options">
-                  {["Student","Senior","Employed"].map(c => (
+                  {CLASS_OPTIONS.map(c => (
                     <div
-                      key={c}
-                      className={`am-class-card ${form.classification === c ? "selected" : ""}`}
-                      onClick={() => setForm(p => ({ ...p, classification: c }))}>
-                      <div className="am-class-icon">{c==="Student"?"🎓":c==="Senior"?"👴":"💼"}</div>
-                      <div className="am-class-name">{c}</div>
+                      key={c.key}
+                      className={`am-class-card ${form.classification === c.key ? "selected" : ""}`}
+                      onClick={() => setForm(p => ({ ...p, classification: c.key }))}>
+                      <div className="am-class-icon">{c.icon}</div>
+                      <div className="am-class-name">{c.label}</div>
                     </div>
                   ))}
                 </div>
@@ -277,7 +271,6 @@ export default function ApplyMembership() {
 
         </div>
 
-        {/* Footer */}
         <div className="am-form-footer">
           <div className="am-tab-nav">
             {tab !== "personal" && (
