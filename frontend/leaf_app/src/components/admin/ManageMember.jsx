@@ -615,17 +615,19 @@ function RegisterMemberModal({ onClose, onSuccess }) {
   const [errors,setErrors]=useState({});
   const [result,setResult]=useState(null);
   const TABS=[{key:"personal",label:"👤 Personal Info"},{key:"classification",label:"📋 Classification"},{key:"account",label:"🔐 Account Info"}];
+  // ── FIX 1: Added email to form initial state ──
   const [form,setForm]=useState({
     first_name:"",last_name:"",middle_name:"",birth_date:"",civil_status:"Single",
-    educational_attainment:"",occupation:"",income:"",contact_number:"",address:"",
+    educational_attainment:"",occupation:"",income:"",contact_number:"",email:"",address:"",
     birth_certificate:false,marriage_certificate:false,share_capital:"",
     classification:"Employed",school_name:"",year_level:"",allowance:"",
     pension_income:"",job_type:"Employed",monthly_income:"",
   });
   const handle=e=>{const val=e.target.type==="checkbox"?e.target.checked:e.target.value;setForm(p=>({...p,[e.target.name]:val}));setErrors(p=>({...p,[e.target.name]:""}));};
   const validate=()=>{const e={};if(!form.first_name.trim())e.first_name="Required";if(!form.last_name.trim())e.last_name="Required";if(!form.birth_date)e.birth_date="Required";if(!form.contact_number.trim())e.contact_number="Required";if(!form.address.trim())e.address="Required";if(form.classification==="Student"&&!form.school_name.trim())e.school_name="Required";if(form.classification==="Student"&&!form.year_level.trim())e.year_level="Required";return e;};
+  // ── FIX 3: Added email to registerMemberAPI call ──
   const handleSubmit=async()=>{const e=validate();if(Object.keys(e).length){setErrors(e);const pf=["first_name","last_name","birth_date","contact_number","address"];const cf=["school_name","year_level"];if(pf.some(f=>e[f])){setTab("personal");return;}if(cf.some(f=>e[f])){setTab("classification");return;}return;}
-    setLoading(true);try{const res=await registerMemberAPI({first_name:form.first_name,last_name:form.last_name,middle_name:form.middle_name,birth_date:form.birth_date,civil_status:form.civil_status,educational_attainment:form.educational_attainment,occupation:form.occupation,income:form.income||0,contact_number:form.contact_number,address:form.address,birth_certificate:form.birth_certificate,marriage_certificate:form.marriage_certificate,classification:form.classification,share_capital:form.share_capital||0,school_name:form.school_name,year_level:form.year_level,allowance:form.allowance||0,pension_income:form.pension_income||0,job_type:form.job_type,monthly_income:form.monthly_income||0});
+    setLoading(true);try{const res=await registerMemberAPI({first_name:form.first_name,last_name:form.last_name,middle_name:form.middle_name,birth_date:form.birth_date,civil_status:form.civil_status,educational_attainment:form.educational_attainment,occupation:form.occupation,income:form.income||0,contact_number:form.contact_number,email:form.email||"",address:form.address,birth_certificate:form.birth_certificate,marriage_certificate:form.marriage_certificate,classification:form.classification,share_capital:form.share_capital||0,school_name:form.school_name,year_level:form.year_level,allowance:form.allowance||0,pension_income:form.pension_income||0,job_type:form.job_type,monthly_income:form.monthly_income||0});
       // Pass the new member data and close modal — list updates instantly
       await onSuccess(res.member || res);
       setResult(res);
@@ -648,6 +650,8 @@ function RegisterMemberModal({ onClose, onSuccess }) {
             <RegisterField label="Civil Status" name="civil_status" options={["Single","Married","Widowed","Separated"]} form={form} handle={handle} errors={errors}/>
             <RegisterField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} form={form} handle={handle} errors={errors}/>
             <RegisterField label="Contact No." name="contact_number" form={form} handle={handle} errors={errors}/>
+            {/* ── FIX 2: Email field added after Contact No. ── */}
+            <RegisterField label="Email" name="email" type="email" form={form} handle={handle} errors={errors}/>
             <RegisterField label="Occupation" name="occupation" form={form} handle={handle} errors={errors}/>
             <RegisterField label="Monthly Income (₱)" name="income" type="number" form={form} handle={handle} errors={errors}/>
             <div className="modal-field">

@@ -1,6 +1,6 @@
 import random, string
 from django.utils import timezone
-from django.db.models import Sum
+from django.db.models import Sum, Prefetch
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -231,7 +231,9 @@ def convert_to_member_view(request, pk):
 @permission_classes([IsAuthenticated])
 def member_list_view(request):
     if request.method == 'GET':
-        members = Member.objects.all()
+        members = Member.objects.select_related(
+            'user', 'pre_member'
+        ).all()
         if s := request.query_params.get('status'):
             members = members.filter(membership_status=s)
         if q := request.query_params.get('search', '').strip():
@@ -316,7 +318,7 @@ def member_list_view(request):
 @permission_classes([IsAuthenticated])
 def member_detail_view(request, pk):
     try:
-        member = Member.objects.get(pk=pk)
+        member = Member.objects.select_related('user', 'pre_member').get(pk=pk)
     except Member.DoesNotExist:
         return Response({'error': 'Not found.'}, status=404)
 
@@ -333,7 +335,7 @@ def member_detail_view(request, pk):
             for field in [
                 'first_name', 'last_name', 'middle_name', 'birth_date',
                 'civil_status', 'educational_attainment', 'occupation',
-                'income', 'contact_number', 'address',
+                'income', 'contact_number', 'email', 'address',
                 'birth_certificate', 'marriage_certificate',
             ]:
                 if field in data:
@@ -361,9 +363,15 @@ def member_detail_view(request, pk):
     if request.method == 'DELETE':
         if request.user.role != 'admin':
             return Response({'error': 'Unauthorized.'}, status=403)
-        name = member.fullname
-        mid  = member.member_id
+        name     = member.fullname
+        mid      = member.member_id
+        user     = member.user
+        pre      = member.pre_member
         member.delete()
+        if pre:
+            pre.delete()
+        if user:
+            user.delete()
         log_activity('member', f'Member deleted: {name} ({mid})', request.user)
         return Response({'message': 'Member deleted.'})
 
@@ -425,26 +433,38 @@ def member_financial_summary_view(request, pk):
         member = Member.objects.get(pk=pk)
     except Member.DoesNotExist:
         return Response({'error': 'Not found.'}, status=404)
- 
+
     from loans.models import Loan
     from payments.models import Payment
- 
-    loans        = Loan.objects.filter(member=member)
-    active_loans = loans.filter(status__in=['Active', 'Overdue'])
-    total_paid   = sum(float(p.amount) for p in Payment.objects.filter(member=member))
- 
+
+    # ── OPTIMIZATION: prefetch_related para isang query lang ang payments ──
+    loans = Loan.objects.filter(member=member).prefetch_related(
+        Prefetch(
+            'payments',
+            queryset=Payment.objects.order_by('-paid_at'),
+            to_attr='prefetched_payments'
+        )
+    ).order_by('-applied_at')
+
+    active_loans = [l for l in loans if l.status in ['Active', 'Overdue']]
+
+    # ── OPTIMIZATION: isang query lang para sa total paid ──
+    total_paid = Payment.objects.filter(member=member).aggregate(
+        t=Sum('amount')
+    )['t'] or 0
+
     share_capital = float(member.share_capital or 0)
     amount_paid   = share_capital / 2
- 
+
     return Response({
         'share_capital':     share_capital,
         'amount_paid':       amount_paid,
         'max_loanable':      share_capital,
-        'total_loans':       loans.count(),
-        'active_loans':      active_loans.count(),
+        'total_loans':       len(loans),
+        'active_loans':      len(active_loans),
         'total_loan_amount': sum(float(l.amount)  for l in active_loans),
         'total_balance':     sum(float(l.balance) for l in active_loans),
-        'total_paid':        total_paid,
+        'total_paid':        float(total_paid),
         'loans': [
             {
                 'loan_id':     l.loan_id,
@@ -454,7 +474,7 @@ def member_financial_summary_view(request, pk):
                 'monthly_due': float(l.monthly_due),
                 'status':      l.status,
                 'applied_at':  str(l.applied_at)[:10],
-                # ── NEW: payment history per loan ──────────────────
+                # ── Uses prefetched payments — NO extra DB query per loan ──
                 'payments': [
                     {
                         'tx_id':       p.tx_id,
@@ -464,12 +484,13 @@ def member_financial_summary_view(request, pk):
                         'recorded_by': p.recorded_by,
                         'note':        p.note or '—',
                     }
-                    for p in Payment.objects.filter(loan=l).order_by('-paid_at')
+                    for p in getattr(l, 'prefetched_payments', [])
                 ],
             }
-            for l in loans.order_by('-applied_at')
+            for l in loans
         ]
     })
+
 
 # ══════════════════════════════════════════════════════════════════
 # SAVINGS — Deposit & Withdraw

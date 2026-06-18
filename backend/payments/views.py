@@ -13,9 +13,23 @@ from .blockchain import record_payment_on_blockchain, verify_transaction, get_ne
 @permission_classes([IsAuthenticated])
 def payment_list_view(request):
     if request.method == 'GET':
-        payments = Payment.objects.all()
+        # ── OPTIMIZATION: select_related para isang query lang ──
+        # Dati: 905 payments × 2 queries each = 1,810 queries!
+        # Ngayon: 1 query lang with JOIN
+        payments = Payment.objects.select_related(
+            'member',
+            'member__pre_member',
+            'loan',
+        ).order_by('-paid_at')
+
         if request.user.role == 'member':
             payments = payments.filter(member__user=request.user)
+
+        # ── OPTIMIZATION: limit to latest 200 payments for admin view ──
+        # Ang Loan Payment history ay hindi kailangan ng lahat ng 905
+        if request.user.role in ['admin', 'staff']:
+            payments = payments[:200]
+
         return Response(PaymentSerializer(payments, many=True).data)
 
     if request.user.role not in ['admin', 'staff']:

@@ -14,7 +14,12 @@ from .serializers import LoanSerializer, CreateLoanSerializer
 @permission_classes([IsAuthenticated])
 def loan_list_view(request):
     if request.method == 'GET':
-        loans = Loan.objects.all()
+        # ── OPTIMIZATION: select_related para isang query lang ──
+        loans = Loan.objects.select_related(
+            'member',
+            'member__pre_member',
+            'member__user',
+        ).all()
         if request.user.role == 'member':
             loans = loans.filter(member__user=request.user)
         if s := request.query_params.get('status'):
@@ -43,7 +48,12 @@ def loan_list_view(request):
 @permission_classes([IsAuthenticated])
 def loan_detail_view(request, pk):
     try:
-        loan = Loan.objects.get(pk=pk)
+        # ── OPTIMIZATION: select_related para sa member data ──
+        loan = Loan.objects.select_related(
+            'member',
+            'member__pre_member',
+            'member__user',
+        ).get(pk=pk)
     except Loan.DoesNotExist:
         return Response({'error': 'Not found.'}, status=404)
 
@@ -127,7 +137,7 @@ def due_dates_view(request):
     loans = Loan.objects.filter(
         status__in=['Active', 'Overdue'],
         next_due_date__isnull=False
-    ).select_related('member')
+    ).select_related('member', 'member__pre_member')
 
     month_str = request.query_params.get('month', '')
     if month_str:

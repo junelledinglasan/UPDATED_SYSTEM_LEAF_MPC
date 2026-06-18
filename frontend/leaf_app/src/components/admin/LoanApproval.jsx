@@ -17,25 +17,19 @@ function ProcessModal({ loan, onClose, onApprove, onDecline }) {
   const amount = parseFloat(loan.amount||0);
   const term   = parseInt(loan.term_months||loan.term||6);
 
-  // ─── LEAF MPC Interest Rate (monthly) ────────────────────────────────────
-  // ₱3,000 – ₱50,000   → 1.25% / month
-  // ₱50,001 – ₱150,000 → 1.125% / month
-  // ₱150,001 – ₱1M     → 1%    / month
   const monthlyRate =
     amount <= 50000  ? 0.0125  :
     amount <= 150000 ? 0.01125 : 0.01;
 
-  // ─── Deductions (upfront, deducted from loan release) ────────────────────
-  const interest    = monthlyRate * amount * term;          // Interest
-  const serviceFee  = amount * 0.03;                        // Service Fee 3%
-  const filingFee   = amount <= 50000 ? 50 : 100;           // Filing Fee
-  const insurance   = amount * 0.0125;                      // Insurance 1.25%
-  const sd          = amount * 0.01;                        // Savings Deposit 1%
-  const sc          = amount * 0.03;                        // Share Capital CBU 3%
+  const interest    = monthlyRate * amount * term;
+  const serviceFee  = amount * 0.03;
+  const filingFee   = amount <= 50000 ? 50 : 100;
+  const insurance   = amount * 0.0125;
+  const sd          = amount * 0.01;
+  const sc          = amount * 0.03;
   const totalDeductions = interest + serviceFee + filingFee + insurance + sd + sc;
   const netProceeds = amount - totalDeductions;
 
-  // ─── Monthly amortization = (Principal + Interest) / Term ────────────────
   const totalPayable  = amount + interest;
   const monthlyAmort  = totalPayable / term;
 
@@ -181,20 +175,17 @@ export default function LoanApproval() {
 
   useEffect(() => { fetchLoans(); }, []);
 
+  // ── FIX: Remove source/applied_online filter — count all loans properly ──
   const counts = {
     forReview: loans.filter(l=>l.status==="For Review").length,
-    approved:  loans.filter(l=>(l.source==="member_portal"||l.applied_online===true||l.applied_online==="true") && l.status==="Active").length,
+    approved:  loans.filter(l=>l.status==="Active").length,
     declined:  loans.filter(l=>l.status==="Declined").length,
-    totalAmt:  loans.filter(l=>(l.source==="member_portal"||l.applied_online===true||l.applied_online==="true") && l.status==="Active").reduce((s,l)=>s+parseFloat(l.amount||0),0),
+    totalAmt:  loans.filter(l=>l.status==="Active").reduce((s,l)=>s+parseFloat(l.amount||0),0),
   };
 
-  // Only show loans applied via member portal (not admin-created which are directly Active)
+  // ── FIX: Show For Review, Active, Declined, and Overdue loans ──
   const portalLoans = loans.filter(l =>
-    l.source === "member_portal" ||
-    l.applied_online === true ||
-    l.applied_online === "true" ||
-    l.status === "For Review" ||
-    l.status === "Declined"
+    ["For Review","Active","Declined","Overdue"].includes(l.status)
   );
 
   const filtered = portalLoans.filter(l => {

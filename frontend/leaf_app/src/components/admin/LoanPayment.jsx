@@ -227,12 +227,16 @@ export default function LoanPayment() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [l,t,s] = await Promise.allSettled([
+      // ── FIX: Fetch Active and Overdue separately to avoid loading all 147 loans ──
+      const [lActive, lOverdue, t, s] = await Promise.allSettled([
         getLoansAPI({ status: "Active" }),
+        getLoansAPI({ status: "Overdue" }),
         getPaymentsAPI(),
         getPaymentStatsAPI(),
       ]);
-      if (l.status==="fulfilled") setLoans(l.value);
+      const activeLoans  = lActive.status  === "fulfilled" ? lActive.value  : [];
+      const overdueLoans = lOverdue.status === "fulfilled" ? lOverdue.value : [];
+      setLoans([...activeLoans, ...overdueLoans]);
       if (t.status==="fulfilled") setTx(t.value);
       if (s.status==="fulfilled") setPStats(s.value);
     } catch(e) { console.error(e); }
@@ -379,24 +383,26 @@ export default function LoanPayment() {
           <div className="lp-table-wrap">
             <table className="lp-table">
               <thead><tr>
-                <th style={{width:"13%"}}>Loan ID</th>
-                <th style={{width:"11%"}}>Member ID</th>
-                <th style={{width:"17%"}}>Full Name</th>
-                <th style={{width:"14%"}}>Loan Type</th>
-                <th style={{width:"10%"}}>Balance</th>
-                <th style={{width:"10%"}}>Monthly Due</th>
-                <th style={{width:"8%"}}>Status</th>
-                <th style={{width:"7%",textAlign:"center"}}>Action</th>
+                <th style={{width:"12%"}}>Loan ID</th>
+                <th style={{width:"10%"}}>Member ID</th>
+                <th style={{width:"14%"}}>Full Name</th>
+                <th style={{width:"12%"}}>Loan Type</th>
+                <th style={{width:"9%"}}>Amount</th>
+                <th style={{width:"9%"}}>Balance</th>
+                <th style={{width:"9%"}}>Monthly Due</th>
+                <th style={{width:"7%"}}>Status</th>
+                <th style={{width:"8%",textAlign:"center"}}>Action</th>
               </tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan={8} className="lp-empty">Loading...</td></tr>
-                : paginatedLoans.length===0 ? <tr><td colSpan={8} className="lp-empty">No loans found.</td></tr>
+                {loading ? <tr><td colSpan={9} className="lp-empty">Loading...</td></tr>
+                : paginatedLoans.length===0 ? <tr><td colSpan={9} className="lp-empty">No loans found.</td></tr>
                 : paginatedLoans.map((l,idx)=>(
                   <tr key={l.id} className={idx%2===0?"row-even":"row-odd"}>
                     <td className="mono cell-id">{l.loan_id}</td>
                     <td className="mono">{l.member_code}</td>
                     <td className="cell-name">{l.member_name}</td>
                     <td><span className="lp-type-pill">{l.loan_type}</span></td>
+                    <td className="fw">₱{Number(l.amount||0).toLocaleString()}</td>
                     <td className={`fw ${l.status==="Overdue"?"danger":"blue"}`}>₱{Number(l.balance||0).toLocaleString()}</td>
                     <td className="fw green">₱{Number(l.monthly_due||0).toLocaleString()}</td>
                     <td><span className={`lp-loan-badge lp-${(l.status||"").toLowerCase()}`}>{l.status}</span></td>
