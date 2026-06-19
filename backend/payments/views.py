@@ -27,8 +27,7 @@ def payment_list_view(request):
 
         # ── OPTIMIZATION: limit to latest 200 payments for admin view ──
         # Ang Loan Payment history ay hindi kailangan ng lahat ng 905
-        if request.user.role in ['admin', 'staff']:
-            payments = payments[:200]
+
 
         return Response(PaymentSerializer(payments, many=True).data)
 

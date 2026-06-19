@@ -25,6 +25,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('admin',  'Admin'),
         ('staff',  'Staff'),
         ('member', 'Member'),
+        ('user',   'User'),   # ── FIX: registered but not yet official member
     ]
 
     STAFF_ROLES = [
@@ -35,7 +36,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     username   = models.CharField(max_length=50, unique=True)
     name       = models.CharField(max_length=100)
-    role       = models.CharField(max_length=10, choices=ROLES, default='member')
+    role       = models.CharField(max_length=10, choices=ROLES, default='user')  # ── FIX: default 'user'
     staff_role = models.CharField(max_length=20, choices=STAFF_ROLES, blank=True, null=True)
     is_active  = models.BooleanField(default=True)
     is_staff   = models.BooleanField(default=False)

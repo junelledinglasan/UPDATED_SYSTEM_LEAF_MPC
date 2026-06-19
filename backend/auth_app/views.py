@@ -15,15 +15,8 @@ from .serializers import (
 
 
 def get_user_label(user):
-    """
-    Returns a human-readable label for activity logs.
-    - admin/staff → their role
-    - member with official Member record → 'member'
-    - member without official record → 'user' (applicant/registered only)
-    """
     if user.role in ('admin', 'staff'):
         return user.role
-    # Check if they have an official member record
     try:
         from members.models import Member
         Member.objects.get(user=user)
@@ -36,8 +29,11 @@ def get_user_label(user):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_view(request):
-    username = request.data.get('username', '').strip()
-    password = request.data.get('password', '')
+    username    = request.data.get('username', '').strip()
+    password    = request.data.get('password', '')
+    first_name  = request.data.get('first_name', '').strip()
+    last_name   = request.data.get('last_name', '').strip()
+    middle_name = request.data.get('middle_name', '').strip()
 
     if not username:
         return Response({'detail': 'Username is required.'}, status=400)
@@ -50,13 +46,20 @@ def register_view(request):
     if User.objects.filter(username=username).exists():
         return Response({'username': ['Username already taken.']}, status=400)
 
+    # ── Build full name from first/middle/last name ──
+    if first_name or last_name:
+        parts = [p for p in [first_name, middle_name, last_name] if p]
+        full_name = ' '.join(parts)
+    else:
+        full_name = username
+
     user = User.objects.create_user(
         username=username,
         password=password,
-        name=username,
-        role='member',
+        name=full_name,
+        role='user',  # ── FIX: 'user' not 'member' — not yet an official member
     )
-    log_activity('member', f'New account created: @{user.username}', user)
+    log_activity('application', f'New account created: @{user.username} ({full_name})', user)
     return Response({'message': 'Account created successfully.'}, status=201)
 
 
@@ -165,7 +168,6 @@ def reset_staff_password_view(request, pk):
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def update_me_view(request):
-    """Update own username."""
     user = request.user
     if new_username := request.data.get('username', '').strip():
         from auth_app.models import User
@@ -179,11 +181,10 @@ def update_me_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def change_password_view(request):
-    """Change own password."""
-    user = request.user
+    user    = request.user
     current = request.data.get('current_password', '')
     new_pw  = request.data.get('new_password', '')
-    if not user.check_password(curent):
+    if not user.check_password(current):
         return Response({'detail': 'Current password is incorrect.'}, status=400)
     if len(new_pw) < 6:
         return Response({'detail': 'New password must be at least 6 characters.'}, status=400)
