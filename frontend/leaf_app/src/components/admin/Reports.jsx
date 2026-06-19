@@ -18,8 +18,6 @@ import {
   Wallet, ClipboardList, Users2, Landmark, AlertTriangle, Clock, PiggyBank,
 } from "lucide-react";
 import "./Reports.css";
-import logo from "../../assets/logo.png";
-
 
 ChartJS.register(
   CategoryScale, LinearScale, BarElement, ArcElement,
@@ -29,7 +27,7 @@ ChartJS.register(
 
 const COLORS = ["#2e7d32","#4caf50","#f57c00","#1565c0","#c62828","#6a1b9a","#00838f","#ff8a65","#64b5f6","#ba68c8"];
 const YEAR   = new Date().getFullYear();
-const YEARS  = [YEAR - 2, YEAR - 1, YEAR, YEAR + 1];
+const YEARS  = ["All", ...Array.from({length: 6}, (_, i) => YEAR - 3 + i)];
 
 const REPORT_TYPES = [
   "Financial Summary", "Collection Report", "Loan Summary", "Member Report",
@@ -80,11 +78,7 @@ function ReportPreviewModal({ type, dateFrom, dateTo, onClose }) {
           {loading ? <div className="rp-loading">Loading report...</div> : !data ? <div className="rp-no-data">Failed to load.</div> : (
             <>
               <div className="rp-preview-header">
-                <div className="rp-preview-logo">
-                  <img src={logo} alt="LEAF MPC Logo"
-                  style={{ height: "40px", objectFit: "contain" }}
-                />
-              </div>
+                <div className="rp-preview-logo">🌿 LEAF MPC</div>
                 <div className="rp-preview-info">
                   <div className="rp-preview-title">{type}</div>
                   <div className="rp-preview-period">Period: {dateFrom} – {dateTo}</div>
@@ -320,8 +314,8 @@ export default function Reports() {
         </div>
         <div className="rp-year-selector">
           <label style={{ fontSize: 12, color: "#888", marginRight: 6 }}>Year:</label>
-          <select value={selectedYear} onChange={e => setYear(Number(e.target.value))} style={{ padding: "4px 10px", borderRadius: 8, border: "1px solid #ddd", fontSize: 12, fontFamily: "inherit" }}>
-            {YEARS.map(y => <option key={y}>{y}</option>)}
+          <select value={selectedYear} onChange={e => setYear(e.target.value === "All" ? "All" : Number(e.target.value))} style={{ padding: "4px 10px", borderRadius: 8, border: "1px solid #ddd", fontSize: 12, fontFamily: "inherit" }}>
+            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
       </div>

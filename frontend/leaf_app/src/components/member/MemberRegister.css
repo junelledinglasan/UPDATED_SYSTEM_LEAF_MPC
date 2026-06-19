@@ -29,7 +29,7 @@
 .mr-bar.strong { background: #2e7d32; }
 .mr-strength-label { font-size: 11px; color: #888; }
 .mr-footer { padding: 16px 24px 20px; border-top: 1px solid #f0f4f1; }
-.mr-footer-nav { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 12px; }
+.mr-footer-nav { display: flex; justify-content: center; gap: 10px; margin-bottom: 12px; }
 .mr-btn-back   { background: none; border: 1.5px solid #e0e0e0; border-radius: 8px; padding: 9px 20px; font-size: 13px; cursor: pointer; color: #555; }
 .mr-btn-next   { background: #2e7d32; color: #fff; border: none; border-radius: 8px; padding: 9px 24px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .mr-btn-next:hover { background: #1b5e20; }

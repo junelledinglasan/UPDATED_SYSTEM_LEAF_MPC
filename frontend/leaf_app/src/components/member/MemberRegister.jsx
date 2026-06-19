@@ -23,6 +23,7 @@ export default function MemberRegister() {
   const [errors,  setErrors]  = useState({});
 
   const [form, setForm] = useState({
+    first_name: "", last_name: "", middle_name: "",
     username: "", password: "", confirmPassword: "",
   });
 
@@ -33,6 +34,8 @@ export default function MemberRegister() {
 
   const validate = () => {
     const e = {};
+    if (!form.first_name.trim())         e.first_name      = "Required";
+    if (!form.last_name.trim())          e.last_name       = "Required";
     if (!form.username.trim())           e.username        = "Required";
     if (form.username.trim().length < 4) e.username        = "Min 4 characters";
     if (form.username.includes(" "))     e.username        = "No spaces allowed";
@@ -47,7 +50,13 @@ export default function MemberRegister() {
     if (Object.keys(e).length) { setErrors(e); return; }
     setLoading(true);
     try {
-      await registerUserAPI({ username: form.username, password: form.password });
+      await registerUserAPI({
+        username:    form.username,
+        password:    form.password,
+        first_name:  form.first_name,
+        last_name:   form.last_name,
+        middle_name: form.middle_name,
+      });
       setDone(true);
     } catch(err) {
       const d   = err.response?.data;
@@ -95,6 +104,21 @@ export default function MemberRegister() {
               </div>
             </div>
 
+            {/* ── Name Fields ── */}
+            <FormField
+              name="first_name" label="First Name" required
+              value={form.first_name} onChange={handle} error={errors.first_name}
+            />
+            <FormField
+              name="last_name" label="Last Name" required
+              value={form.last_name} onChange={handle} error={errors.last_name}
+            />
+            <FormField
+              name="middle_name" label="Middle Name"
+              value={form.middle_name} onChange={handle} error={errors.middle_name}
+            />
+
+            {/* ── Username ── */}
             <FormField
               name="username" label="Username" required full
               value={form.username} onChange={handle} error={errors.username}
@@ -103,6 +127,7 @@ export default function MemberRegister() {
               Min 4 characters, no spaces allowed.
             </div>
 
+            {/* ── Password ── */}
             <FormField
               name="password" label="Password" type="password" required
               value={form.password} onChange={handle} error={errors.password}

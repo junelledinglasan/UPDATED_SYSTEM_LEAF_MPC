@@ -91,7 +91,6 @@ function CollectionCalendar() {
   const prev = () => { if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1); };
   const next = () => { if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1); };
 
-  // Fetch due dates when month/year changes
   useEffect(() => {
     setLoading(true);
     const mm = String(month+1).padStart(2,"0");
@@ -217,23 +216,29 @@ function BlockchainLedger({ data }) {
 }
 
 export default function Dashboard() {
-  const [stats,    setStats]    = useState({ totalShareCapital:0, activeMembers:0, pendingLoanApprovals:0, onlineApplicants:0 });
-  const [monthly,  setMonthly]  = useState([]);
-  const [loanStat, setLoanStat] = useState({});
-  const [loanType, setLoanType] = useState({});
-  const [activeLoans, setActiveLoans] = useState([]);
-  const [ledger,   setLedger]   = useState([]);
-  const [actLog,   setActLog]   = useState([]);
-  const [loading,  setLoading]  = useState(true);
+  const [stats,      setStats]    = useState({ totalShareCapital:0, activeMembers:0, pendingLoanApprovals:0, onlineApplicants:0 });
+  const [monthly,    setMonthly]  = useState([]);
+  const [loanStat,   setLoanStat] = useState({});
+  const [loanType,   setLoanType] = useState({});
+  const [activeLoans,setActiveLoans] = useState([]);
+  const [ledger,     setLedger]   = useState([]);
+  const [actLog,     setActLog]   = useState([]);
+  const [loading,    setLoading]  = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
         const currentYear = new Date().getFullYear();
         const [overview, mon, ls, lt, audit, memberStats, apps, activity, activeLoansRes] = await Promise.allSettled([
-          getOverviewAPI(currentYear), getMonthlyCollectionAPI(currentYear), getLoanStatusAPI(currentYear),
-          getLoanTypeAPI(currentYear), getAuditLogAPI(currentYear), getMemberStatsAPI(), getApplicationsAPI(),
-          getActivityLogAPI(7), getLoansAPI(),
+          getOverviewAPI(currentYear),
+          getMonthlyCollectionAPI(currentYear),
+          getLoanStatusAPI("All"),   // ── FIX: All years para makita lahat ng loan statuses
+          getLoanTypeAPI("All"),     // ── FIX: All years para makita lahat ng loan types
+          getAuditLogAPI(currentYear),
+          getMemberStatsAPI(),
+          getApplicationsAPI(),
+          getActivityLogAPI(7),
+          getLoansAPI(),
         ]);
 
         if (overview.status==="fulfilled") {
@@ -245,12 +250,13 @@ export default function Dashboard() {
             onlineApplicants:     apps.status==="fulfilled" ? apps.value.filter(a=>a.status==="Pending").length : 0,
           });
         }
-        if (mon.status==="fulfilled")      setMonthly(mon.value);
-        if (ls.status==="fulfilled")       setLoanStat(ls.value);
-        if (lt.status==="fulfilled")       setLoanType(lt.value);
-        // Build loan type breakdown from actual active loans
+        if (mon.status==="fulfilled") setMonthly(mon.value);
+        if (ls.status==="fulfilled")  setLoanStat(ls.value);
+        if (lt.status==="fulfilled")  setLoanType(lt.value);
+
+        // ── FIX: Build loan type breakdown including Active and Overdue ──
         if (activeLoansRes.status==="fulfilled") {
-          const actLoans = activeLoansRes.value.filter(l => l.status === "Active");
+          const actLoans = activeLoansRes.value.filter(l => ["Active","Overdue"].includes(l.status));
           setActiveLoans(actLoans);
           const breakdown = {};
           actLoans.forEach(l => {
@@ -267,9 +273,8 @@ export default function Dashboard() {
     load();
   }, []);
 
-  // Build chart data from real API
-  const monthLabels  = monthly.map(m=>m.month);
-  const monthValues  = monthly.map(m=>m.total);
+  const monthLabels = monthly.map(m=>m.month);
+  const monthValues = monthly.map(m=>m.total);
 
   const lineData = {
     labels: monthLabels.length ? monthLabels : ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
@@ -283,10 +288,10 @@ export default function Dashboard() {
 
   const barLabels = Object.keys(loanStat);
   const barData = {
-    labels: barLabels.length ? barLabels : ["Approved","Pending","Declined","Active","Completed"],
+    labels: barLabels.length ? barLabels : ["For Review","Active","Declined","Completed","Overdue"],
     datasets: [{
       data: barLabels.length ? Object.values(loanStat) : [0,0,0,0,0],
-      backgroundColor: ["#2e7d32","#f57c00","#e53935","#1565c0","#a5d6a7"],
+      backgroundColor: ["#f57c00","#2e7d32","#e53935","#1565c0","#c62828"],
       borderRadius: 5, borderSkipped: false,
     }],
   };
@@ -301,12 +306,9 @@ export default function Dashboard() {
     }],
   };
 
-  const lineOptions = { responsive:true, plugins:{ legend:{display:false}, tooltip:{mode:"index",intersect:false} }, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f0f4f1"}, ticks:{callback:v=>"₱"+v.toLocaleString()}} } };
-  const barOptions  = { responsive:true, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f0f4f1"}} } };
-  const doughnutOptions = { responsive:true, cutout:"68%", plugins:{ legend:{position:"bottom",labels:{boxWidth:8,padding:8,font:{size:10}}} } };
-
-  // Real activity log from API
-  const activityLog = actLog;
+  const lineOptions    = { responsive:true, plugins:{ legend:{display:false}, tooltip:{mode:"index",intersect:false} }, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f0f4f1"}, ticks:{callback:v=>"₱"+v.toLocaleString()}} } };
+  const barOptions     = { responsive:true, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f0f4f1"}} } };
+  const doughnutOptions= { responsive:true, cutout:"68%", plugins:{ legend:{position:"bottom",labels:{boxWidth:8,padding:8,font:{size:10}}} } };
 
   return (
     <div className="dashboard-content">
@@ -326,16 +328,16 @@ export default function Dashboard() {
           <div style={{height:220}}><Line data={lineData} options={{...lineOptions, maintainAspectRatio:false}}/></div>
         </div>
         <div className="chart-card">
-          <div className="card-header"><div><div className="card-title">Loan Status Summary</div><div className="card-sub">Current distribution</div></div></div>
+          <div className="card-header"><div><div className="card-title">Loan Status Summary</div><div className="card-sub">All-time distribution</div></div></div>
           <div style={{height:220}}><Bar data={barData} options={{...barOptions, maintainAspectRatio:false}}/></div>
         </div>
       </div>
 
       <div className="bottom-row">
         <CollectionCalendar/>
-        <ActivityLog log={activityLog}/>
+        <ActivityLog log={actLog}/>
         <div className="chart-card">
-          <div className="card-header"><div><div className="card-title">Loan Type Breakdown</div><div className="card-sub">By category</div></div></div>
+          <div className="card-header"><div><div className="card-title">Loan Type Breakdown</div><div className="card-sub">Active & Overdue by category</div></div></div>
           <div style={{height:220,display:"flex",alignItems:"center",justifyContent:"center"}}>
             <Doughnut data={doughnutData} options={{...doughnutOptions, maintainAspectRatio:false}}/>
           </div>

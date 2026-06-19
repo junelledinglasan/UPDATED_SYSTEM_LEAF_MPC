@@ -8,6 +8,16 @@ const TYPE_COLOR = {
   Announcement:"tag-announce", Event:"tag-event",
 };
 
+function timeAgo(dateStr) {
+  if (!dateStr) return "";
+  const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+  if (diff < 60)   return "just now";
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400)return `${Math.floor(diff/3600)}h ago`;
+  if (diff < 604800)return `${Math.floor(diff/86400)}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" });
+}
+
 export default function MemberAnnouncements() {
   const { user } = useAuth();
   const [posts,    setPosts]    = useState([]);
@@ -53,11 +63,14 @@ export default function MemberAnnouncements() {
       </div>
 
       {loading ? (
-        <div style={{textAlign:"center",padding:"40px",color:"#aaa"}}>Loading announcements...</div>
+        <div style={{textAlign:"center",padding:"48px",color:"#bbb",fontSize:13}}>Loading announcements...</div>
       ) : (
         <div className="ma-feed">
           {displayed.length === 0 ? (
-            <div style={{textAlign:"center",padding:"40px",color:"#aaa"}}>No announcements yet.</div>
+            <div className="ma-empty-state">
+              <div className="ma-empty-icon">📢</div>
+              <div className="ma-empty-text">No announcements yet.</div>
+            </div>
           ) : displayed.map(post => {
             const bodyText     = post.body || post.caption || post.content || "";
             const authorName   = post.posted_by_name || "Admin";
@@ -69,14 +82,13 @@ export default function MemberAnnouncements() {
                 {/* Header */}
                 <div className="ma-post-header">
                   <div className="ma-post-meta">
-                    {/* ── Fixed avatar — first letter of author name ── */}
                     <div className="ma-post-avatar">{authorName[0].toUpperCase()}</div>
                     <div>
                       <div className="ma-post-author">
                         {authorName}
                         <span className="ma-admin-tag">{authorRole}</span>
                       </div>
-                      <div className="ma-post-time">{post.created_at}</div>
+                      <div className="ma-post-time">{timeAgo(post.created_at)}</div>
                     </div>
                   </div>
                   {post.type && (
@@ -87,21 +99,17 @@ export default function MemberAnnouncements() {
                 {/* Title */}
                 <div className="ma-post-title">{post.title}</div>
 
-                {/* ── Fixed: use post.body not post.content ── */}
+                {/* Body */}
                 {bodyText && (
-                  <div className="ma-post-caption" style={{whiteSpace:"pre-wrap",lineHeight:1.6}}>
+                  <div className="ma-post-caption" style={{whiteSpace:"pre-wrap"}}>
                     {bodyText}
                   </div>
                 )}
 
-                {/* ── Fixed: show image if available ── */}
+                {/* Image */}
                 {post.image_url && (
-                  <div style={{marginTop:10,borderRadius:10,overflow:"hidden"}}>
-                    <img
-                      src={post.image_url}
-                      alt="announcement"
-                      style={{width:"100%",maxHeight:320,objectFit:"cover",borderRadius:10,display:"block"}}
-                    />
+                  <div className="ma-post-image">
+                    <img src={post.image_url} alt="announcement"/>
                   </div>
                 )}
 
@@ -112,29 +120,26 @@ export default function MemberAnnouncements() {
                   </button>
                 </div>
 
-                {/* Comments section */}
+                {/* Comments */}
                 {commPost === post.id && (
                   <div className="ma-comments-section">
                     {!post.comments?.length ? (
-                      <div className="ma-no-comments">No comments yet. Be first!</div>
+                      <div className="ma-no-comments">No comments yet. Be the first!</div>
                     ) : post.comments.map(c => (
                       <div key={c.id} className="ma-comment">
-                        {/* ── Fixed avatar ── */}
                         <div className="ma-comment-avatar">
                           {(c.posted_by_name || c.author || "U")[0].toUpperCase()}
                         </div>
                         <div className="ma-comment-body">
                           <div className="ma-comment-author">
-                            {/* ── Fixed: use posted_by_name not c.author ── */}
                             {c.posted_by_name || c.author}
                             {c.posted_by_role && (
                               <span className="ma-comment-time" style={{marginLeft:6,color:"#aaa",fontSize:10}}>
                                 {c.posted_by_role}
                               </span>
                             )}
-                            <span className="ma-comment-time">{c.created_at}</span>
+                            <span className="ma-comment-time">{timeAgo(c.created_at)}</span>
                           </div>
-                          {/* ── Fixed: use body not c.text ── */}
                           <div className="ma-comment-text">{c.body || c.text}</div>
                         </div>
                       </div>
