@@ -7,7 +7,7 @@ from rest_framework.response import Response
 
 from auth_app.models import User
 from activity_log.utils import log_activity
-from .models import LeafMemberInfo, Member, StudentProfile, SeniorProfile, JobProfile, Savings
+from .models import LeafMemberInfo, Member, StudentProfile, SeniorProfile, JobProfile, Savings, OnlineApplication
 from .serializers import (
     LeafMemberInfoSerializer, LeafMemberInfoListSerializer,
     MemberSerializer, MemberListSerializer,
@@ -78,6 +78,22 @@ def save_sub_profile(member, classification, data):
         )
 
 
+# ── Helper to get username/password for online application ──
+def get_app_credentials(app_id):
+    """Get username and plain_password from leaf_members_info → members."""
+    try:
+        lmi = LeafMemberInfo.objects.select_related('user').get(app_id=app_id)
+        if lmi.user:
+            try:
+                member = Member.objects.get(user=lmi.user)
+                return lmi.user.username, member.plain_password
+            except Member.DoesNotExist:
+                return lmi.user.username, ''
+    except LeafMemberInfo.DoesNotExist:
+        pass
+    return '', ''
+
+
 # ══════════════════════════════════════════════════════════════════
 # APPLICATIONS — leaf_members_info
 # ══════════════════════════════════════════════════════════════════
@@ -90,8 +106,6 @@ def application_list_view(request):
         if request.user.role not in ['admin', 'staff']:
             return Response({'error': 'Unauthorized.'}, status=403)
 
-        # Only show ONLINE applications — exclude F2F walk-in registrations
-        # F2F members have is_f2f=True flag on their LeafMemberInfo
         apps = LeafMemberInfo.objects.filter(is_f2f=False)
         if s := request.query_params.get('status'):
             apps = apps.filter(application_status=s)
@@ -191,9 +205,8 @@ def convert_to_member_view(request, pk):
         user.set_password(plain_pw)
         user.save()
 
-    # Share capital paid × 2 = actual share capital
     paid_amount   = float(request.data.get('share_capital', 0) or 0)
-    share_capital = paid_amount * 2  # ₱4,000 paid → ₱8,000 share capital
+    share_capital = paid_amount * 2
 
     try:
         member = Member.objects.create(
@@ -231,9 +244,7 @@ def convert_to_member_view(request, pk):
 @permission_classes([IsAuthenticated])
 def member_list_view(request):
     if request.method == 'GET':
-        members = Member.objects.select_related(
-            'user', 'pre_member'
-        ).all()
+        members = Member.objects.select_related('user', 'pre_member').all()
         if s := request.query_params.get('status'):
             members = members.filter(membership_status=s)
         if q := request.query_params.get('search', '').strip():
@@ -275,15 +286,14 @@ def member_list_view(request):
             birth_certificate      = data.get('birth_certificate', False),
             marriage_certificate   = data.get('marriage_certificate', False),
             application_status     = 'Approved',
-            is_f2f                 = True,   # Walk-in F2F — exclude from Online Applications
+            is_f2f                 = True,
         )
     except Exception as e:
         user.delete()
         return Response({'error': f'Failed to create info: {str(e)}'}, status=500)
 
-    # Share capital paid × 2 = actual share capital
     paid_amount   = float(data.get('share_capital', 0) or 0)
-    share_capital = paid_amount * 2  # ₱4,000 paid → ₱8,000 share capital
+    share_capital = paid_amount * 2
 
     try:
         member = Member.objects.create(
@@ -370,8 +380,13 @@ def member_detail_view(request, pk):
         member.delete()
         if pre:
             pre.delete()
+        # ── Delete online_applications record too para hindi bumalik sa Pending ──
         if user:
+            OnlineApplication.objects.filter(user=user).delete()
             user.delete()
+        # ── Also delete via pre_member app_id (for NULL user_id cases) ──
+        if pre and pre.app_id:
+            OnlineApplication.objects.filter(app_id=pre.app_id).delete()
         log_activity('member', f'Member deleted: {name} ({mid})', request.user)
         return Response({'message': 'Member deleted.'})
 
@@ -437,7 +452,6 @@ def member_financial_summary_view(request, pk):
     from loans.models import Loan
     from payments.models import Payment
 
-    # ── OPTIMIZATION: prefetch_related para isang query lang ang payments ──
     loans = Loan.objects.filter(member=member).prefetch_related(
         Prefetch(
             'payments',
@@ -448,7 +462,6 @@ def member_financial_summary_view(request, pk):
 
     active_loans = [l for l in loans if l.status in ['Active', 'Overdue']]
 
-    # ── OPTIMIZATION: isang query lang para sa total paid ──
     total_paid = Payment.objects.filter(member=member).aggregate(
         t=Sum('amount')
     )['t'] or 0
@@ -474,7 +487,6 @@ def member_financial_summary_view(request, pk):
                 'monthly_due': float(l.monthly_due),
                 'status':      l.status,
                 'applied_at':  str(l.applied_at)[:10],
-                # ── Uses prefetched payments — NO extra DB query per loan ──
                 'payments': [
                     {
                         'tx_id':       p.tx_id,
@@ -574,3 +586,261 @@ def member_savings_summary_view(request, pk):
         'total_withdraw': float(total_withdraw),
         'transactions':   SavingsSerializer(savings, many=True).data,
     })
+
+
+# ══════════════════════════════════════════════════════════════════
+# ONLINE APPLICATIONS — separate table
+# ══════════════════════════════════════════════════════════════════
+
+@api_view(['GET', 'POST'])
+def online_application_list_view(request):
+    if request.method == 'GET':
+        if not request.user.is_authenticated:
+            return Response({'error': 'Authentication required.'}, status=401)
+        if request.user.role not in ['admin', 'staff']:
+            return Response({'error': 'Unauthorized.'}, status=403)
+
+        apps = OnlineApplication.objects.all()
+        if s := request.query_params.get('status'):
+            apps = apps.filter(application_status=s)
+            # ── For Approved: exclude apps where user is already an official member ──
+            if s == 'Approved':
+                converted_user_ids = Member.objects.values_list('user_id', flat=True)
+                apps = apps.exclude(user_id__in=converted_user_ids)
+        if q := request.query_params.get('search', '').strip():
+            apps = apps.filter(last_name__icontains=q)  | \
+                   apps.filter(first_name__icontains=q)  | \
+                   apps.filter(app_id__icontains=q)
+
+        def get_credentials(a):
+            """Get username/password — use plain_password from online_applications first."""
+            username      = a.user.username if a.user else ''
+            plain_password = a.plain_password or ''  # ── direct from online_applications table
+            # Fallback: if approved and converted, get from members table
+            if not plain_password and a.user:
+                try:
+                    m = Member.objects.get(user=a.user)
+                    plain_password = m.plain_password
+                except Member.DoesNotExist:
+                    pass
+            return username, plain_password
+
+        result = []
+        for a in apps:
+            username, plain_password = get_credentials(a)
+            result.append({
+                'id':                     a.id,
+                'app_id':                 a.app_id,
+                'fullname':               a.fullname,
+                'first_name':             a.first_name,
+                'last_name':              a.last_name,
+                'middle_name':            a.middle_name,
+                'birth_date':             str(a.birth_date) if a.birth_date else '',
+                'civil_status':           a.civil_status,
+                'educational_attainment': a.educational_attainment,
+                'occupation':             a.occupation,
+                'income':                 str(a.income),
+                'contact_number':         a.contact_number,
+                'email':                  a.email,
+                'address':                a.address,
+                'classification':         a.classification,
+                'birth_certificate':      a.birth_certificate,
+                'marriage_certificate':   a.marriage_certificate,
+                'application_status':     a.application_status,
+                'reviewed_at':            str(a.reviewed_at) if a.reviewed_at else '',
+                'reviewed_by':            a.reviewed_by,
+                'reject_reason':          a.reject_reason,
+                'created_at':             str(a.created_at)[:10],
+                'username':               username,
+                'plain_password':         plain_password,
+            })
+
+        return Response(result)
+
+    # POST — submit new online application
+    user = request.user if request.user.is_authenticated else None
+    data = request.data
+
+    if user and OnlineApplication.objects.filter(user=user).exists():
+        existing = OnlineApplication.objects.get(user=user)
+        # ── Allow resubmit only if Rejected ──
+        if existing.application_status == 'Rejected':
+            existing.delete()  # delete rejected app, allow new submission
+        else:
+            return Response({'error': 'You already have a pending application.'}, status=400)
+
+    try:
+        app = OnlineApplication.objects.create(
+            user                   = user,
+            first_name             = data.get('first_name', ''),
+            last_name              = data.get('last_name', ''),
+            middle_name            = data.get('middle_name', ''),
+            birth_date             = data.get('birth_date') or None,
+            civil_status           = data.get('civil_status', 'Single'),
+            educational_attainment = data.get('educational_attainment', ''),
+            occupation             = data.get('occupation', ''),
+            income                 = data.get('income', 0) or 0,
+            contact_number         = data.get('contact_number', ''),
+            email                  = data.get('email', ''),
+            address                = data.get('address', ''),
+            classification         = data.get('classification', 'Employed'),
+            birth_certificate      = data.get('birth_certificate', False),
+            marriage_certificate   = data.get('marriage_certificate', False),
+        )
+        log_activity('application', f'New online application: {app.fullname} ({app.app_id})', user)
+        return Response({'app_id': app.app_id, 'message': 'Application submitted.'}, status=201)
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def online_application_detail_view(request, pk):
+    try:
+        app = OnlineApplication.objects.get(pk=pk)
+    except OnlineApplication.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=404)
+
+    if request.method == 'GET':
+        # ── Get credentials ──
+        username       = app.user.username if app.user else ''
+        plain_password = app.plain_password or ''  # ── direct from online_applications
+        if not plain_password and app.user:
+            try:
+                m = Member.objects.get(user=app.user)
+                plain_password = m.plain_password
+            except Member.DoesNotExist:
+                pass
+
+        return Response({
+            'id':                     app.id,
+            'app_id':                 app.app_id,
+            'fullname':               app.fullname,
+            'first_name':             app.first_name,
+            'last_name':              app.last_name,
+            'middle_name':            app.middle_name,
+            'birth_date':             str(app.birth_date) if app.birth_date else '',
+            'civil_status':           app.civil_status,
+            'educational_attainment': app.educational_attainment,
+            'occupation':             app.occupation,
+            'income':                 str(app.income),
+            'contact_number':         app.contact_number,
+            'email':                  app.email,
+            'address':                app.address,
+            'classification':         app.classification,
+            'birth_certificate':      app.birth_certificate,
+            'marriage_certificate':   app.marriage_certificate,
+            'application_status':     app.application_status,
+            'reviewed_at':            str(app.reviewed_at) if app.reviewed_at else '',
+            'reviewed_by':            app.reviewed_by,
+            'reject_reason':          app.reject_reason,
+            'created_at':             str(app.created_at)[:10],
+            'username':               username,
+            'plain_password':         plain_password,
+        })
+
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    new_status = request.data.get('status') or request.data.get('application_status')
+    if new_status in ['Approved', 'Rejected']:
+        app.application_status = new_status
+        app.reviewed_at        = timezone.now()
+        app.reviewed_by        = request.user.username
+        if new_status == 'Rejected':
+            app.reject_reason = request.data.get('reject_reason', '')
+        app.save()
+        log_activity('application',
+            f'Online application {app.app_id} ({app.fullname}) {new_status.lower()} by {request.user.name}',
+            request.user)
+    return Response({'application_status': app.application_status})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def convert_online_application_view(request, pk):
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    try:
+        online_app = OnlineApplication.objects.get(pk=pk)
+    except OnlineApplication.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=404)
+
+    if online_app.application_status != 'Approved':
+        return Response({'error': 'Application must be Approved first.'}, status=400)
+
+    if online_app.user and Member.objects.filter(user=online_app.user).exists():
+        existing = Member.objects.get(user=online_app.user)
+        return Response({'error': 'Already converted.', 'member_id': existing.member_id}, status=400)
+
+    user     = online_app.user
+    plain_pw = gen_password()
+
+    user.role = 'member'
+    user.set_password(plain_pw)
+    user.save()
+
+    info = LeafMemberInfo.objects.create(
+        user                   = user,
+        first_name             = online_app.first_name,
+        last_name              = online_app.last_name,
+        middle_name            = online_app.middle_name,
+        birth_date             = online_app.birth_date,
+        civil_status           = online_app.civil_status,
+        educational_attainment = online_app.educational_attainment,
+        occupation             = online_app.occupation,
+        income                 = online_app.income,
+        contact_number         = online_app.contact_number,
+        email                  = online_app.email,
+        address                = online_app.address,
+        classification         = online_app.classification,
+        birth_certificate      = online_app.birth_certificate,
+        marriage_certificate   = online_app.marriage_certificate,
+        application_status     = 'Approved',
+        reviewed_by            = request.user.username,
+        reviewed_at            = timezone.now(),
+        is_f2f                 = False,
+    )
+
+    # ── Fixed: ₱4,000 paid → ₱8,000 share capital ──
+    paid_amount   = float(request.data.get('share_capital', 4000) or 4000)
+    share_capital = paid_amount * 2  # default ₱4,000 × 2 = ₱8,000
+
+    member = Member.objects.create(
+        user              = user,
+        pre_member        = info,
+        membership_status = 'Active',
+        plain_password    = plain_pw,
+        share_capital     = share_capital,
+    )
+
+    save_sub_profile(member, online_app.classification, request.data)
+
+    # ── Hindi na nadi-delete — nananatili sa online_applications as Approved ──
+
+    log_activity('member',
+        f'Online applicant converted: {member.fullname} ({member.member_id})',
+        request.user)
+
+    return Response({
+        'message':    f'{member.fullname} is now an official member!',
+        'member_id':  member.member_id,
+        'username':   user.username,
+        'password':   plain_pw,
+    }, status=201)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_online_application_view(request):
+    try:
+        app = OnlineApplication.objects.get(user=request.user)
+        return Response({
+            'app_id':             app.app_id,
+            'application_status': app.application_status,
+            'reject_reason':      app.reject_reason,
+            'created_at':         str(app.created_at)[:10],
+        })
+    except OnlineApplication.DoesNotExist:
+        return Response({'error': 'No application found.'}, status=404)

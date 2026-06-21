@@ -546,7 +546,8 @@ def build_report_data(report_type, date_from_str, date_to_str):
         }
 
     elif report_type == 'Member Report':
-        members = Member.objects.filter(membership_date__gte=df, membership_date__lte=dt)
+        # ── Show ALL members regardless of date range for complete report ──
+        members = Member.objects.all()
         rows    = []
         for m in members.order_by('member_id'):
             pm = getattr(m, 'pre_member', None)

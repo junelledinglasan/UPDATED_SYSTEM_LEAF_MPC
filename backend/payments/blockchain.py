@@ -118,6 +118,12 @@ def generate_payment_hash(tx_id: str, member_id: str, loan_id: str, amount) -> s
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+# ── Hash individual fields para hindi obvious sa Polygonscan decoder ──────────
+def hash_field(value: str) -> str:
+    """SHA-256 hash ng isang field — para hindi readable sa blockchain decoder."""
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
 # ─── Record payment on Polygon ────────────────────────────────────────────────
 def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amount) -> dict:
     local_hash = generate_payment_hash(tx_id, member_id, loan_id, amount)
@@ -141,12 +147,17 @@ def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amoun
         wallet_addr   = Web3.to_checksum_address(config['wallet_addr'])
         contract      = w3.eth.contract(address=contract_addr, abi=PAYMENT_ABI)
 
-        amount_int = int(Decimal(str(amount)) * 100)
+        amount_int = int(Decimal(str(amount)))  # ── Store exact amount, no cents conversion
         nonce      = w3.eth.get_transaction_count(wallet_addr)
         gas_price  = w3.eth.gas_price
 
+        # ── Hash memberId and loanId para hindi obvious sa Polygonscan ──
+        hashed_member_id = hash_field(member_id)
+        hashed_loan_id   = hash_field(loan_id)
+        hashed_tx_id     = hash_field(tx_id)
+
         tx = contract.functions.recordPayment(
-            tx_id, member_id, loan_id, amount_int, local_hash,
+            hashed_tx_id, hashed_member_id, hashed_loan_id, amount_int, local_hash,
         ).build_transaction({
             'chainId':  config['chain_id'],
             'gas':      500000,
@@ -191,12 +202,6 @@ def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amoun
 
 # ─── Verify payment integrity (on-chain vs off-chain) ────────────────────────
 def verify_payment_integrity(tx_id: str, member_id: str, loan_id: str, amount) -> dict:
-    """
-    Verify kung hindi na-tamper ang payment data.
-    1. Re-hash ang local data
-    2. Kunin ang hash sa blockchain
-    3. Icompare — MATCH = verified, NO MATCH = tampered!
-    """
     local_hash = generate_payment_hash(tx_id, member_id, loan_id, amount)
     w3         = get_web3()
     config     = get_config()
@@ -213,7 +218,9 @@ def verify_payment_integrity(tx_id: str, member_id: str, loan_id: str, amount) -
             address=Web3.to_checksum_address(config['contract_addr']),
             abi=PAYMENT_ABI,
         )
-        on_chain     = contract.functions.getPayment(tx_id).call()
+        # ── Use hashed tx_id to match what was stored ──
+        hashed_tx_id = hash_field(tx_id)
+        on_chain     = contract.functions.getPayment(hashed_tx_id).call()
         on_chain_hash = on_chain[4]  # dataHash field
 
         match = (local_hash == on_chain_hash)

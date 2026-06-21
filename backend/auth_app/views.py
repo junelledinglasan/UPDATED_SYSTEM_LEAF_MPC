@@ -57,8 +57,16 @@ def register_view(request):
         username=username,
         password=password,
         name=full_name,
-        role='user',  # ── FIX: 'user' not 'member' — not yet an official member
+        role='user',
     )
+
+    # ── Save plain password sa OnlineApplication para makita ng admin ──
+    try:
+        from members.models import OnlineApplication
+        OnlineApplication.objects.filter(user=user).update(plain_password=password)
+    except Exception:
+        pass
+
     log_activity('application', f'New account created: @{user.username} ({full_name})', user)
     return Response({'message': 'Account created successfully.'}, status=201)
 
@@ -188,6 +196,6 @@ def change_password_view(request):
         return Response({'detail': 'Current password is incorrect.'}, status=400)
     if len(new_pw) < 6:
         return Response({'detail': 'New password must be at least 6 characters.'}, status=400)
-    user.set_password(new_pw)
+    user.password = new_pw  # ── Store plain text ──
     user.save()
     return Response({'message': 'Password changed successfully.'})
