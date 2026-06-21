@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { getMyProfileAPI, getMyApplicationAPI, updateMemberAPI } from "../../api/members";
+import { getMyProfileAPI, getMyApplicationAPI, getMyOnlineAppAPI, updateMemberAPI } from "../../api/members";
 import api from "../../api/axiosInstance";
 import "./MemberProfile.css";
 
@@ -52,10 +52,16 @@ export default function MemberProfile() {
           occupation:     pm.occupation     || "",
         });
       } catch {
+        // ── Not official member — check online application ──
         try {
-          const app = await getMyApplicationAPI();
+          const app = await getMyOnlineAppAPI();
           setApplication(app);
-        } catch {}
+        } catch {
+          try {
+            const app = await getMyApplicationAPI();
+            setApplication(app);
+          } catch {}
+        }
       } finally { setLoading(false); }
     };
     load();
@@ -121,7 +127,7 @@ export default function MemberProfile() {
             <div>
               <div className="mp-header-name">{user?.name || "Member"}</div>
               <div className="mp-header-id">@{user?.username || "—"}</div>
-              <div className="mp-header-since">Not yet an official member</div>
+              <div className="mp-header-since" style={{color:"#f57c00",fontWeight:600}}>⏳ Pending Membership</div>
             </div>
           </div>
         </div>
@@ -158,10 +164,27 @@ export default function MemberProfile() {
           )}
         </div>
         <div className="mp-card">
-          <div className="mp-card-title">Account Information</div>
+          <div className="mp-card-title">Personal Information</div>
           <div className="mp-info-grid">
-            <div className="mp-info-item"><span className="mp-info-key">Username</span><span className="mp-info-val">{user?.username}</span></div>
-            <div className="mp-info-item"><span className="mp-info-key">Role</span><span className="mp-info-val">Member (Non-official)</span></div>
+            {application?.last_name ? (
+              <>
+                <div className="mp-info-item"><span className="mp-info-key">Last Name</span><span className="mp-info-val">{application.last_name || "—"}</span></div>
+                <div className="mp-info-item"><span className="mp-info-key">First Name</span><span className="mp-info-val">{application.first_name || "—"}</span></div>
+                <div className="mp-info-item"><span className="mp-info-key">Middle Name</span><span className="mp-info-val">{application.middle_name || "—"}</span></div>
+                <div className="mp-info-item"><span className="mp-info-key">Birthdate</span><span className="mp-info-val">{application.birth_date || "—"}</span></div>
+                <div className="mp-info-item"><span className="mp-info-key">Civil Status</span><span className="mp-info-val">{application.civil_status || "—"}</span></div>
+                <div className="mp-info-item"><span className="mp-info-key">Classification</span><span className="mp-info-val">{application.classification || "—"}</span></div>
+                <div className="mp-info-item"><span className="mp-info-key">Educ. Attainment</span><span className="mp-info-val">{application.educational_attainment || "—"}</span></div>
+                <div className="mp-info-item"><span className="mp-info-key">Occupation</span><span className="mp-info-val">{application.occupation || "—"}</span></div>
+                <div className="mp-info-item"><span className="mp-info-key">Contact No.</span><span className="mp-info-val">{application.contact_number || "—"}</span></div>
+                <div className="mp-info-item"><span className="mp-info-key">Email</span><span className="mp-info-val">{application.email || "—"}</span></div>
+                <div className="mp-info-item mp-full"><span className="mp-info-key">Address</span><span className="mp-info-val">{application.address || "—"}</span></div>
+              </>
+            ) : (
+              <div className="mp-info-item"><span className="mp-info-key">Full Name</span><span className="mp-info-val">{user?.name || "—"}</span></div>
+            )}
+            <div className="mp-info-item"><span className="mp-info-key">Username</span><span className="mp-info-val">@{user?.username || "—"}</span></div>
+            <div className="mp-info-item"><span className="mp-info-key">Status</span><span className="mp-info-val" style={{color:"#f57c00",fontWeight:600}}>Pending Official Membership</span></div>
           </div>
         </div>
       </div>

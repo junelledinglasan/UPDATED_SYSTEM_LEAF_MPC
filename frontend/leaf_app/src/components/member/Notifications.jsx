@@ -6,7 +6,8 @@ import {
 } from "lucide-react";
 import { getAnnouncementsAPI } from "../../api/announcements";
 import { getLoansAPI } from "../../api/loans";
-import { getMyApplicationAPI } from "../../api/members";
+import { getMyApplicationAPI, getMyOnlineAppAPI } from "../../api/members";
+import { useAuth } from "../../context/AuthContext";
 import "./Notifications.css";
 
 const TYPE_META = {
@@ -83,6 +84,8 @@ export default function Notifications() {
   const ctx      = useOutletContext() || {};
   const { setNotif } = ctx;
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isUser = user?.role === 'user'; // ── not yet official member
 
   const [notifs,   setNotifs]   = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -96,9 +99,9 @@ export default function Notifications() {
       try {
         const built = [];
 
-        // Membership status
+        // Membership status — use online app API for user role
         try {
-          const app = await getMyApplicationAPI();
+          const app = isUser ? await getMyOnlineAppAPI() : await getMyApplicationAPI();
           if (app?.application_status === "Approved") {
             built.push({ id:"membership-approved", type:"membership",
               title:"Membership Application Approved!",
@@ -119,17 +122,19 @@ export default function Notifications() {
           }
         } catch {}
 
-        // ── FIXED: use a.body instead of a.content ──
-        const anns = await getAnnouncementsAPI().catch(() => []);
-        anns.forEach(a => built.push({
-          id:`ann-${a.id}`, type:"notice", title:a.title,
-          msg:a.body || a.caption || a.content || "No content available.",
-          time:timeAgo(a.created_at||a.posted_at), date:a.created_at||a.posted_at,
-          read:false, route:"/member/announcements", actionLabel:"View Announcement",
-        }));
+        // ── Announcements — always fetch ──
+        try {
+          const anns = await getAnnouncementsAPI();
+          anns.forEach(a => built.push({
+            id:`ann-${a.id}`, type:"notice", title:a.title,
+            msg:a.body || a.caption || a.content || "No content available.",
+            time:timeAgo(a.created_at||a.posted_at), date:a.created_at||a.posted_at,
+            read:false, route:"/member/announcements", actionLabel:"View Announcement",
+          }));
+        } catch(e) { console.error("Announcements fetch error:", e); }
 
-        // Loans
-        const loans = await getLoansAPI().catch(() => []);
+        // ── Skip loans for non-official members (role='user') ──
+        const loans = isUser ? [] : await getLoansAPI().catch(() => []);
         loans.filter(l => l.status==="Overdue").forEach(l => built.push({
           id:`overdue-${l.id}`, type:"overdue",
           title:`Overdue Payment — ${l.loan_id}`,
@@ -152,7 +157,12 @@ export default function Notifications() {
           read:true, route:"/member/my-loans", actionLabel:"View Loan Details",
         }));
 
-        built.sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+        // ── Sort: unread first, then by date ──
+        built.sort((a,b) => {
+          if (!a.read && b.read) return -1;
+          if (a.read && !b.read) return 1;
+          return new Date(b.date||0) - new Date(a.date||0);
+        });
         const currentReadIds = getReadIds();
         const withRead = built.map(n => ({ ...n, read: n.read || currentReadIds.has(n.id) }));
         setNotifs(withRead);
@@ -161,7 +171,7 @@ export default function Notifications() {
       finally { setLoading(false); }
     };
     build();
-  }, []);
+  }, [isUser]);
 
   const unreadCount = notifs.filter(n => !n.read).length;
 

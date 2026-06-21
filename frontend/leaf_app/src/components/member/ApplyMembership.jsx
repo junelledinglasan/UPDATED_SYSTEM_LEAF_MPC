@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { submitApplicationAPI } from "../../api/members";
+import { submitApplicationAPI, getMyOnlineAppAPI } from "../../api/members";
 import { GraduationCap, UserRound, BriefcaseBusiness } from "lucide-react";
 import "./ApplyMembership.css";
 
-// ─── FormField OUTSIDE component — prevents re-mount on every keystroke ────
 function FormField({ name, label, type="text", options=null, required=false, full=false, value, onChange, error }) {
   return (
     <div className={`am-field ${full ? "am-full" : ""}`}>
@@ -40,10 +39,13 @@ export default function ApplyMembership() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [tab,     setTab]    = useState("personal");
-  const [errors,  setErrors] = useState({});
-  const [done,    setDone]   = useState(false);
-  const [loading, setLoading]= useState(false);
+  const [tab,         setTab]        = useState("personal");
+  const [errors,      setErrors]     = useState({});
+  const [done,        setDone]       = useState(false);
+  const [loading,     setLoading]    = useState(false);
+  const [existingApp, setExistingApp]= useState(null);
+  const [checkingApp, setCheckingApp]= useState(true);
+  const [resubmit,    setResubmit]   = useState(false);
 
   const [form, setForm] = useState({
     first_name:             user?.name?.split(" ")[0] || "",
@@ -67,6 +69,14 @@ export default function ApplyMembership() {
     job_type:        "Employed",
     monthly_income:  "",
   });
+
+  // ── Check if user already has an application ──────────────────────────────
+  useEffect(() => {
+    getMyOnlineAppAPI()
+      .then(app => setExistingApp(app))
+      .catch(() => setExistingApp(null))
+      .finally(() => setCheckingApp(false));
+  }, []);
 
   const handle = e => {
     const val = e.target.type === "checkbox" ? e.target.checked : e.target.value;
@@ -124,7 +134,7 @@ export default function ApplyMembership() {
       });
       setDone(true);
     } catch(err) {
-      const msg = err.response?.data?.detail || "Failed to submit. Please try again.";
+      const msg = err.response?.data?.error || err.response?.data?.detail || "Failed to submit. Please try again.";
       setErrors({ first_name: msg });
       setTab("personal");
     } finally { setLoading(false); }
@@ -135,6 +145,7 @@ export default function ApplyMembership() {
     { key: "classification", label: "📋 Classification" },
   ];
 
+  // ── Success screen ─────────────────────────────────────────────────────────
   if (done) return (
     <div className="am-wrap">
       <div className="am-success-card">
@@ -152,25 +163,105 @@ export default function ApplyMembership() {
           </div>
         </div>
         <div className="am-success-actions">
-          <button className="am-btn-primary" onClick={() => navigate("/member/notifications")}>
-            Go to Notifications
-          </button>
-          <button className="am-btn-secondary" onClick={() => navigate("/member/profile")}>
-            View My Profile
-          </button>
+          <button className="am-btn-primary" onClick={() => navigate("/member/notifications")}>Go to Notifications</button>
+          <button className="am-btn-secondary" onClick={() => navigate("/member/profile")}>View My Profile</button>
         </div>
       </div>
     </div>
   );
 
+  // ── Loading check ──────────────────────────────────────────────────────────
+  if (checkingApp) return (
+    <div className="am-wrap">
+      <div className="am-card" style={{textAlign:"center",padding:"60px 20px",color:"#aaa"}}>
+        Checking application status...
+      </div>
+    </div>
+  );
+
+  // ── Existing application guard ─────────────────────────────────────────────
+  if (existingApp && !resubmit) {
+    const status = existingApp.application_status;
+    const isPending  = status === "Pending";
+    const isApproved = status === "Approved";
+    const isRejected = status === "Rejected";
+
+    return (
+      <div className="am-wrap">
+        <div className="am-card">
+          <div className="am-card-header">
+            <div className="am-title">Membership Application</div>
+          </div>
+          <div style={{padding:"24px 28px",display:"flex",flexDirection:"column",gap:20}}>
+
+            {/* Status display */}
+            <div style={{
+              display:"flex", alignItems:"center", gap:16, padding:"20px",
+              borderRadius:12, border:"1.5px solid",
+              background: isPending?"#fff8e1":isApproved?"#e8f5e9":"#ffebee",
+              borderColor: isPending?"#ffe082":isApproved?"#a5d6a7":"#ef9a9a",
+            }}>
+              <div style={{fontSize:40}}>{isPending?"⏳":isApproved?"✅":"❌"}</div>
+              <div>
+                <div style={{fontWeight:700,fontSize:16,color:isPending?"#f57c00":isApproved?"#1b5e20":"#c62828"}}>
+                  {isPending?"Application Under Review":isApproved?"Application Approved!":"Application Rejected"}
+                </div>
+                <div style={{fontSize:12,color:"#888",marginTop:4}}>
+                  Application ID: <strong>{existingApp.app_id}</strong> · Submitted {existingApp.created_at?.slice(0,10)}
+                </div>
+                {isRejected && existingApp.reject_reason && (
+                  <div style={{marginTop:8,fontSize:12,color:"#c62828",fontStyle:"italic"}}>
+                    Reason: {existingApp.reject_reason}
+                  </div>
+                )}
+                {isPending && (
+                  <div style={{marginTop:8,fontSize:12,color:"#555"}}>
+                    Please wait for the admin to review your application.
+                  </div>
+                )}
+                {isApproved && (
+                  <div style={{marginTop:8,fontSize:12,color:"#555"}}>
+                    Please visit the LEAF MPC office to complete the process.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+              <button className="am-btn-secondary" onClick={() => navigate("/member/profile")}>
+                View My Profile
+              </button>
+              {isRejected && (
+                <button className="am-btn-primary" onClick={() => setResubmit(true)}>
+                  Re-apply for Membership
+                </button>
+              )}
+            </div>
+
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Application form ───────────────────────────────────────────────────────
   return (
     <div className="am-wrap">
       <div className="am-card">
 
         <div className="am-card-header">
-          <div className="am-title">Apply for Official Membership</div>
+          <div className="am-title">
+            {resubmit ? "Re-apply for Membership" : "Apply for Official Membership"}
+          </div>
           <div className="am-sub">Fill out the form below. Your application will be sent to the admin for review.</div>
         </div>
+
+        {resubmit && (
+          <div style={{margin:"0 28px",padding:"10px 14px",background:"#fff8e1",border:"1px solid #ffe082",borderRadius:8,fontSize:12,color:"#f57c00",fontWeight:600}}>
+            ⚠ You are re-applying after a previous rejection. Make sure to correct the issues before submitting.
+          </div>
+        )}
 
         <div className="am-info-notice">
           <div className="am-notice-icon">ℹ️</div>
@@ -189,8 +280,6 @@ export default function ApplyMembership() {
         </div>
 
         <div className="am-form-body">
-
-          {/* ── Personal Info ── */}
           {tab === "personal" && (
             <div className="am-form-grid">
               <FormField name="last_name"              label="Last Name"              required value={form.last_name}              onChange={handle} error={errors.last_name}/>
@@ -221,16 +310,13 @@ export default function ApplyMembership() {
             </div>
           )}
 
-          {/* ── Classification ── */}
           {tab === "classification" && (
             <div className="am-form-grid">
               <div className="am-field am-full">
                 <label className="am-label">Member Classification <span className="am-req">*</span></label>
                 <div className="am-class-options">
                   {CLASS_OPTIONS.map(c => (
-                    <div
-                      key={c.key}
-                      className={`am-class-card ${form.classification === c.key ? "selected" : ""}`}
+                    <div key={c.key} className={`am-class-card ${form.classification === c.key ? "selected" : ""}`}
                       onClick={() => setForm(p => ({ ...p, classification: c.key }))}>
                       <div className="am-class-icon">{c.icon}</div>
                       <div className="am-class-name">{c.label}</div>
@@ -238,37 +324,27 @@ export default function ApplyMembership() {
                   ))}
                 </div>
               </div>
-
-              {form.classification === "Student" && (
-                <>
-                  <FormField name="school_name" label="School Name"  required value={form.school_name} onChange={handle} error={errors.school_name}/>
-                  <FormField name="year_level"  label="Year Level"   required value={form.year_level}  onChange={handle} error={errors.year_level}
-                    options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]}/>
-                  <FormField name="allowance"   label="Monthly Allowance (₱)" type="number" value={form.allowance} onChange={handle}/>
-                </>
-              )}
-
-              {form.classification === "Senior" && (
-                <>
-                  <FormField name="educational_attainment" label="Educational Attainment"
-                    options={["Elementary","High School","Vocational","College","Post Graduate"]}
-                    value={form.educational_attainment} onChange={handle}/>
-                  <FormField name="pension_income" label="Monthly Pension Income (₱)" type="number" value={form.pension_income} onChange={handle}/>
-                </>
-              )}
-
-              {form.classification === "Employed" && (
-                <>
-                  <FormField name="occupation"     label="Occupation/Job Title" value={form.occupation}     onChange={handle}/>
-                  <FormField name="job_type"       label="Employment Type"
-                    options={["Employed","Self-Employed","Business","Freelance","Other"]}
-                    value={form.job_type} onChange={handle}/>
-                  <FormField name="monthly_income" label="Monthly Income (₱)"   type="number" value={form.monthly_income} onChange={handle}/>
-                </>
-              )}
+              {form.classification === "Student" && (<>
+                <FormField name="school_name" label="School Name"  required value={form.school_name} onChange={handle} error={errors.school_name}/>
+                <FormField name="year_level"  label="Year Level"   required value={form.year_level}  onChange={handle} error={errors.year_level}
+                  options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]}/>
+                <FormField name="allowance"   label="Monthly Allowance (₱)" type="number" value={form.allowance} onChange={handle}/>
+              </>)}
+              {form.classification === "Senior" && (<>
+                <FormField name="educational_attainment" label="Educational Attainment"
+                  options={["Elementary","High School","Vocational","College","Post Graduate"]}
+                  value={form.educational_attainment} onChange={handle}/>
+                <FormField name="pension_income" label="Monthly Pension Income (₱)" type="number" value={form.pension_income} onChange={handle}/>
+              </>)}
+              {form.classification === "Employed" && (<>
+                <FormField name="occupation"     label="Occupation/Job Title" value={form.occupation}     onChange={handle}/>
+                <FormField name="job_type"       label="Employment Type"
+                  options={["Employed","Self-Employed","Business","Freelance","Other"]}
+                  value={form.job_type} onChange={handle}/>
+                <FormField name="monthly_income" label="Monthly Income (₱)"   type="number" value={form.monthly_income} onChange={handle}/>
+              </>)}
             </div>
           )}
-
         </div>
 
         <div className="am-form-footer">
@@ -285,12 +361,8 @@ export default function ApplyMembership() {
                 setTab(keys[keys.indexOf(tab) + 1]);
               }}>Next →</button>
             ) : (
-              <button
-                className={`am-btn-submit ${loading ? "loading" : ""}`}
-                onClick={handleSubmit}
-                disabled={loading}
-              >
-                {loading ? <span className="am-spinner" /> : "Submit Application"}
+              <button className={`am-btn-submit ${loading ? "loading" : ""}`} onClick={handleSubmit} disabled={loading}>
+                {loading ? <span className="am-spinner" /> : resubmit ? "Re-submit Application" : "Submit Application"}
               </button>
             )}
           </div>

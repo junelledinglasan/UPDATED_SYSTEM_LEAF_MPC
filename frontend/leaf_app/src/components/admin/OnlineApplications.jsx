@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { getApplicationsAPI, getApplicationAPI, updateApplicationStatusAPI } from "../../api/members";
-import { Search, ClipboardList, Clock, CheckCircle, XCircle } from "lucide-react";
+import { getOnlineApplicationsAPI, getOnlineApplicationAPI, updateOnlineAppStatusAPI } from "../../api/members";
+import { Search } from "lucide-react";
 import "./OnlineApplications.css";
 
 const STATUS_TABS   = ["All", "Pending", "Approved", "Rejected"];
@@ -21,13 +21,8 @@ function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) 
 
   const handleReject = () => {
     if (!reason.trim()) return;
-    const id = app.id || app.app_id;
-    onReject(id, reason);
+    onReject(app.id, reason);
   };
-
-  // Backend uses snake_case — map to display
-  const subAt = app.created_at?.slice(0,10) || "";
-  const appId = app.app_id || app.id || "";
 
   const InfoRow = ({ label, value, mono=false, full=false }) => (
     <div className={`oa-info-item${full?" oa-full":""}`}>
@@ -39,11 +34,10 @@ function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) 
   return (
     <div className="oa-modal-overlay" onClick={onClose}>
       <div className="oa-modal-box oa-modal-lg" onClick={e => e.stopPropagation()}>
-
         <div className="oa-modal-header">
           <div>
             <div className="oa-modal-title">Membership Application</div>
-            <div className="oa-modal-sub">{appId} · Submitted {subAt}</div>
+            <div className="oa-modal-sub">{app.app_id} · Submitted {app.created_at?.slice(0,10)}</div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <span className={`oa-badge ${STATUS_COLOR[status] || ""}`}>{status}</span>
@@ -52,58 +46,70 @@ function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) 
         </div>
 
         <div className="oa-modal-body">
-          {loadingDetails && (
+          {loadingDetails ? (
             <div style={{textAlign:"center",padding:"32px 0",color:"#aaa"}}>
               <div style={{fontSize:24,marginBottom:8}}>⏳</div>
               Loading full application details...
             </div>
-          )}
-          {!loadingDetails && <>
-          <div className="oa-section">
-            <div className="oa-section-title">Personal Information</div>
-            <div className="oa-info-grid">
-              <InfoRow label="Last Name"              value={app.last_name} />
-              <InfoRow label="First Name"             value={app.first_name} />
-              <InfoRow label="Middle Name"            value={app.middle_name} />
-              <InfoRow label="Birthdate"              value={app.birth_date} />
-              <InfoRow label="Civil Status"           value={app.civil_status} />
-              <InfoRow label="Educational Attainment" value={app.educational_attainment} />
-              <InfoRow label="Classification"         value={app.classification} />
-              <InfoRow label="Occupation"             value={app.occupation} />
-              <InfoRow label="Monthly Income"         value={app.income && app.income != "0.00" ? `₱${Number(app.income).toLocaleString()}` : "—"} />
-              <InfoRow label="Contact No."            value={app.contact_number} mono />
-              <InfoRow label="Email"                  value={app.email} mono />
-              <InfoRow label="Address"                value={app.address} full />
-              <InfoRow label="Birth Certificate"      value={app.birth_certificate ? "✅ Submitted" : "❌ Not submitted"} />
-              <InfoRow label="Marriage Certificate"   value={app.marriage_certificate ? "✅ Submitted" : "❌ Not submitted"} />
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="oa-section">
+                <div className="oa-section-title">Personal Information</div>
+                <div className="oa-info-grid">
+                  <InfoRow label="Last Name"              value={app.last_name} />
+                  <InfoRow label="First Name"             value={app.first_name} />
+                  <InfoRow label="Middle Name"            value={app.middle_name} />
+                  <InfoRow label="Birthdate"              value={app.birth_date} />
+                  <InfoRow label="Civil Status"           value={app.civil_status} />
+                  <InfoRow label="Classification"         value={app.classification} />
+                  <InfoRow label="Educational Attainment" value={app.educational_attainment} />
+                  <InfoRow label="Occupation"             value={app.occupation} />
+                  <InfoRow label="Monthly Income"         value={app.income && app.income !== "0.00" ? `₱${Number(app.income).toLocaleString()}` : "—"} />
+                  <InfoRow label="Contact No."            value={app.contact_number} mono />
+                  <InfoRow label="Email"                  value={app.email} mono />
+                  <InfoRow label="Address"                value={app.address} full />
+                  <InfoRow label="Birth Certificate"      value={app.birth_certificate ? "✅ Submitted" : "❌ Not submitted"} />
+                  <InfoRow label="Marriage Certificate"   value={app.marriage_certificate ? "✅ Submitted" : "❌ Not submitted"} />
+                </div>
+              </div>
 
-          {rejectMode && (
-            <div className="oa-section">
-              <div className="oa-section-title reject-title-text">✗ Reason for Rejection</div>
-              <textarea
-                className="oa-textarea"
-                placeholder="e.g. Incomplete requirements, applicant is underage..."
-                value={reason}
-                onChange={e => setReason(e.target.value)}
-                rows={3}
-                autoFocus
-              />
-            </div>
-          )}
+              {/* ── Account Credentials ── */}
+              {(app.username || app.plain_password) && (
+                <div className="oa-section">
+                  <div className="oa-section-title">🔐 Account Credentials</div>
+                  <div className="oa-info-grid">
+                    <InfoRow label="Username" value={app.username} mono />
+                    <InfoRow label="Password"  value={app.plain_password} mono />
+                  </div>
+                </div>
+              )}
 
-          {status === "Approved" && (
-            <div className="oa-notice oa-notice-approved">
-              ✓ This application has been <strong>approved</strong>.
-            </div>
+              {status === "Rejected" && app.reject_reason && (
+                <div className="oa-notice oa-notice-rejected">
+                  ✗ Rejected: <strong>{app.reject_reason}</strong>
+                </div>
+              )}
+              {status === "Approved" && (
+                <div className="oa-notice oa-notice-approved">
+                  ✓ This application has been <strong>approved</strong>.
+                </div>
+              )}
+
+              {rejectMode && (
+                <div className="oa-section">
+                  <div className="oa-section-title reject-title-text">✗ Reason for Rejection</div>
+                  <textarea
+                    className="oa-textarea"
+                    placeholder="e.g. Incomplete requirements, applicant is underage..."
+                    value={reason}
+                    onChange={e => setReason(e.target.value)}
+                    rows={3}
+                    autoFocus
+                  />
+                </div>
+              )}
+            </>
           )}
-          {status === "Rejected" && (
-            <div className="oa-notice oa-notice-rejected">
-              ✗ This application has been <strong>rejected</strong>.
-            </div>
-          )}
-          </>}
         </div>
 
         <div className="oa-modal-footer">
@@ -113,7 +119,7 @@ function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) 
               {status === "Pending" && (
                 <>
                   <button className="oa-btn-reject-soft" onClick={() => setRejectMode(true)}>✗ Reject</button>
-                  <button className="oa-btn-approve" onClick={() => onApprove(app.id || app.app_id)}>✓ Approve & Notify Member</button>
+                  <button className="oa-btn-approve" onClick={() => onApprove(app.id)}>✓ Approve</button>
                 </>
               )}
             </>
@@ -140,15 +146,23 @@ export default function OnlineApplications() {
   const [fullAppData,  setFullAppData] = useState(null);
   const [loadingApp,   setLoadingApp]  = useState(false);
   const [toast,        setToast]       = useState(null);
+  const [approvedCount, setApprovedCount] = useState(0);
+  const [totalCount,    setTotalCount]    = useState(0);
 
-  // ─── Fetch from real API ──────────────────────────────────────────────────
   const fetchApps = async () => {
     setLoading(true);
     try {
-      const data = await getApplicationsAPI();
-      setApps(data);
+      const res = await getOnlineApplicationsAPI();
+      // ── Handle new response format with counts ──
+      if (res.applications) {
+        setApps(res.applications);
+        setApprovedCount(res.approved_count || 0);
+        setTotalCount(res.total_count || 0);
+      } else {
+        setApps(res); // fallback
+      }
     } catch (err) {
-      console.error("Failed to fetch applications:", err);
+      console.error("Failed to fetch online applications:", err);
     } finally {
       setLoading(false);
     }
@@ -156,17 +170,15 @@ export default function OnlineApplications() {
 
   useEffect(() => { fetchApps(); }, []);
 
-  // Fetch full app details when a row is clicked
   const handleViewApp = async (app) => {
     setViewApp(app);
     setFullAppData(null);
     setLoadingApp(true);
     try {
-      const full = await getApplicationAPI(app.id);
+      const full = await getOnlineApplicationAPI(app.id);
       setFullAppData(full);
     } catch(e) {
-      console.error("Failed to fetch app details:", e);
-      setFullAppData(app); // fallback to list data
+      setFullAppData(app);
     } finally {
       setLoadingApp(false);
     }
@@ -178,22 +190,18 @@ export default function OnlineApplications() {
   };
 
   const counts = {
-    total:    apps.length,
-    pending:  apps.filter(a => (a.application_status||a.status) === "Pending").length,
-    approved: apps.filter(a => (a.application_status||a.status) === "Approved").length,
-    rejected: apps.filter(a => (a.application_status||a.status) === "Rejected").length,
+    total:    totalCount || apps.length,
+    pending:  apps.filter(a => a.application_status === "Pending").length,
+    approved: approvedCount, // ── Approved are converted and deleted from table
+    rejected: apps.filter(a => a.application_status === "Rejected").length,
   };
 
-  // Support both snake_case (API) and camelCase (old mock)
-  const getAppId  = a => a.app_id       || a.id          || "";
-  const getSubAt  = a => (a.created_at || "").slice(0,10);
-
   const filtered = apps.filter(a => {
-    const matchStatus = filterStatus === "All" || (a.application_status||a.status) === filterStatus;
+    const matchStatus = filterStatus === "All" || a.application_status === filterStatus;
     const q = search.toLowerCase();
     const fullname = (a.fullname || `${a.first_name} ${a.last_name}`).toLowerCase();
     return matchStatus && (
-      getAppId(a).toLowerCase().includes(q) ||
+      (a.app_id || "").toLowerCase().includes(q) ||
       fullname.includes(q) ||
       (a.contact_number || "").includes(q) ||
       (a.email || "").toLowerCase().includes(q) ||
@@ -207,36 +215,31 @@ export default function OnlineApplications() {
 
   const handleApprove = async (id) => {
     try {
-      await updateApplicationStatusAPI(id, "Approved");
-      setApps(prev => prev.map(a => (a.id === id || a.app_id === id) ? { ...a, application_status: "Approved", status: "Approved" } : a));
+      await updateOnlineAppStatusAPI(id, { application_status: "Approved" });
+      setApps(prev => prev.map(a => a.id === id ? { ...a, application_status: "Approved" } : a));
       setFullAppData(prev => prev ? { ...prev, application_status: "Approved" } : null);
       showToast("Application approved successfully!", "success");
     } catch(err) {
-      console.error("Approve error:", err.response?.data);
       showToast("Failed to approve application.", "danger");
     }
   };
 
   const handleReject = async (id, reason) => {
     try {
-      await updateApplicationStatusAPI(id, "Rejected", reason);
-      setApps(prev => prev.map(a => (a.id === id || a.app_id === id) ? { ...a, application_status: "Rejected", status: "Rejected" } : a));
+      await updateOnlineAppStatusAPI(id, { application_status: "Rejected", reject_reason: reason });
+      setApps(prev => prev.map(a => a.id === id ? { ...a, application_status: "Rejected" } : a));
       setViewApp(null);
       setFullAppData(null);
       showToast("Application rejected.", "danger");
     } catch(err) {
-      console.error("Reject error:", err.response?.data);
       showToast("Failed to reject application.", "danger");
     }
   };
 
-  const currentViewApp = fullAppData || (viewApp
-    ? apps.find(a => a.id === viewApp.id || a.app_id === viewApp.app_id)
-    : null);
+  const currentViewApp = fullAppData || viewApp;
 
   return (
     <div className="oa-wrapper">
-
       {toast && <div className={`oa-toast oa-toast-${toast.type}`}>{toast.msg}</div>}
 
       <ViewModal
@@ -247,7 +250,6 @@ export default function OnlineApplications() {
         onReject={handleReject}
       />
 
-      {/* Header */}
       <div className="oa-page-header">
         <div>
           <div className="oa-page-title">Online Applications</div>
@@ -255,7 +257,6 @@ export default function OnlineApplications() {
         </div>
       </div>
 
-      {/* Summary Cards */}
       <div className="oa-summary-grid">
         <div className="oa-summary-card" onClick={() => { setFilter("All"); setPage(1); }}>
           <div className="oa-sum-val">{counts.total}</div><div className="oa-sum-label">Total Received</div>
@@ -271,7 +272,6 @@ export default function OnlineApplications() {
         </div>
       </div>
 
-      {/* Table Card */}
       <div className="oa-card">
         <div className="oa-toolbar">
           <div className="oa-search-wrap">
@@ -292,7 +292,7 @@ export default function OnlineApplications() {
                 onClick={() => { setFilter(s); setPage(1); }}
               >
                 {s}
-                {s !== "All" && <span className="oa-tab-count">{apps.filter(a => (a.application_status||a.status)===s).length}</span>}
+                {s !== "All" && <span className="oa-tab-count">{apps.filter(a => a.application_status===s).length}</span>}
               </button>
             ))}
           </div>
@@ -302,13 +302,13 @@ export default function OnlineApplications() {
           <table className="oa-table">
             <thead>
               <tr>
-                <th style={{ width:"12%" }}>App ID</th>
-                <th style={{ width:"22%" }}>Full Name</th>
+                <th style={{ width:"14%" }}>App ID</th>
+                <th style={{ width:"20%" }}>Full Name</th>
                 <th style={{ width:"10%" }}>Birthdate</th>
                 <th style={{ width:"13%" }}>Contact No.</th>
-                <th style={{ width:"18%" }}>Email</th>
+                <th style={{ width:"17%" }}>Email</th>
                 <th style={{ width:"12%" }}>Occupation</th>
-                <th style={{ width:"13%" }}>Submitted</th>
+                <th style={{ width:"14%" }}>Submitted</th>
               </tr>
             </thead>
             <tbody>
@@ -316,26 +316,29 @@ export default function OnlineApplications() {
                 <tr><td colSpan={7} className="oa-empty">Loading applications...</td></tr>
               ) : paginated.length === 0 ? (
                 <tr><td colSpan={7} className="oa-empty">No applications found.</td></tr>
-              ) : paginated.map((app, idx) => (
-                <tr
-                  key={app.id || app.app_id}
-                  className={`oa-clickable-row row-${(app.application_status||app.status||"pending").toLowerCase()}`}
-                  onClick={() => handleViewApp(app)}
-                >
-                  <td>
-                    <div className="oa-id-cell">
-                      <span className="mono cell-id">{getAppId(app)}</span>
-                      <span className={`oa-badge ${STATUS_COLOR[status] || ""}`}>{status}</span>
-                    </div>
-                  </td>
-                  <td className="cell-name">{app.fullname || `${app.last_name}, ${app.first_name}`}</td>
-                  <td className="cell-date">{app.birth_date}</td>
-                  <td className="mono">{app.contact_number}</td>
-                  <td className="cell-email">{app.email}</td>
-                  <td>{app.occupation}</td>
-                  <td className="cell-date">{getSubAt(app)}</td>
-                </tr>
-              ))}
+              ) : paginated.map(app => {
+                const appStatus = app.application_status || "Pending"; // ── FIX: defined per row
+                return (
+                  <tr
+                    key={app.id}
+                    className={`oa-clickable-row row-${appStatus.toLowerCase()}`}
+                    onClick={() => handleViewApp(app)}
+                  >
+                    <td>
+                      <div className="oa-id-cell">
+                        <span className="mono cell-id">{app.app_id}</span>
+                        <span className={`oa-badge ${STATUS_COLOR[appStatus] || ""}`}>{appStatus}</span>
+                      </div>
+                    </td>
+                    <td className="cell-name">{app.fullname || `${app.last_name}, ${app.first_name}`}</td>
+                    <td className="cell-date">{app.birth_date}</td>
+                    <td className="mono">{app.contact_number}</td>
+                    <td className="cell-email">{app.email}</td>
+                    <td>{app.occupation}</td>
+                    <td className="cell-date">{app.created_at?.slice(0,10)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

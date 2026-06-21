@@ -221,6 +221,16 @@ export default function LoanPayment() {
   const [viewTx,      setViewTx]  = useState(null);
   const [toast,       setToast]   = useState(null);
   const [historyView, setHistoryView] = useState("daily");
+  const [loanHistory, setLoanHistory] = useState(null);  // selected loan for history modal
+  const [loanHistoryData, setLoanHistoryData] = useState([]);
+
+  const handleViewLoanHistory = (e, loan) => {
+    e.stopPropagation();
+    // ── Use existing transactions state — no re-fetch needed ──
+    const filtered = transactions.filter(p => p.loan_code === loan.loan_id);
+    setLoanHistoryData(filtered);
+    setLoanHistory(loan);
+  };
 
   const showToast = (msg,type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3500); };
 
@@ -327,10 +337,68 @@ export default function LoanPayment() {
     </div>
   );
 
+  // ── Loan History Modal ──────────────────────────────────────────────────────
+  const LoanHistoryModal = () => {
+    if (!loanHistory) return null;
+    return (
+      <div className="lp-overlay" onClick={() => setLoanHistory(null)}>
+        <div className="lp-modal" onClick={e => e.stopPropagation()}>
+          <div className="lp-modal-header">
+            <div>
+              <div className="lp-modal-title">Payment History</div>
+              <div className="lp-modal-sub">{loanHistory.loan_id} · {loanHistory.member_name}</div>
+            </div>
+            <button className="lp-modal-close" onClick={() => setLoanHistory(null)}>✕</button>
+          </div>
+          <div className="lp-modal-body">
+            <div className="lp-balance-row">
+              <div className="lp-bal-item"><span className="lp-bal-label">Loan Amount</span><span className="lp-bal-val">₱{Number(loanHistory.amount||0).toLocaleString()}</span></div>
+              <div className="lp-bal-item highlight"><span className="lp-bal-label">Remaining Balance</span><span className="lp-bal-val danger">₱{Number(loanHistory.balance||0).toLocaleString()}</span></div>
+              <div className="lp-bal-item"><span className="lp-bal-label">Monthly Due</span><span className="lp-bal-val green">₱{Number(loanHistory.monthly_due||0).toLocaleString()}</span></div>
+            </div>
+            {loanHistoryData.length === 0 ? (
+              <div style={{textAlign:"center",padding:"24px",color:"#aaa"}}>No payments recorded yet.</div>
+            ) : (
+              <table style={{width:"100%",borderCollapse:"collapse",marginTop:12}}>
+                <thead>
+                  <tr style={{background:"#f9fef9"}}>
+                    <th style={{fontSize:10,color:"#aaa",fontWeight:700,padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #e8f5e9"}}>Date</th>
+                    <th style={{fontSize:10,color:"#aaa",fontWeight:700,padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #e8f5e9"}}>TX ID</th>
+                    <th style={{fontSize:10,color:"#aaa",fontWeight:700,padding:"8px 6px",textAlign:"right",borderBottom:"1px solid #e8f5e9"}}>Amount</th>
+                    <th style={{fontSize:10,color:"#aaa",fontWeight:700,padding:"8px 6px",textAlign:"right",borderBottom:"1px solid #e8f5e9"}}>Balance After</th>
+                    <th style={{fontSize:10,color:"#aaa",fontWeight:700,padding:"8px 6px",textAlign:"left",borderBottom:"1px solid #e8f5e9"}}>Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loanHistoryData.map((p,i) => (
+                    <tr key={i} style={{borderBottom:"1px solid #f5f5f5"}}>
+                      <td style={{fontSize:11,color:"#555",padding:"8px 6px"}}>{p.paid_at?.slice(0,10)}</td>
+                      <td style={{fontSize:10,color:"#888",padding:"8px 6px",fontFamily:"monospace"}}>{p.tx_id}</td>
+                      <td style={{fontSize:12,fontWeight:700,color:"#2e7d32",padding:"8px 6px",textAlign:"right"}}>₱{Number(p.amount||0).toLocaleString()}</td>
+                      <td style={{fontSize:12,color:"#1565c0",padding:"8px 6px",textAlign:"right"}}>₱{Number(p.balance||0).toLocaleString()}</td>
+                      <td style={{fontSize:11,color:"#888",padding:"8px 6px"}}>{p.note||"—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div style={{marginTop:12,fontSize:12,color:"#888",textAlign:"right"}}>
+              {loanHistoryData.length} payment{loanHistoryData.length!==1?"s":""} · Total: <strong style={{color:"#2e7d32"}}>₱{loanHistoryData.reduce((s,p)=>s+Number(p.amount||0),0).toLocaleString()}</strong>
+            </div>
+          </div>
+          <div className="lp-modal-footer">
+            <button className="lp-btn-cancel" onClick={() => setLoanHistory(null)}>Close</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="lp-wrapper">
       {toast && <div className={`lp-toast lp-toast-${toast.type}`}>{toast.msg}</div>}
       <RecordModal loan={recordLoan} onClose={()=>setRecord(null)} onSave={handleSave}/>
+      <LoanHistoryModal/>
       <ReceiptModal tx={viewTx} onClose={()=>setViewTx(null)}/>
 
       <div className="lp-page-header">
@@ -397,7 +465,12 @@ export default function LoanPayment() {
                 {loading ? <tr><td colSpan={9} className="lp-empty">Loading...</td></tr>
                 : paginatedLoans.length===0 ? <tr><td colSpan={9} className="lp-empty">No loans found.</td></tr>
                 : paginatedLoans.map((l,idx)=>(
-                  <tr key={l.id} className={idx%2===0?"row-even":"row-odd"}>
+                  <tr key={l.id}
+                    className={`${idx%2===0?"row-even":"row-odd"} lp-clickable-row`}
+                    onClick={()=>{ if(parseFloat(l.balance||0)>0) setRecord(l); }}
+                    style={{cursor: parseFloat(l.balance||0)>0 ? "pointer" : "default"}}
+                    title={parseFloat(l.balance||0)>0 ? "Click to record payment" : "Fully paid"}
+                  >
                     <td className="mono cell-id">{l.loan_id}</td>
                     <td className="mono">{l.member_code}</td>
                     <td className="cell-name">{l.member_name}</td>
@@ -406,8 +479,10 @@ export default function LoanPayment() {
                     <td className={`fw ${l.status==="Overdue"?"danger":"blue"}`}>₱{Number(l.balance||0).toLocaleString()}</td>
                     <td className="fw green">₱{Number(l.monthly_due||0).toLocaleString()}</td>
                     <td><span className={`lp-loan-badge lp-${(l.status||"").toLowerCase()}`}>{l.status}</span></td>
-                    <td style={{textAlign:"center"}}>
-                      <button className="lp-pay-btn" onClick={()=>setRecord(l)} disabled={parseFloat(l.balance||0)===0}>+ Pay</button>
+                    <td style={{textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+                      <button className="lp-view-btn" onClick={e=>handleViewLoanHistory(e,l)} title="View payment history">
+                        <Eye size={12}/>
+                      </button>
                     </td>
                   </tr>
                 ))}

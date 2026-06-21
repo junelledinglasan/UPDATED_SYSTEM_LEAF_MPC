@@ -73,7 +73,6 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            {/* /staff → /staff (index = StaffHome) */}
             <Route index                element={<StaffHome />}          />
             <Route path="members"       element={<ManageMember />}       />
             <Route path="applications"  element={<OnlineApplications />} />
@@ -87,7 +86,7 @@ export default function App() {
           <Route
             path="/member"
             element={
-              <ProtectedRoute allowedRoles={["member"]} loginPath="/login">
+              <ProtectedRoute allowedRoles={["member", "user"]} loginPath="/login">
                 <MemberLayout />
               </ProtectedRoute>
             }

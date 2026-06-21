@@ -165,47 +165,74 @@ export default function Reports() {
   const [overdueAnalysis, setOverdueAnalysis] = useState([]);
   const [monthlyLoans,    setMonthlyLoans]    = useState([]);
 
-  // All year-sensitive APIs pass selectedYear — re-fetches when year changes
+  // ── Lazy load per tab — only fetch what each tab needs ──────────────────────
+  const [fetchedTabs, setFetchedTabs] = useState({});
+
   useEffect(() => {
+    setFetchedTabs({}); // reset cache when year changes
+  }, [selectedYear]);
+
+  useEffect(() => {
+    const key = activeTab + String(selectedYear);
+    if (fetchedTabs[key]) return; // already fetched — skip
+
     const load = async () => {
       setLoading(true);
       try {
-        const results = await Promise.allSettled([
-          getOverviewAPI(selectedYear),
-          getMonthlyCollectionAPI(selectedYear),
-          getLoanStatusAPI(selectedYear),
-          getLoanTypeAPI(selectedYear),
-          getPaymentBehaviorAPI(selectedYear),
-          getAuditLogAPI(selectedYear),
-          getClassificationAPI(selectedYear),
-          getMemberPerformanceAPI(selectedYear),
-          getTopBorrowersAPI(selectedYear),
-          getLoanDistributionAPI(selectedYear),
-          getYearlyComparisonAPI(),
-          getShareCapitalAPI(selectedYear),
-          getOverdueAnalysisAPI(selectedYear),
-          getMonthlyLoansAPI(selectedYear),
-        ]);
-        const [ov,mn,ls,lt,pb,al,cls,mp,tb,ld,yc,sc,od,ml] = results;
-        if (ov.status  === "fulfilled") setOverview(ov.value);
-        if (mn.status  === "fulfilled") setMonthly(mn.value);
-        if (ls.status  === "fulfilled") setLoanStat(ls.value);
-        if (lt.status  === "fulfilled") setLoanType(lt.value);
-        if (pb.status  === "fulfilled") setPayBehav(pb.value);
-        if (al.status  === "fulfilled") setAuditLog(al.value);
-        if (cls.status === "fulfilled") setClassification(cls.value);
-        if (mp.status  === "fulfilled") setMemberPerf(mp.value);
-        if (tb.status  === "fulfilled") setTopBorrowers(tb.value);
-        if (ld.status  === "fulfilled") setLoanDist(ld.value);
-        if (yc.status  === "fulfilled") setYearlyComp(yc.value);
-        if (sc.status  === "fulfilled") setShareCapital(sc.value);
-        if (od.status  === "fulfilled") setOverdueAnalysis(od.value);
-        if (ml.status  === "fulfilled") setMonthlyLoans(ml.value);
+        if (activeTab === "overview") {
+          const [ov, mn, yc, ml] = await Promise.allSettled([
+            getOverviewAPI(selectedYear),
+            getMonthlyCollectionAPI(selectedYear),
+            getYearlyComparisonAPI(),
+            getMonthlyLoansAPI(selectedYear),
+          ]);
+          if (ov.status === "fulfilled") setOverview(ov.value);
+          if (mn.status === "fulfilled") setMonthly(mn.value);
+          if (yc.status === "fulfilled") setYearlyComp(yc.value);
+          if (ml.status === "fulfilled") setMonthlyLoans(ml.value);
+        }
+        else if (activeTab === "charts") {
+          const [mn, ls, lt, pb, ld, od] = await Promise.allSettled([
+            getMonthlyCollectionAPI(selectedYear),
+            getLoanStatusAPI(selectedYear),
+            getLoanTypeAPI(selectedYear),
+            getPaymentBehaviorAPI(selectedYear),
+            getLoanDistributionAPI(selectedYear),
+            getOverdueAnalysisAPI(selectedYear),
+          ]);
+          if (mn.status === "fulfilled") setMonthly(mn.value);
+          if (ls.status === "fulfilled") setLoanStat(ls.value);
+          if (lt.status === "fulfilled") setLoanType(lt.value);
+          if (pb.status === "fulfilled") setPayBehav(pb.value);
+          if (ld.status === "fulfilled") setLoanDist(ld.value);
+          if (od.status === "fulfilled") setOverdueAnalysis(od.value);
+        }
+        else if (activeTab === "classification") {
+          const [cls, tb] = await Promise.allSettled([
+            getClassificationAPI(selectedYear),
+            getTopBorrowersAPI(selectedYear),
+          ]);
+          if (cls.status === "fulfilled") setClassification(cls.value);
+          if (tb.status  === "fulfilled") setTopBorrowers(tb.value);
+        }
+        else if (activeTab === "performance") {
+          const [mp, sc] = await Promise.allSettled([
+            getMemberPerformanceAPI(selectedYear),
+            getShareCapitalAPI(selectedYear),
+          ]);
+          if (mp.status === "fulfilled") setMemberPerf(mp.value);
+          if (sc.status === "fulfilled") setShareCapital(sc.value);
+        }
+        else if (activeTab === "audit") {
+          const al = await getAuditLogAPI(selectedYear).catch(() => []);
+          setAuditLog(al);
+        }
+        setFetchedTabs(prev => ({ ...prev, [key]: true }));
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     };
     load();
-  }, [selectedYear]);
+  }, [activeTab, selectedYear]);
 
   // ── Chart Data ──────────────────────────────────────────────────────────────
   const monthlyBarData = {

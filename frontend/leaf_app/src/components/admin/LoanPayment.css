@@ -303,7 +303,7 @@
 .lp-borrower-meta { font-size: 10px; color: #aaa; font-family: 'Courier New', monospace; margin-top: 2px; }
 
 /* Balance row */
-.lp-balance-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.lp-balance-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .lp-bal-item { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 8px; background: #fafafa; border: 1px solid #f0f0f0; }
 .lp-bal-item.highlight { background: #fff5f5; border-color: #ffcdd2; }
 .lp-bal-label { font-size: 9px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.4px; }

@@ -13,7 +13,14 @@ export const updateApplicationStatusAPI = async (id, data) => (await api.patch(`
 export const convertToMemberAPI         = async (id)     => (await api.post(`/members/applications/${id}/convert/`)).data;
 export const getMyApplicationAPI        = async ()       => (await api.get("/members/my-application/")).data;
 export const getMyProfileAPI            = async ()       => (await api.get("/members/my-profile/")).data;
-export const submitApplicationAPI       = async (data)   => (await api.post("/members/applications/", data)).data;
+export const submitApplicationAPI       = async (data)   => (await api.post("/members/online-applications/", data)).data;
+
+// ── Online Applications (separate table) ──────────────────────────────────────
+export const getOnlineApplicationsAPI   = async (params) => (await api.get("/members/online-applications/", { params })).data;
+export const getOnlineApplicationAPI    = async (id)     => (await api.get(`/members/online-applications/${id}/`)).data;
+export const updateOnlineAppStatusAPI   = async (id, data) => (await api.patch(`/members/online-applications/${id}/`, data)).data;
+export const convertOnlineAppAPI        = async (id, data) => (await api.post(`/members/online-applications/${id}/convert/`, data)).data;
+export const getMyOnlineAppAPI          = async ()       => (await api.get("/members/my-online-application/")).data;
 
 // Savings
 export const getSavingsAPI              = async (memberId) => (await api.get(`/members/savings/?member=${memberId}`)).data;

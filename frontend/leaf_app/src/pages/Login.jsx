@@ -32,6 +32,7 @@ export default function Login() {
     if (result.role === "admin")  navigate("/admin/dashboard",  { replace: true });
     if (result.role === "staff")  navigate("/staff",            { replace: true });
     if (result.role === "member") navigate("/member/dashboard", { replace: true });
+    if (result.role === "user")   navigate("/member/dashboard", { replace: true });
   };
 
   const handleKeyDown = e => {

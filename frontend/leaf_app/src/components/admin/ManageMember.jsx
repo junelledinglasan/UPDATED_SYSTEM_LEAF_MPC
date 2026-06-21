@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { getMembersAPI, getMemberStatsAPI, getMemberAPI, updateMemberAPI, deleteMemberAPI, getApplicationsAPI, updateApplicationStatusAPI, convertToMemberAPI, registerMemberAPI, getMemberSavingsAPI } from "../../api/members";
+import { getMembersAPI, getMemberStatsAPI, getMemberAPI, updateMemberAPI, deleteMemberAPI, getApplicationsAPI, updateApplicationStatusAPI, convertToMemberAPI, getOnlineApplicationsAPI, convertOnlineAppAPI, registerMemberAPI, getMemberSavingsAPI } from "../../api/members";
 import { Users, Clock, Eye, Pencil, Trash2, Search, ArrowUpDown } from "lucide-react";
 import api from "../../api/axiosInstance";
 import "./ManageMember.css";
@@ -575,6 +575,7 @@ function DeleteModal({ member, onClose, onConfirm }) {
 
 // ─── Pending Modal ────────────────────────────────────────────────────────────
 function PendingModal({ app, onClose, onConvert }) {
+  const [sharePaid, setSharePaid] = useState("4000");
   if (!app) return null;
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -591,6 +592,18 @@ function PendingModal({ app, onClose, onConvert }) {
             <span className="mm-pending-badge">⏳ Pending</span>
           </div>
           <div className="mm-pending-notice">📋 This applicant has been approved online. They need to visit the office to complete the process.</div>
+
+          <div className="modal-field" style={{marginTop:12}}>
+          <div className="modal-field-label">Amount Paid for Membership (₱) <span style={{color:"#e53935"}}>*</span></div>
+          <div style={{border:"1px solid #ddd",borderRadius:8,overflow:"hidden",display:"flex"}}>
+            <span style={{padding:"0 10px",color:"#aaa",fontSize:14,display:"flex",alignItems:"center"}}>₱</span>
+            <input style={{border:"none",outline:"none",padding:"9px 8px",fontSize:14,width:"100%"}} type="number" value={sharePaid} onChange={e=>setSharePaid(e.target.value)} placeholder="e.g. 4000"/>
+          </div>
+            {sharePaid>0&&<div style={{marginTop:6,padding:"6px 10px",background:"#e8f5e9",borderRadius:8,fontSize:11,color:"#2e7d32",fontWeight:600}}>
+        💡 Share Capital = ₱{(parseFloat(sharePaid||0)*2).toLocaleString()} · Max Loanable = ₱{(parseFloat(sharePaid||0)*2).toLocaleString()}
+          </div>}
+          </div>
+
           <div className="mm-view-section-title">Personal Information</div>
           <div className="modal-grid">
             {[["Birthdate",app.birth_date],["Civil Status",app.civil_status],["Contact",app.contact_number],["Email",app.email],["Occupation",app.occupation],["Classification",app.classification]].map(([k,v]) => (
@@ -725,12 +738,12 @@ export default function ManageMember() {
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [mem,st,apps] = await Promise.allSettled([getMembersAPI(),getMemberStatsAPI(),getApplicationsAPI({status:"Approved"})]);
+      const [mem,st,apps] = await Promise.allSettled([getMembersAPI(),getMemberStatsAPI(),getOnlineApplicationsAPI({status:"Approved"})]);
       if (mem.status==="fulfilled")  setMembers(mem.value);
       if (st.status==="fulfilled")   setStats(st.value);
       if (apps.status==="fulfilled") {
-        const convertedIds = mem.status==="fulfilled" ? mem.value.map(m=>m.application_id).filter(Boolean) : [];
-        setPending(apps.value.filter(a=>!convertedIds.includes(a.id)));
+        const appList = apps.value.applications || apps.value;
+        setPending(appList.filter(a => a.application_status === "Approved"));
       }
     } catch(e) { console.error(e); }
     finally { if (!silent) setLoading(false); }
@@ -761,7 +774,8 @@ export default function ManageMember() {
 
   const handleSaveEdit = async (id,form) => { try{await updateMemberAPI(id,form);showToast("Member updated successfully.");fetchData(true);}catch{showToast("Failed to update member.","danger");} };
   const handleDelete   = async (id)      => { try{await deleteMemberAPI(id);setDeleteMember(null);showToast("Member deleted.","danger");fetchData(true);}catch{showToast("Failed to delete member.","danger");} };
-  const handleConvert  = async (app)     => { try{const r=await convertToMemberAPI(app.id);setPending(prev=>prev.filter(p=>p.id!==app.id));setViewPending(null);showToast(`✓ ${app.first_name} ${app.last_name} is now an official member! ID: ${r.member_id}`,"success");fetchData(true);}catch(err){showToast(err.response?.data?.error||"Failed to convert member.","danger");} };
+  const handleConvert  = async (app, sharePaid=0) => { try{const r=await convertOnlineAppAPI(app.id, { share_capital: sharePaid });
+  setPending(prev=>prev.filter(p=>p.id!==app.id));setViewPending(null);showToast(`✓ ${app.first_name} ${app.last_name} is now an official member! ID: ${r.member_id}`,"success");fetchData(true);}catch(err){showToast(err.response?.data?.error||"Failed to convert member.","danger");} };
 
   return (
     <div className="mm-wrapper">
