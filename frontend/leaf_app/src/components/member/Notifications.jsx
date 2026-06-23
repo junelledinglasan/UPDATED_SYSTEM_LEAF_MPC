@@ -99,70 +99,151 @@ export default function Notifications() {
       try {
         const built = [];
 
-        // Membership status — use online app API for user role
+        // ── WELCOME NOTIF — laging present para sa lahat ng users ──
+        built.push({
+          id:    "welcome-system",
+          type:  "system",
+          title: "Welcome to LEAF MPC! 👋",
+          msg:   `Hello, ${user?.name || "Member"}! Welcome to the LEAF Multi-Purpose Cooperative Management System. You can view announcements, track your application status, and manage your account here.`,
+          time:  "Just now",
+          date:  new Date().toISOString(),
+          read:  true, // hindi counted sa unread — info lang
+          route: null,
+        });
+
+        // ── SYSTEM INFO — para sa non-official members (role='user') ──
+        if (isUser) {
+          built.push({
+            id:    "system-info-portal",
+            type:  "system",
+            title: "About the LEAF MPC Portal",
+            msg:   "This portal allows you to apply for membership, track your application status, view announcements, and manage your account. Full features will be unlocked once you become an official member.",
+            time:  "Just now",
+            date:  new Date().toISOString(),
+            read:  true,
+            route: null,
+          });
+        }
+
+        // ── Membership status — use online app API for user role ──
+        let hasApplication = false;
         try {
           const app = isUser ? await getMyOnlineAppAPI() : await getMyApplicationAPI();
           if (app?.application_status === "Approved") {
-            built.push({ id:"membership-approved", type:"membership",
-              title:"Membership Application Approved!",
-              msg:`Congratulations! Your membership application (${app.app_id}) has been approved. Please visit the LEAF MPC office to complete the process and become an official member.`,
-              time:timeAgo(app.reviewed_at||app.created_at), date:app.reviewed_at||app.created_at,
-              read:false, route:"/member/profile", actionLabel:"View Profile" });
+            hasApplication = true;
+            built.push({
+              id:    "membership-approved",
+              type:  "membership",
+              title: "Membership Application Approved! 🎉",
+              msg:   `Congratulations! Your membership application (${app.app_id}) has been approved. Please visit the LEAF MPC office to complete the process and become an official member.`,
+              time:  timeAgo(app.reviewed_at || app.created_at),
+              date:  app.reviewed_at || app.created_at,
+              read:  false,
+              route: "/member/profile",
+              actionLabel: "View Profile",
+            });
           } else if (app?.application_status === "Rejected") {
-            built.push({ id:"membership-rejected", type:"rejected",
-              title:"Membership Application Not Approved",
-              msg:`Your membership application (${app.app_id}) was not approved.${app.reject_reason?" Reason: "+app.reject_reason:""} You may re-apply or visit the office for more information.`,
-              time:timeAgo(app.reviewed_at||app.created_at), date:app.reviewed_at||app.created_at,
-              read:false, route:"/member/apply-membership", actionLabel:"Re-apply" });
+            hasApplication = true;
+            built.push({
+              id:    "membership-rejected",
+              type:  "rejected",
+              title: "Membership Application Not Approved",
+              msg:   `Your membership application (${app.app_id}) was not approved.${app.reject_reason ? " Reason: " + app.reject_reason : ""} You may re-apply or visit the office for more information.`,
+              time:  timeAgo(app.reviewed_at || app.created_at),
+              date:  app.reviewed_at || app.created_at,
+              read:  false,
+              route: "/member/apply-membership",
+              actionLabel: "Re-apply",
+            });
           } else if (app?.application_status === "Pending") {
-            built.push({ id:"membership-pending", type:"system",
-              title:"Membership Application Under Review",
-              msg:`Your application (${app.app_id}) has been submitted and is currently under review. You will be notified once it has been processed.`,
-              time:timeAgo(app.created_at), date:app.created_at, read:true, route:null });
+            hasApplication = true;
+            built.push({
+              id:    "membership-pending",
+              type:  "system",
+              title: "Membership Application Under Review ⏳",
+              msg:   `Your application (${app.app_id}) has been submitted and is currently under review. You will be notified once it has been processed. Thank you for your patience.`,
+              time:  timeAgo(app.created_at),
+              date:  app.created_at,
+              read:  true,
+              route: null,
+            });
           }
         } catch {}
 
-        // ── Announcements — always fetch ──
+        // ── NO APPLICATION YET — para sa non-official members na wala pang application ──
+        if (isUser && !hasApplication) {
+          built.push({
+            id:    "no-application",
+            type:  "membership",
+            title: "Complete Your Membership Application 📋",
+            msg:   `Hi ${user?.name || "there"}! You haven't submitted a membership application yet. Submit your application online now to start the process of becoming an official LEAF MPC member and unlock all features.`,
+            time:  "Just now",
+            date:  new Date().toISOString(),
+            read:  false, // unread — importante ito
+            route: "/member/apply-membership",
+            actionLabel: "Apply for Membership",
+          });
+        }
+
+        // ── Announcements — always fetch para sa lahat ──
         try {
           const anns = await getAnnouncementsAPI();
           anns.forEach(a => built.push({
-            id:`ann-${a.id}`, type:"notice", title:a.title,
-            msg:a.body || a.caption || a.content || "No content available.",
-            time:timeAgo(a.created_at||a.posted_at), date:a.created_at||a.posted_at,
-            read:false, route:"/member/announcements", actionLabel:"View Announcement",
+            id:    `ann-${a.id}`,
+            type:  "notice",
+            title: a.title,
+            msg:   a.body || a.caption || a.content || "No content available.",
+            time:  timeAgo(a.created_at || a.posted_at),
+            date:  a.created_at || a.posted_at,
+            read:  false,
+            route: "/member/announcements",
+            actionLabel: "View Announcement",
           }));
         } catch(e) { console.error("Announcements fetch error:", e); }
 
         // ── Skip loans for non-official members (role='user') ──
         const loans = isUser ? [] : await getLoansAPI().catch(() => []);
-        loans.filter(l => l.status==="Overdue").forEach(l => built.push({
-          id:`overdue-${l.id}`, type:"overdue",
-          title:`Overdue Payment — ${l.loan_id}`,
-          msg:`Your ${l.loan_type} loan (${l.loan_id}) is overdue. Please settle your balance of ₱${Number(l.balance).toLocaleString()} immediately to avoid penalties.`,
-          time:timeAgo(l.next_due_date), date:l.next_due_date,
-          read:false, route:"/member/my-loans", actionLabel:"View My Loans",
+        loans.filter(l => l.status === "Overdue").forEach(l => built.push({
+          id:    `overdue-${l.id}`,
+          type:  "overdue",
+          title: `Overdue Payment — ${l.loan_id}`,
+          msg:   `Your ${l.loan_type} loan (${l.loan_id}) is overdue. Please settle your balance of ₱${Number(l.balance).toLocaleString()} immediately to avoid penalties.`,
+          time:  timeAgo(l.next_due_date),
+          date:  l.next_due_date,
+          read:  false,
+          route: "/member/my-loans",
+          actionLabel: "View My Loans",
         }));
-        loans.filter(l => l.status==="Active").forEach(l => built.push({
-          id:`due-${l.id}`, type:"due",
-          title:`Payment Reminder — ${l.loan_id}`,
-          msg:`Your monthly payment of ₱${Number(l.monthly_due).toLocaleString()} for your ${l.loan_type} (${l.loan_id}) is due on ${l.next_due_date||"—"}. Please pay on time to avoid penalties.`,
-          time:timeAgo(l.next_due_date), date:l.next_due_date,
-          read:false, route:"/member/my-loans", actionLabel:"View My Loans",
+        loans.filter(l => l.status === "Active").forEach(l => built.push({
+          id:    `due-${l.id}`,
+          type:  "due",
+          title: `Payment Reminder — ${l.loan_id}`,
+          msg:   `Your monthly payment of ₱${Number(l.monthly_due).toLocaleString()} for your ${l.loan_type} (${l.loan_id}) is due on ${l.next_due_date || "—"}. Please pay on time to avoid penalties.`,
+          time:  timeAgo(l.next_due_date),
+          date:  l.next_due_date,
+          read:  false,
+          route: "/member/my-loans",
+          actionLabel: "View My Loans",
         }));
-        loans.filter(l => l.status==="Active").forEach(l => built.push({
-          id:`approved-${l.id}`, type:"approved",
-          title:`Loan Approved — ${l.loan_id}`,
-          msg:`Your ${l.loan_type} application for ₱${Number(l.amount).toLocaleString()} has been approved and activated. Visit the office to sign the necessary documents.`,
-          time:timeAgo(l.approved_at), date:l.approved_at,
-          read:true, route:"/member/my-loans", actionLabel:"View Loan Details",
+        loans.filter(l => l.status === "Active").forEach(l => built.push({
+          id:    `approved-${l.id}`,
+          type:  "approved",
+          title: `Loan Approved — ${l.loan_id}`,
+          msg:   `Your ${l.loan_type} application for ₱${Number(l.amount).toLocaleString()} has been approved and activated. Visit the office to sign the necessary documents.`,
+          time:  timeAgo(l.approved_at),
+          date:  l.approved_at,
+          read:  true,
+          route: "/member/my-loans",
+          actionLabel: "View Loan Details",
         }));
 
         // ── Sort: unread first, then by date ──
-        built.sort((a,b) => {
-          if (!a.read && b.read) return -1;
-          if (a.read && !b.read) return 1;
-          return new Date(b.date||0) - new Date(a.date||0);
+        built.sort((a, b) => {
+          if (!a.read && b.read)  return -1;
+          if (a.read  && !b.read) return 1;
+          return new Date(b.date || 0) - new Date(a.date || 0);
         });
+
         const currentReadIds = getReadIds();
         const withRead = built.map(n => ({ ...n, read: n.read || currentReadIds.has(n.id) }));
         setNotifs(withRead);
@@ -187,18 +268,18 @@ export default function Notifications() {
     const newReadIds = new Set([...readIds, notif.id]);
     saveReadIds(newReadIds);
     setReadIds(newReadIds);
-    setNotifs(prev => prev.map(n => n.id===notif.id ? { ...n, read:true } : n));
-    if (setNotif) setNotif(notifs.filter(n => !n.read && n.id!==notif.id).length);
-    setSelected({ ...notif, read:true });
+    setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+    if (setNotif) setNotif(notifs.filter(n => !n.read && n.id !== notif.id).length);
+    setSelected({ ...notif, read: true });
   };
 
   const filtered = notifs.filter(n => {
-    if (filter==="All")         return true;
-    if (filter==="Unread")      return !n.read;
-    if (filter==="Payment Due") return n.type==="due"||n.type==="overdue";
-    if (filter==="Notice")      return n.type==="notice";
-    if (filter==="Membership")  return n.type==="membership"||n.type==="rejected";
-    if (filter==="System")      return n.type==="system"||n.type==="approved";
+    if (filter === "All")          return true;
+    if (filter === "Unread")       return !n.read;
+    if (filter === "Payment Due")  return n.type === "due" || n.type === "overdue";
+    if (filter === "Notice")       return n.type === "notice";
+    if (filter === "Membership")   return n.type === "membership" || n.type === "rejected";
+    if (filter === "System")       return n.type === "system" || n.type === "approved";
     return true;
   });
 
@@ -221,15 +302,15 @@ export default function Notifications() {
       <div className="nf-summary-row">
         <div className="nf-chip total">  <span>{notifs.length}</span> Total</div>
         <div className="nf-chip unread"> <span>{unreadCount}</span> Unread</div>
-        <div className="nf-chip due">    <span>{notifs.filter(n=>n.type==="due"||n.type==="overdue").length}</span> Payment Due</div>
-        <div className="nf-chip notice"> <span>{notifs.filter(n=>n.type==="notice").length}</span> Notices</div>
+        <div className="nf-chip due">    <span>{notifs.filter(n => n.type === "due" || n.type === "overdue").length}</span> Payment Due</div>
+        <div className="nf-chip notice"> <span>{notifs.filter(n => n.type === "notice").length}</span> Notices</div>
       </div>
 
       <div className="nf-filter-tabs">
         {FILTERS.map(f => (
-          <button key={f} className={`nf-filter-tab ${filter===f?"active":""}`} onClick={() => setFilter(f)}>
+          <button key={f} className={`nf-filter-tab ${filter === f ? "active" : ""}`} onClick={() => setFilter(f)}>
             {f}
-            {f==="Unread" && unreadCount>0 && <span className="nf-filter-count">{unreadCount}</span>}
+            {f === "Unread" && unreadCount > 0 && <span className="nf-filter-count">{unreadCount}</span>}
           </button>
         ))}
       </div>
@@ -240,7 +321,7 @@ export default function Notifications() {
             <div className="nf-empty-icon"><Clock size={36} color="#ccc"/></div>
             <div className="nf-empty-text">Loading notifications...</div>
           </div>
-        ) : filtered.length===0 ? (
+        ) : filtered.length === 0 ? (
           <div className="nf-empty">
             <div className="nf-empty-icon"><Bell size={36} color="#ccc"/></div>
             <div className="nf-empty-text">No notifications</div>
@@ -248,7 +329,7 @@ export default function Notifications() {
         ) : filtered.map(n => {
           const meta = TYPE_META[n.type] || TYPE_META.system;
           return (
-            <div key={n.id} className={`nf-item ${!n.read?"unread":""}`} onClick={() => handleClick(n)}>
+            <div key={n.id} className={`nf-item ${!n.read ? "unread" : ""}`} onClick={() => handleClick(n)}>
               <div className="nf-icon-wrap" style={{ background: meta.bg, borderRadius: 10, width: 40, height: 40, minWidth: 40, display:"flex", alignItems:"center", justifyContent:"center" }}>
                 {meta.icon}
               </div>
@@ -258,7 +339,7 @@ export default function Notifications() {
                   <div className="nf-item-time">{n.time}</div>
                 </div>
                 <div className="nf-item-preview">
-                  {n.msg.length > 80 ? n.msg.slice(0,80)+"..." : n.msg}
+                  {n.msg.length > 80 ? n.msg.slice(0, 80) + "..." : n.msg}
                 </div>
                 {n.route && (
                   <div className="nf-item-action" style={{ color: meta.text }}>

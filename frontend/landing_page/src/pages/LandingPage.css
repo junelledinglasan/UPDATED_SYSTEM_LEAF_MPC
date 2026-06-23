@@ -3,11 +3,21 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── FIX: fullscreen — no black sides ── */
+html, body, #root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
 .lnd-root {
   font-family: 'Outfit', sans-serif;
   color: #1a1a1a;
   background: #fff;
   overflow-x: hidden;
+  width: 100%;
+  min-height: 100vh;
 }
 
 .lnd-container {
@@ -23,6 +33,7 @@
   z-index: 999;
   padding: 14px 0;
   transition: all 0.3s;
+  width: 100%;
 }
 .lnd-nav.scrolled {
   background: rgba(255,255,255,0.96);
@@ -70,59 +81,31 @@
   transition: color 0.15s, background 0.15s;
 }
 .lnd-nav-link:hover { color: #1b5e20; background: rgba(46,125,50,0.07); }
+
 .lnd-nav-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
-.lnd-install-btn {
-  background: #fff8e1;
-  color: #e65100;
-  border: 1.5px solid #ffcc80;
-  border-radius: 8px;
-  padding: 7px 13px;
-  font-family: 'Outfit', sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.lnd-install-btn:hover { background: #ffe0b2; }
-.lnd-installed-badge {
-  font-size: 12px;
-  font-weight: 600;
-  color: #2e7d32;
-  background: #e8f5e9;
-  padding: 6px 12px;
-  border-radius: 8px;
-}
-.lnd-btn-member {
-  background: #f1f8e9;
-  color: #2e7d32;
-  border: 1.5px solid #c8e6c9;
-  border-radius: 8px;
-  padding: 7px 16px;
-  font-family: 'Outfit', sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.lnd-btn-member:hover { background: #dcedc8; }
-.lnd-btn-office {
+
+/* ── Single Login Button ── */
+.lnd-btn-login {
   background: #1b5e20;
   color: #fff;
   border: none;
   border-radius: 8px;
-  padding: 7px 16px;
+  padding: 8px 22px;
   font-family: 'Outfit', sans-serif;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s, transform 0.15s;
 }
-.lnd-btn-office:hover { background: #2e7d32; }
+.lnd-btn-login:hover { background: #2e7d32; transform: translateY(-1px); }
 
 /* Hamburger */
 .lnd-hamburger {
@@ -149,6 +132,7 @@
 /* ─── Hero ───────────────────────────────────────────────────────────────── */
 .lnd-hero {
   min-height: 100vh;
+  width: 100%;
   background: linear-gradient(160deg, #f1f8e9 0%, #e8f5e9 50%, #f9fbe7 100%);
   display: flex;
   align-items: center;
@@ -233,6 +217,9 @@
   cursor: pointer;
   transition: background 0.15s, transform 0.15s;
   box-shadow: 0 4px 18px rgba(27,94,32,0.28);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
 }
 .lnd-btn-primary:hover { background: #2e7d32; transform: translateY(-2px); }
 .lnd-btn-ghost {
@@ -249,26 +236,11 @@
 }
 .lnd-btn-ghost:hover { background: #f0faf0; }
 
-/* Install strip */
-.lnd-install-strip {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 28px;
-  background: #fff;
-  border: 1.5px solid #c8e6c9;
-  border-radius: 14px;
-  padding: 12px 20px;
-  cursor: pointer;
-  font-size: 22px;
-  transition: box-shadow 0.15s, transform 0.15s;
-}
-.lnd-install-strip:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); transform: translateY(-1px); }
-.lnd-install-label { font-size: 13px; font-weight: 700; color: #1b5e20; }
-.lnd-install-sub   { font-size: 11px; color: #888; margin-top: 2px; }
-
 /* ─── Shared Section Styles ──────────────────────────────────────────────── */
-.lnd-section { padding: 88px 0; }
+.lnd-section {
+  padding: 88px 0;
+  width: 100%;
+}
 .lnd-section-label {
   display: inline-block;
   background: #e8f5e9;
@@ -304,8 +276,6 @@
   max-width: 680px;
   margin-bottom: 48px;
 }
-
-/* Vision / Mission / Core Values grid */
 .lnd-vmc-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -331,7 +301,6 @@
   text-align: center;
   color: #1a2e1a;
 }
-/* Core values list */
 .lnd-vmc-values {
   display: flex;
   flex-direction: column;
@@ -389,7 +358,6 @@
   color: #1a2e1a;
   line-height: 1.5;
 }
-/* Bottom wide card */
 .lnd-svc-bottom-card {
   background: #8fbc8f;
   border-radius: 12px;
@@ -462,6 +430,26 @@
 .lnd-announce-title  { font-size: 15px; font-weight: 700; color: #1b5e20; line-height: 1.3; }
 .lnd-announce-body   { font-size: 13px; color: #555; line-height: 1.65; flex: 1; }
 .lnd-announce-author { font-size: 12px; color: #aaa; font-style: italic; }
+
+/* Loading & Empty states */
+.lnd-ann-loading {
+  text-align: center;
+  padding: 40px;
+  color: #aaa;
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+.lnd-ann-empty {
+  text-align: center;
+  padding: 40px;
+  color: #aaa;
+  font-size: 14px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e8f5e9;
+  margin-bottom: 24px;
+}
+
 .lnd-announce-note {
   text-align: center;
   font-size: 13px;
@@ -469,13 +457,10 @@
   margin-top: 8px;
 }
 .lnd-inline-link {
-  background: none;
-  border: none;
   color: #2e7d32;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  font-family: 'Outfit', sans-serif;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -520,6 +505,7 @@
 .lnd-footer {
   background: #1a2e1a;
   padding: 40px 0 20px;
+  width: 100%;
 }
 .lnd-footer-inner {
   display: flex;

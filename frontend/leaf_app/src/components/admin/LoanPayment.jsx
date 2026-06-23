@@ -133,26 +133,38 @@ function ReceiptModal({ tx, onClose }) {
   );
 }
 
+// ── FIX: parse paid_at in local Philippine time (Asia/Manila) ──
+// Dati: "2026-10-30T08:00:00+08:00".split("T")[0] → "2026-10-30" (wrong, UTC artifact)
+// Ngayon: ginagamit ang actual local date ng transaction
+function parsePaidAtDate(paid_at) {
+  if (!paid_at) return "Unknown";
+  // Kung may timezone offset (e.g. +08:00), i-convert sa local date
+  const d = new Date(paid_at);
+  if (isNaN(d.getTime())) return paid_at.split("T")[0] || "Unknown";
+  // Format as YYYY-MM-DD using Asia/Manila timezone
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }); // "en-CA" = YYYY-MM-DD format
+}
+
 function groupByDate(transactions) {
   const groups = {};
   transactions.forEach(tx => {
-    const dateStr = tx.paid_at ? tx.paid_at.split("T")[0] : "Unknown";
+    const dateStr = parsePaidAtDate(tx.paid_at);
     if (!groups[dateStr]) groups[dateStr] = [];
     groups[dateStr].push(tx);
   });
-  return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+  return Object.entries(groups).sort((a, b) => { const maxIdA = Math.max(...a[1].map(t => t.id || 0)); const maxIdB = Math.max(...b[1].map(t => t.id || 0)); return maxIdB - maxIdA; });
 }
 
 function formatDateLabel(dateStr) {
   if (dateStr === "Unknown") return "Unknown Date";
-  const date = new Date(dateStr);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const todayStr     = today.toISOString().split("T")[0];
-  const yesterdayStr = yesterday.toISOString().split("T")[0];
+  // ── FIX: compare using Asia/Manila local date, not UTC ──
+  const todayStr     = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+  const yesterdayD   = new Date();
+  yesterdayD.setDate(yesterdayD.getDate() - 1);
+  const yesterdayStr = yesterdayD.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
   if (dateStr === todayStr)     return "Today";
   if (dateStr === yesterdayStr) return "Yesterday";
+  const date = new Date(dateStr + "T00:00:00");
   return date.toLocaleDateString("en-PH", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 }
 
@@ -196,7 +208,7 @@ function DailyGroup({ dateStr, txList, onViewTx }) {
                 <td className="cell-name">{t.member_name}</td>
                 <td className="fw green">₱{Number(t.amount||0).toLocaleString()}</td>
                 <td className="blue">₱{Number(t.balance||0).toLocaleString()}</td>
-                <td className="cell-date">{t.paid_at ? t.paid_at.split("T")[1]?.substring(0,8) : "—"}</td>
+                <td className="cell-date">{t.paid_at ? new Date(t.paid_at).toLocaleTimeString("en-PH", {timeZone:"Asia/Manila", hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false}) : "—"}</td>
                 <td><span className="hash-text">{t.polygon_tx ? '🔗 '+t.polygon_tx.slice(0,10)+'...' : t.hash?.substring(0,16)+'...'}</span></td>
                 <td style={{textAlign:"center"}}><button className="lp-view-btn" onClick={() => onViewTx(t)}><Eye size={12}/></button></td>
               </tr>
@@ -221,13 +233,15 @@ export default function LoanPayment() {
   const [viewTx,      setViewTx]  = useState(null);
   const [toast,       setToast]   = useState(null);
   const [historyView, setHistoryView] = useState("daily");
-  const [loanHistory, setLoanHistory] = useState(null);  // selected loan for history modal
+  const [loanHistory, setLoanHistory] = useState(null);
   const [loanHistoryData, setLoanHistoryData] = useState([]);
 
+  // ── FIX 2: String().trim() para walang type/whitespace mismatch sa filter ──
   const handleViewLoanHistory = (e, loan) => {
     e.stopPropagation();
-    // ── Use existing transactions state — no re-fetch needed ──
-    const filtered = transactions.filter(p => p.loan_code === loan.loan_id);
+    const filtered = transactions.filter(
+      p => String(p.loan_code).trim() === String(loan.loan_id).trim()
+    );
     setLoanHistoryData(filtered);
     setLoanHistory(loan);
   };
@@ -237,7 +251,6 @@ export default function LoanPayment() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // ── FIX: Fetch Active and Overdue separately to avoid loading all 147 loans ──
       const [lActive, lOverdue, t, s] = await Promise.allSettled([
         getLoansAPI({ status: "Active" }),
         getLoansAPI({ status: "Overdue" }),
@@ -259,25 +272,43 @@ export default function LoanPayment() {
   const overdueCount     = loans.filter(l=>l.status==="Overdue").length;
   const totalOutstanding = loans.reduce((s,l)=>s+parseFloat(l.balance||0),0);
 
-  // ── FIXED: Update state directly — no refetch, no loading flicker ──────────
   const handleSave = async ({ loan, amount, note }) => {
     try {
       const payment = await recordPaymentAPI({ loan: loan.id, member: loan.member, amount, note });
       setRecord(null);
       showToast(`Payment of ₱${amount.toLocaleString()} recorded successfully.`);
 
-      // Update loan balance directly in state
-      const newBalance = Math.max(0, parseFloat(loan.balance||0) - amount);
+      const newBalance  = Math.max(0, parseFloat(loan.balance||0) - amount);
       const isFullyPaid = newBalance <= 0;
 
+      // Update loan balance directly in state
       setLoans(prev =>
         prev
           .map(l => l.id === loan.id ? { ...l, balance: newBalance, status: isFullyPaid ? "Completed" : l.status } : l)
-          .filter(l => l.status !== "Completed") // remove from active list if fully paid
+          .filter(l => l.status !== "Completed")
       );
 
-      // Add new payment to top of transactions list instantly
-      if (payment) setTx(prev => [payment, ...prev]);
+      // ── FIX 1: Normalize returned payment object para may loan_code,
+      //    member_name, etc. agad — visible sa Daily View at All Transactions ──
+      if (payment) {
+        const normalized = {
+          ...payment,
+          member_name: payment.member_name || loan.member_name || "",
+          member_code: payment.member_code || loan.member_code || "",
+          loan_code:   payment.loan_code   || loan.loan_id     || "",
+          paid_at:     payment.paid_at     || new Date().toISOString(),
+        };
+
+        // Add new payment to top of transactions list instantly
+        setTx(prev => [normalized, ...prev]);
+
+        // ── FIX 3: Kung bukas ang loan history modal ng same loan,
+        //    i-update din ang loanHistoryData at loanHistory balance ──
+        if (loanHistory && loanHistory.id === loan.id) {
+          setLoanHistoryData(prev => [normalized, ...prev]);
+          setLoanHistory(prev => ({ ...prev, balance: newBalance }));
+        }
+      }
 
       // Update KPI stats
       setPStats(prev => ({

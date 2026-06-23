@@ -453,7 +453,7 @@ function ViewEditModal({ member, onClose, onSave }) {
                 </div>
                 <div className="mm-vc-row">
                   <span className="mm-vc-label">Max Loanable</span>
-                  <span className="mm-vc-val green">₱{Number(form.share_capital||0).toLocaleString()}</span>
+                  <span className="mm-vc-val green">₱{(Number(form.share_capital||0)*2).toLocaleString()}</span>
                 </div>
               </div>
 
@@ -775,7 +775,8 @@ export default function ManageMember() {
   const handleSaveEdit = async (id,form) => { try{await updateMemberAPI(id,form);showToast("Member updated successfully.");fetchData(true);}catch{showToast("Failed to update member.","danger");} };
   const handleDelete   = async (id)      => { try{await deleteMemberAPI(id);setDeleteMember(null);showToast("Member deleted.","danger");fetchData(true);}catch{showToast("Failed to delete member.","danger");} };
   const handleConvert  = async (app, sharePaid=0) => { try{const r=await convertOnlineAppAPI(app.id, { share_capital: sharePaid });
-  setPending(prev=>prev.filter(p=>p.id!==app.id));setViewPending(null);showToast(`✓ ${app.first_name} ${app.last_name} is now an official member! ID: ${r.member_id}`,"success");fetchData(true);}catch(err){showToast(err.response?.data?.error||"Failed to convert member.","danger");} };
+  setPending(prev=>prev.filter(p=>p.id!==app.id));setViewPending(null);showToast(`✓ ${app.first_name} ${app.last_name} is now an official member! ID: ${r.member_id}`,"success");fetchData(false);}catch(err){showToast(err.response?.data?.error||"Failed to convert member.","danger");} };
+
 
   return (
     <div className="mm-wrapper">

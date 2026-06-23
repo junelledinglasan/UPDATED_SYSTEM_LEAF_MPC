@@ -21,49 +21,48 @@ function useInstallPrompt() {
   return { canInstall: !!prompt, install, installed };
 }
 
-// ─── URLs ng dalawang apps ────────────────────────────────────────────────────
-// Palitan ng actual deployed URLs later
-const ADMIN_APP_URL  = "http://localhost:5174";
-const MEMBER_APP_URL = "http://localhost:5175";
-
-// ─── Mock Announcements ───────────────────────────────────────────────────────
-const ANNOUNCEMENTS = [
-  {
-    id: 1, type: "Activity",
-    title: "Annual General Assembly 2026",
-    body:  "Matagumpay na naidaos ang ating Annual General Assembly ngayong Marso 15, 2026 sa Lucena City Hall. Maraming salamat sa lahat ng dumalo! 🎉",
-    author: "Admin", date: "March 15, 2026",
-  },
-  {
-    id: 2, type: "Seminar",
-    title: "Financial Literacy Seminar — April 5",
-    body:  "Inaanyayahan ang lahat ng miyembro na dumalo sa aming Financial Literacy Seminar sa Abril 5, 2026, 9:00 AM – 12:00 PM. Libre ang pagpasok. 📚",
-    author: "Admin", date: "March 18, 2026",
-  },
-  {
-    id: 3, type: "Notice",
-    title: "March Collection Schedule",
-    body:  "Paalala sa lahat ng miyembro: Ang schedule ng koleksyon para sa buwan ng Marso ay sa mga araw na 3, 7, 10, 14, 17, 20, 24, at 28.",
-    author: "Staff", date: "March 1, 2026",
-  },
-];
+// ─── Login URL — same app, role-based ────────────────────────────────────────
+const LOGIN_URL = "http://localhost:3000/login";
+const API_URL   = "http://localhost:8000/api";
 
 const TYPE_STYLE = {
   Activity: { bg: "#e8f5e9", color: "#1b5e20" },
   Seminar:  { bg: "#e3f2fd", color: "#0d47a1" },
   Notice:   { bg: "#fff3e0", color: "#e65100" },
+  General:  { bg: "#f3e5f5", color: "#6a1b9a" },
+  Event:    { bg: "#e8f5e9", color: "#1b5e20" },
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const { canInstall, install, installed } = useInstallPrompt();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen,       setMenuOpen]       = useState(false);
+  const [scrolled,       setScrolled]       = useState(false);
+  const [announcements,  setAnnouncements]  = useState([]);
+  const [annLoading,     setAnnLoading]     = useState(true);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // ── Fetch real announcements from backend ──
+  useEffect(() => {
+    const fetchAnn = async () => {
+      try {
+        const res  = await fetch(`${API_URL}/announcements/`);
+        const data = await res.json();
+        // Show latest 3 only
+        setAnnouncements(Array.isArray(data) ? data.slice(0, 3) : []);
+      } catch(e) {
+        console.error("Failed to fetch announcements:", e);
+        setAnnouncements([]);
+      } finally {
+        setAnnLoading(false);
+      }
+    };
+    fetchAnn();
   }, []);
 
   const scrollTo = id => {
@@ -88,9 +87,9 @@ export default function LandingPage() {
             <button className="lnd-nav-link" onClick={() => scrollTo("announcements")}>Announcements</button>
             <button className="lnd-nav-link" onClick={() => scrollTo("contact")}>Contact</button>
           </div>
+          {/* ── SINGLE LOGIN BUTTON ── */}
           <div className="lnd-nav-actions">
-            <a className="lnd-btn-member" href={MEMBER_APP_URL}>Member Login</a>
-            <a className="lnd-btn-office" href={ADMIN_APP_URL}>Office Login</a>
+            <a className="lnd-btn-login" href={LOGIN_URL}>Login</a>
           </div>
           <button
             className={`lnd-hamburger ${menuOpen ? "open" : ""}`}
@@ -118,8 +117,8 @@ export default function LandingPage() {
             financial services, community development, and environmental stewardship.
           </p>
           <div className="lnd-hero-btns">
-            <a className="lnd-btn-primary" href={`${MEMBER_APP_URL}/register`}>
-              Join as Member
+            <a className="lnd-btn-primary" href={`${LOGIN_URL}`}>
+              Get Started
             </a>
             <button className="lnd-btn-ghost" onClick={() => scrollTo("about")}>
               Learn More ↓
@@ -210,7 +209,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Announcements ── */}
+      {/* ── Announcements — REAL DATA FROM BACKEND ── */}
       <section id="announcements" className="lnd-section lnd-announce">
         <div className="lnd-container">
           <div className="lnd-section-label">Announcements</div>
@@ -218,28 +217,46 @@ export default function LandingPage() {
           <p className="lnd-announce-sub">
             Stay updated with the latest news, events, and notices from LEAF MPC.
           </p>
-          <div className="lnd-announce-grid">
-            {ANNOUNCEMENTS.map(a => {
-              const style = TYPE_STYLE[a.type] || { bg: "#f5f5f5", color: "#333" };
-              return (
-                <div key={a.id} className="lnd-announce-card">
-                  <div className="lnd-announce-top">
-                    <span className="lnd-announce-type" style={{ background: style.bg, color: style.color }}>
-                      {a.type}
-                    </span>
-                    <span className="lnd-announce-date">{a.date}</span>
+
+          {annLoading ? (
+            <div className="lnd-ann-loading">Loading announcements...</div>
+          ) : announcements.length === 0 ? (
+            <div className="lnd-ann-empty">
+              <div style={{fontSize:36,marginBottom:8}}>📢</div>
+              <div>No announcements yet. Check back soon!</div>
+            </div>
+          ) : (
+            <div className="lnd-announce-grid">
+              {announcements.map(a => {
+                const type  = a.category || a.type || "General";
+                const style = TYPE_STYLE[type] || TYPE_STYLE.General;
+                const date  = a.created_at || a.posted_at || "";
+                const body  = a.body || a.caption || a.content || "";
+                return (
+                  <div key={a.id} className="lnd-announce-card">
+                    <div className="lnd-announce-top">
+                      <span className="lnd-announce-type" style={{ background: style.bg, color: style.color }}>
+                        {type}
+                      </span>
+                      <span className="lnd-announce-date">
+                        {date ? new Date(date).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : ""}
+                      </span>
+                    </div>
+                    <div className="lnd-announce-title">{a.title}</div>
+                    <div className="lnd-announce-body">
+                      {body.length > 120 ? body.slice(0, 120) + "..." : body}
+                    </div>
+                    <div className="lnd-announce-author">— {a.posted_by || a.author || "Admin"}</div>
                   </div>
-                  <div className="lnd-announce-title">{a.title}</div>
-                  <div className="lnd-announce-body">{a.body}</div>
-                  <div className="lnd-announce-author">— {a.author}</div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
+
           <div className="lnd-announce-note">
             For more announcements,{" "}
-            <a className="lnd-inline-link" href={`${MEMBER_APP_URL}/login`}>
-              log in to your member account
+            <a className="lnd-inline-link" href={LOGIN_URL}>
+              log in to your account
             </a>.
           </div>
         </div>
@@ -295,8 +312,7 @@ export default function LandingPage() {
               <button className="lnd-footer-link" onClick={() => scrollTo("contact")}>Contact</button>
             </div>
             <div className="lnd-footer-actions">
-              <a className="lnd-btn-member" href={MEMBER_APP_URL}>Member Login</a>
-              <a className="lnd-btn-office" href={ADMIN_APP_URL}>Office Login</a>
+              <a className="lnd-btn-login" href={LOGIN_URL}>Login</a>
             </div>
           </div>
           <div className="lnd-footer-bottom">
