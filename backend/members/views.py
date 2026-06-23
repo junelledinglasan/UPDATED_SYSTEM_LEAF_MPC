@@ -206,7 +206,7 @@ def convert_to_member_view(request, pk):
         user.save()
 
     paid_amount   = float(request.data.get('share_capital', 0) or 0)
-    share_capital = paid_amount * 2
+    share_capital = paid_amount
 
     try:
         member = Member.objects.create(

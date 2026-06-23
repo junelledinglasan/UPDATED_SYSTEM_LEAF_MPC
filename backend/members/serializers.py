@@ -20,7 +20,6 @@ class JobProfileSerializer(serializers.ModelSerializer):
         fields = ['id', 'occupation', 'job_type', 'monthly_income']
 
 
-# ── LeafMemberInfo Serializers ─────────────────────────────────────────────────
 class LeafMemberInfoSerializer(serializers.ModelSerializer):
     fullname     = serializers.ReadOnlyField()
     is_converted = serializers.SerializerMethodField()
@@ -52,7 +51,6 @@ class LeafMemberInfoListSerializer(serializers.ModelSerializer):
         return hasattr(obj, 'converted_member')
 
 
-# ── Member Serializers ─────────────────────────────────────────────────────────
 class MemberSerializer(serializers.ModelSerializer):
     fullname        = serializers.ReadOnlyField()
     first_name      = serializers.ReadOnlyField()
@@ -106,10 +104,19 @@ class MemberListSerializer(serializers.ModelSerializer):
         ]
 
     def get_birth_date(self, obj):
-        return str(obj.pre_member.birth_date) if obj.pre_member and obj.pre_member.birth_date else None
+        # ── Try pre_member first ──
+        if obj.pre_member and obj.pre_member.birth_date:
+            return str(obj.pre_member.birth_date)
+        # ── Fallback: check leaf_members_info by user ──
+        try:
+            info = LeafMemberInfo.objects.filter(user=obj.user).first()
+            if info and info.birth_date:
+                return str(info.birth_date)
+        except Exception:
+            pass
+        return None
 
 
-# ── Savings Serializer ─────────────────────────────────────────────────────────
 class SavingsSerializer(serializers.ModelSerializer):
     member_name = serializers.CharField(source='member.fullname',  read_only=True)
     member_code = serializers.CharField(source='member.member_id', read_only=True)

@@ -223,7 +223,8 @@ class Member(models.Model):
 
     @property
     def max_loanable(self):
-        return float(self.share_capital) * 3
+        # ── FIX: share_capital = amount paid, max loanable = share_capital × 2 ──
+        return float(self.share_capital) * 2
 
     @property
     def application_id(self):

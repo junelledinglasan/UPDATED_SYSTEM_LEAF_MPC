@@ -196,6 +196,15 @@ def change_password_view(request):
         return Response({'detail': 'Current password is incorrect.'}, status=400)
     if len(new_pw) < 6:
         return Response({'detail': 'New password must be at least 6 characters.'}, status=400)
-    user.password = new_pw  # ── Store plain text ──
+    user.set_password(new_pw)  # ── Proper hashed password ──
     user.save()
+
+    # ── Update plain_password sa Member record din ──
+    try:
+        from members.models import Member
+        member = Member.objects.get(user=user)
+        member.plain_password = new_pw
+        member.save()
+    except Exception:
+        pass
     return Response({'message': 'Password changed successfully.'})

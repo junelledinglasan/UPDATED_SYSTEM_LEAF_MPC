@@ -20,14 +20,10 @@ def payment_list_view(request):
             'member',
             'member__pre_member',
             'loan',
-        ).order_by('-paid_at')
+        ).order_by('-id')  # secondary sort by id
 
         if request.user.role == 'member':
             payments = payments.filter(member__user=request.user)
-
-        # ── OPTIMIZATION: limit to latest 200 payments for admin view ──
-        # Ang Loan Payment history ay hindi kailangan ng lahat ng 905
-
 
         return Response(PaymentSerializer(payments, many=True).data)
 
