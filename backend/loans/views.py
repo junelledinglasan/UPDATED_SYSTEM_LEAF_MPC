@@ -3,6 +3,7 @@ from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from notifications.email_utils import send_loan_approved_email
 from dateutil.relativedelta import relativedelta
 
 from activity_log.utils import log_activity
@@ -109,6 +110,25 @@ def loan_detail_view(request, pk):
                 f'Savings Deposit +₱{savings_deposit:,.2f}',
                 request.user
             )
+
+            # ── Send loan approved email ──────────────────────────────────
+            try:
+                pm = getattr(loan.member, 'pre_member', None)
+                email_addr = (pm.email if pm else None) or getattr(loan.member.user, 'email', None)
+                if email_addr:
+                    send_loan_approved_email(
+                        email        = email_addr,
+                        fullname     = loan.member.fullname,
+                        member_id    = loan.member.member_id,
+                        loan_id      = loan.loan_id,
+                        loan_type    = loan.loan_type,
+                        amount       = loan.amount,
+                        monthly_due  = loan.monthly_due,
+                        term_months  = loan.term_months,
+                        next_due_date= str(loan.next_due_date),
+                    )
+            except Exception as e:
+                print(f"[EMAIL ERROR] Loan approved email failed: {e}")
 
         elif new_status == 'Declined':
             loan.status         = 'Declined'

@@ -4,6 +4,10 @@ from django.db.models import Sum, Prefetch
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from notifications.email_utils import (
+    send_member_approved_email,
+    send_loan_approved_email,
+)
 
 from auth_app.models import User
 from activity_log.utils import log_activity
@@ -206,7 +210,7 @@ def convert_to_member_view(request, pk):
         user.save()
 
     paid_amount   = float(request.data.get('share_capital', 0) or 0)
-    share_capital = paid_amount
+    share_capital = paid_amount * 2
 
     try:
         member = Member.objects.create(
@@ -220,6 +224,20 @@ def convert_to_member_view(request, pk):
         return Response({'error': f'Failed to create member: {str(e)}'}, status=500)
 
     save_sub_profile(member, info.classification, request.data)
+
+    try:
+        if info.email:
+            send_member_approved_email(
+                email=info.email,
+                fullname=member.fullname,
+                member_id=member.member_id,
+                username=user.username,
+                plain_password=plain_pw,
+                membership_date=member.membership_date.strftime('%B %d, %Y')
+            )
+    except Exception as e:
+        print(f"[EMAIL ERROR] {e}")
+
 
     log_activity('member',
         f'Member converted: {member.fullname} ({member.member_id}) from {info.app_id} '
@@ -308,6 +326,26 @@ def member_list_view(request):
         return Response({'error': f'Failed to create member: {str(e)}'}, status=500)
 
     save_sub_profile(member, data.get('classification', 'Employed'), data)
+
+    print("=== EMAIL SECTION REACHED ===")
+    print("EMAIL FROM FORM:", info.email)
+
+    try:
+        if info.email:
+            result = send_member_approved_email(
+                email=info.email,
+                fullname=member.fullname,
+                member_id=member.member_id,
+                username=user.username,
+                plain_password=plain_pw,
+                membership_date=member.membership_date.strftime('%B %d, %Y')
+            )
+            print("EMAIL RESULT:", result)
+        else:
+            print("NO EMAIL FOUND")
+    except Exception as e:
+        print(f"[EMAIL ERROR] {e}")
+
 
     log_activity('member',
         f'New F2F member: {member.fullname} ({member.member_id}) by {request.user.name} '
@@ -822,6 +860,21 @@ def convert_online_application_view(request, pk):
     log_activity('member',
         f'Online applicant converted: {member.fullname} ({member.member_id})',
         request.user)
+
+    # ── Send welcome email ────────────────────────────────────────────────────
+    try:
+        email_addr = online_app.email or getattr(user, 'email', None)
+        if email_addr:
+            send_member_approved_email(
+                email          = email_addr,
+                fullname       = member.fullname,
+                member_id      = member.member_id,
+                username       = user.username,
+                plain_password = plain_pw,
+                membership_date= member.membership_date.strftime('%B %d, %Y') if member.membership_date else str(timezone.now().date()),
+            )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Member approved email failed: {e}")
 
     return Response({
         'message':    f'{member.fullname} is now an official member!',
