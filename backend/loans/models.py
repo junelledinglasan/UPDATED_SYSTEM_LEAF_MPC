@@ -69,3 +69,32 @@ class Loan(models.Model):
                 candidate = f'{prefix}{str(max_num + 1).zfill(3)}'
             self.loan_id = candidate
         super().save(*args, **kwargs)
+
+
+# ── Add this to loans/models.py at the bottom ────────────────────────────────
+
+class GCashPaymentRequest(models.Model):
+    STATUS_CHOICES = [
+        ('Pending',  'Pending'),
+        ('Verified', 'Verified'),
+        ('Rejected', 'Rejected'),
+    ]
+
+    loan            = models.ForeignKey('Loan',   on_delete=models.CASCADE, related_name='gcash_requests')
+    member          = models.ForeignKey('members.Member', on_delete=models.CASCADE, related_name='gcash_requests')
+    amount          = models.DecimalField(max_digits=12, decimal_places=2)
+    reference_number= models.CharField(max_length=20)
+    screenshot_url  = models.URLField(max_length=500, blank=True)
+    status          = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    note            = models.CharField(max_length=200, blank=True)
+    verified_by     = models.CharField(max_length=100, blank=True)
+    verified_at     = models.DateTimeField(null=True, blank=True)
+    reject_reason   = models.CharField(max_length=200, blank=True)
+    created_at      = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'gcash_payment_requests'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'GCash {self.reference_number} — {self.member.fullname} ₱{self.amount} ({self.status})'

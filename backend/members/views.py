@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from notifications.email_utils import (
     send_member_approved_email,
     send_loan_approved_email,
+    send_application_approved_email,
 )
 
 from auth_app.models import User
@@ -225,20 +226,6 @@ def convert_to_member_view(request, pk):
 
     save_sub_profile(member, info.classification, request.data)
 
-    try:
-        if info.email:
-            send_member_approved_email(
-                email=info.email,
-                fullname=member.fullname,
-                member_id=member.member_id,
-                username=user.username,
-                plain_password=plain_pw,
-                membership_date=member.membership_date.strftime('%B %d, %Y')
-            )
-    except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
-
-
     log_activity('member',
         f'Member converted: {member.fullname} ({member.member_id}) from {info.app_id} '
         f'— Paid: ₱{paid_amount:,.2f} → Share Capital: ₱{share_capital:,.2f}',
@@ -326,26 +313,6 @@ def member_list_view(request):
         return Response({'error': f'Failed to create member: {str(e)}'}, status=500)
 
     save_sub_profile(member, data.get('classification', 'Employed'), data)
-
-    print("=== EMAIL SECTION REACHED ===")
-    print("EMAIL FROM FORM:", info.email)
-
-    try:
-        if info.email:
-            result = send_member_approved_email(
-                email=info.email,
-                fullname=member.fullname,
-                member_id=member.member_id,
-                username=user.username,
-                plain_password=plain_pw,
-                membership_date=member.membership_date.strftime('%B %d, %Y')
-            )
-            print("EMAIL RESULT:", result)
-        else:
-            print("NO EMAIL FOUND")
-    except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
-
 
     log_activity('member',
         f'New F2F member: {member.fullname} ({member.member_id}) by {request.user.name} '
@@ -458,6 +425,7 @@ def member_stats_view(request):
         'active':                Member.objects.filter(membership_status='Active').count(),
         'inactive':              Member.objects.filter(membership_status='Inactive').count(),
         'suspended':             Member.objects.filter(membership_status='Suspended').count(),
+        'deactivated':           Member.objects.filter(membership_status='Deactivated').count(),
         'pending_applications':  LeafMemberInfo.objects.filter(application_status='Pending').count(),
         'approved_applications': LeafMemberInfo.objects.filter(application_status='Approved').count(),
         'total_applications':    LeafMemberInfo.objects.count(),
@@ -471,8 +439,31 @@ def member_stats_view(request):
 @permission_classes([IsAuthenticated])
 def my_profile_view(request):
     try:
-        member = Member.objects.get(user=request.user)
-        return Response(MemberSerializer(member).data)
+        member = Member.objects.select_related(
+            'pre_member', 'student_profile', 'senior_profile', 'job_profile'
+        ).get(user=request.user)
+        data = MemberSerializer(member).data
+
+        # ── Include sub-profile income data for recommendation engine ──
+        sp = getattr(member, 'student_profile', None)
+        sr = getattr(member, 'senior_profile',  None)
+        jp = getattr(member, 'job_profile',      None)
+
+        data['student_profile'] = {
+            'allowance': float(sp.allowance) if sp else 0,
+            'school_name': sp.school_name if sp else '',
+            'year_level':  sp.year_level  if sp else '',
+        } if sp else None
+        data['senior_profile'] = {
+            'pension_income': float(sr.pension_income) if sr else 0,
+        } if sr else None
+        data['job_profile'] = {
+            'monthly_income': float(jp.monthly_income) if jp else 0,
+            'job_type':       jp.job_type   if jp else '',
+            'occupation':     jp.occupation if jp else '',
+        } if jp else None
+
+        return Response(data)
     except Member.DoesNotExist:
         return Response({'error': 'Not an official member yet.'}, status=404)
 
@@ -510,7 +501,7 @@ def member_financial_summary_view(request, pk):
     return Response({
         'share_capital':     share_capital,
         'amount_paid':       amount_paid,
-        'max_loanable':      share_capital,
+        'max_loanable':      share_capital * 2,
         'total_loans':       len(loans),
         'active_loans':      len(active_loans),
         'total_loan_amount': sum(float(l.amount)  for l in active_loans),
@@ -551,11 +542,20 @@ def member_financial_summary_view(request, pk):
 def savings_list_view(request):
     if request.method == 'GET':
         member_id = request.query_params.get('member')
-        savings = Savings.objects.all()
+        savings = Savings.objects.select_related('member').order_by('-created_at')
         if member_id:
             savings = savings.filter(member_id=member_id)
         elif request.user.role == 'member':
             savings = savings.filter(member__user=request.user)
+
+        # ── Limit for history tab — max 200 latest records ──
+        limit = request.query_params.get('limit')
+        if limit:
+            try:
+                savings = savings[:int(limit)]
+            except (ValueError, TypeError):
+                savings = savings[:200]
+        
         return Response(SavingsSerializer(savings, many=True).data)
 
     if request.user.role not in ['admin', 'staff']:
@@ -684,6 +684,8 @@ def online_application_list_view(request):
                 'classification':         a.classification,
                 'birth_certificate':      a.birth_certificate,
                 'marriage_certificate':   a.marriage_certificate,
+                'id_front_url':           a.id_front_url or '',
+                'id_back_url':            a.id_back_url  or '',
                 'application_status':     a.application_status,
                 'reviewed_at':            str(a.reviewed_at) if a.reviewed_at else '',
                 'reviewed_by':            a.reviewed_by,
@@ -724,6 +726,8 @@ def online_application_list_view(request):
             classification         = data.get('classification', 'Employed'),
             birth_certificate      = data.get('birth_certificate', False),
             marriage_certificate   = data.get('marriage_certificate', False),
+            id_front_url           = data.get('id_front_url', ''),
+            id_back_url            = data.get('id_back_url', ''),
         )
         log_activity('application', f'New online application: {app.fullname} ({app.app_id})', user)
         return Response({'app_id': app.app_id, 'message': 'Application submitted.'}, status=201)
@@ -768,6 +772,8 @@ def online_application_detail_view(request, pk):
             'classification':         app.classification,
             'birth_certificate':      app.birth_certificate,
             'marriage_certificate':   app.marriage_certificate,
+            'id_front_url':           app.id_front_url or '',
+            'id_back_url':            app.id_back_url  or '',
             'application_status':     app.application_status,
             'reviewed_at':            str(app.reviewed_at) if app.reviewed_at else '',
             'reviewed_by':            app.reviewed_by,
@@ -791,6 +797,20 @@ def online_application_detail_view(request, pk):
         log_activity('application',
             f'Online application {app.app_id} ({app.fullname}) {new_status.lower()} by {request.user.name}',
             request.user)
+
+        # ── Send approval email with requirements ──
+        if new_status == 'Approved':
+            try:
+                email_addr = app.email or (app.user.email if app.user else None)
+                if email_addr:
+                    send_application_approved_email(
+                        email    = email_addr,
+                        fullname = app.fullname,
+                        app_id   = app.app_id,
+                    )
+            except Exception as e:
+                print(f"[EMAIL ERROR] Application approved email failed: {e}")
+
     return Response({'application_status': app.application_status})
 
 
@@ -897,3 +917,146 @@ def my_online_application_view(request):
         })
     except OnlineApplication.DoesNotExist:
         return Response({'error': 'No application found.'}, status=404)
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def share_capital_deposit_view(request, pk):
+    """Record a manual share capital deposit for a member / list transactions."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    try:
+        member = Member.objects.get(pk=pk)
+    except Member.DoesNotExist:
+        return Response({'error': 'Member not found.'}, status=404)
+
+    if request.method == 'GET':
+        # ── Return share capital transaction history ──
+        from .models import ShareCapitalTransaction
+        txns = ShareCapitalTransaction.objects.filter(member=member).order_by('-created_at')[:100]
+        return Response([{
+            'id':           t.id,
+            'txn_type':     t.txn_type,
+            'amount':       float(t.amount),
+            'balance_after':float(t.balance_after),
+            'note':         t.note,
+            'recorded_by':  t.recorded_by,
+            'created_at':   t.created_at.strftime('%Y-%m-%d %H:%M'),
+        } for t in txns])
+
+    # POST — record deposit
+    amount = float(request.data.get('amount', 0))
+    note   = request.data.get('note', 'Share capital deposit')
+    txn_type = request.data.get('txn_type', 'Deposit')
+
+    if amount <= 0:
+        return Response({'error': 'Amount must be greater than 0.'}, status=400)
+
+    # ── Update share capital ──
+    from .models import ShareCapitalTransaction
+    old_sc = float(member.share_capital)
+    member.share_capital = old_sc + amount
+    member.save()
+
+    # ── Save transaction record ──
+    ShareCapitalTransaction.objects.create(
+        member       = member,
+        txn_type     = txn_type,
+        amount       = amount,
+        balance_after= float(member.share_capital),
+        note         = note,
+        recorded_by  = request.user.username,
+    )
+
+    log_activity(
+        'member',
+        f'Share capital deposit: ₱{amount:,.2f} for {member.fullname} ({member.member_id}) '
+        f'| SC: ₱{old_sc:,.2f} → ₱{float(member.share_capital):,.2f} by {request.user.username}',
+        request.user
+    )
+
+    return Response({
+        'message':       f'Share capital deposit of ₱{amount:,.2f} recorded.',
+        'member_id':     member.member_id,
+        'old_sc':        old_sc,
+        'new_sc':        float(member.share_capital),
+        'max_loanable':  float(member.share_capital) * 2,
+    }, status=200)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def share_capital_history_view(request):
+    """Return all share capital transactions — for history tab."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+    from .models import ShareCapitalTransaction
+    txns = ShareCapitalTransaction.objects.select_related('member').order_by('-created_at')[:200]
+    return Response([{
+        'id':            t.id,
+        'member_id':     t.member.member_id,
+        'member_name':   t.member.fullname,
+        'txn_type':      t.txn_type,
+        'amount':        float(t.amount),
+        'balance_after': float(t.balance_after),
+        'note':          t.note,
+        'recorded_by':   t.recorded_by,
+        'created_at':    t.created_at.strftime('%Y-%m-%d %H:%M'),
+    } for t in txns])
+
+
+
+# ══════════════════════════════════════════════════════════════════
+# DEACTIVATE MEMBER — Permanent, insurance covers active loans
+# ══════════════════════════════════════════════════════════════════
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def deactivate_member_view(request, pk):
+    if request.user.role not in ['admin']:
+        return Response({'error': 'Only admin can deactivate members.'}, status=403)
+
+    try:
+        member = Member.objects.select_related('user').get(pk=pk)
+    except Member.DoesNotExist:
+        return Response({'error': 'Member not found.'}, status=404)
+
+    if member.membership_status == 'Deactivated':
+        return Response({'error': 'Member is already deactivated.'}, status=400)
+
+    from loans.models import Loan
+    from decimal import Decimal
+
+    # ── Set all Active/Overdue loans to Completed with balance = 0 ──
+    active_loans = Loan.objects.filter(
+        member=member,
+        status__in=['Active', 'Overdue']
+    )
+    loan_ids = []
+    for loan in active_loans:
+        loan.balance     = Decimal('0')
+        loan.status      = 'Completed'
+        loan.save()
+        loan_ids.append(loan.loan_id)
+
+    # ── Deactivate the member ──
+    member.membership_status = 'Deactivated'
+    member.save()
+
+    # ── Disable login ──
+    if member.user:
+        member.user.is_active = False
+        member.user.save()
+
+    log_activity(
+        'member',
+        f'Member DEACTIVATED: {member.fullname} ({member.member_id}) by {request.user.username}'
+        + (f' — Loans completed: {", ".join(loan_ids)}' if loan_ids else ''),
+        request.user
+    )
+
+    return Response({
+        'message':        f'{member.fullname} has been deactivated.',
+        'member_id':      member.member_id,
+        'loans_completed': loan_ids,
+    })

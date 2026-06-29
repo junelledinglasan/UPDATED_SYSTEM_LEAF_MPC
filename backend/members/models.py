@@ -126,6 +126,8 @@ class OnlineApplication(models.Model):
     reviewed_by            = models.CharField(max_length=100, blank=True)
     reject_reason          = models.TextField(blank=True)
     plain_password         = models.CharField(max_length=100, blank=True)  # ── para makita ng admin
+    id_front_url           = models.URLField(max_length=500, blank=True)   # ── Valid ID front
+    id_back_url            = models.URLField(max_length=500, blank=True)   # ── Valid ID back
     created_at             = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -223,7 +225,6 @@ class Member(models.Model):
 
     @property
     def max_loanable(self):
-        # ── FIX: share_capital = amount paid, max loanable = share_capital × 2 ──
         return float(self.share_capital) * 2
 
     @property
@@ -329,3 +330,30 @@ class Savings(models.Model):
 
     def __str__(self):
         return f'{self.transaction_type} ₱{self.amount} — {self.member.fullname}'
+
+
+# ══════════════════════════════════════════════════════════════════
+# TABLE 7: share_capital_transactions
+# Records every change in share capital (deposit, CBU from loan, initial)
+# ══════════════════════════════════════════════════════════════════
+class ShareCapitalTransaction(models.Model):
+    TYPE_CHOICES = [
+        ('Initial',  'Initial Deposit'),   # kapag nag-register
+        ('Deposit',  'Manual Deposit'),    # manual na dagdag
+        ('CBU',      'CBU from Loan'),     # 3% sa bawat loan
+    ]
+
+    member      = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='share_capital_transactions')
+    txn_type    = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Deposit')
+    amount      = models.DecimalField(max_digits=12, decimal_places=2)
+    balance_after = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    note        = models.CharField(max_length=200, blank=True)
+    recorded_by = models.CharField(max_length=100, blank=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'share_capital_transactions'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.txn_type} ₱{self.amount} — {self.member.fullname}'

@@ -3,23 +3,21 @@ from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from notifications.email_utils import send_loan_approved_email
+from notifications.email_utils import send_loan_approved_email, send_gcash_verified_email, send_gcash_rejected_email
 from dateutil.relativedelta import relativedelta
 
 from activity_log.utils import log_activity
 from .models import Loan
 from .serializers import LoanSerializer, CreateLoanSerializer
+from django.utils import timezone as tz
 
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def loan_list_view(request):
     if request.method == 'GET':
-        # ── OPTIMIZATION: select_related para isang query lang ──
         loans = Loan.objects.select_related(
-            'member',
-            'member__pre_member',
-            'member__user',
+            'member', 'member__pre_member', 'member__user',
         ).all()
         if request.user.role == 'member':
             loans = loans.filter(member__user=request.user)
@@ -49,11 +47,8 @@ def loan_list_view(request):
 @permission_classes([IsAuthenticated])
 def loan_detail_view(request, pk):
     try:
-        # ── OPTIMIZATION: select_related para sa member data ──
         loan = Loan.objects.select_related(
-            'member',
-            'member__pre_member',
-            'member__user',
+            'member', 'member__pre_member', 'member__user',
         ).get(pk=pk)
     except Loan.DoesNotExist:
         return Response({'error': 'Not found.'}, status=404)
@@ -76,56 +71,37 @@ def loan_detail_view(request, pk):
             loan.approved_by   = request.user.username
             loan.next_due_date = datetime.date.today() + relativedelta(months=1)
 
-            # ── 1. Share Capital CBU (+3%) ─────────────────────────────────
             share_capital_addition = loan.amount * Decimal('0.03')
             loan.member.share_capital += share_capital_addition
             loan.member.save()
 
-            # ── 2. Savings Deposit (1%) → auto-record in Savings ──────────
             savings_deposit = loan.amount * Decimal('0.01')
-
-            # Compute current savings balance for balance_after
-            total_dep = Savings.objects.filter(
-                member=loan.member, transaction_type='Deposit'
-            ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-            total_wdr = Savings.objects.filter(
-                member=loan.member, transaction_type='Withdraw'
-            ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+            total_dep = Savings.objects.filter(member=loan.member, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+            total_wdr = Savings.objects.filter(member=loan.member, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or Decimal('0')
             current_balance = total_dep - total_wdr
             new_balance     = current_balance + savings_deposit
 
             Savings.objects.create(
-                member           = loan.member,
-                transaction_type = 'Deposit',
-                amount           = savings_deposit,
-                balance_after    = new_balance,
-                note             = f'Auto-deposit from loan {loan.loan_id} (1% savings deposit)',
-                recorded_by      = request.user.username,
+                member=loan.member, transaction_type='Deposit', amount=savings_deposit,
+                balance_after=new_balance,
+                note=f'Auto-deposit from loan {loan.loan_id} (1% savings deposit)',
+                recorded_by=request.user.username,
             )
 
-            log_activity(
-                'loan',
-                f'Loan approved & activated: {loan.loan_id} — {loan.member.fullname} — ₱{loan.amount:,.2f} | '
-                f'Share Capital +₱{share_capital_addition:,.2f} | '
-                f'Savings Deposit +₱{savings_deposit:,.2f}',
-                request.user
-            )
+            log_activity('loan',
+                f'Loan approved & activated: {loan.loan_id} — {loan.member.fullname} — ₱{loan.amount:,.2f} | Share Capital +₱{share_capital_addition:,.2f} | Savings Deposit +₱{savings_deposit:,.2f}',
+                request.user)
 
-            # ── Send loan approved email ──────────────────────────────────
             try:
                 pm = getattr(loan.member, 'pre_member', None)
                 email_addr = (pm.email if pm else None) or getattr(loan.member.user, 'email', None)
                 if email_addr:
                     send_loan_approved_email(
-                        email        = email_addr,
-                        fullname     = loan.member.fullname,
-                        member_id    = loan.member.member_id,
-                        loan_id      = loan.loan_id,
-                        loan_type    = loan.loan_type,
-                        amount       = loan.amount,
-                        monthly_due  = loan.monthly_due,
-                        term_months  = loan.term_months,
-                        next_due_date= str(loan.next_due_date),
+                        email=email_addr, fullname=loan.member.fullname,
+                        member_id=loan.member.member_id, loan_id=loan.loan_id,
+                        loan_type=loan.loan_type, amount=loan.amount,
+                        monthly_due=loan.monthly_due, term_months=loan.term_months,
+                        next_due_date=str(loan.next_due_date),
                     )
             except Exception as e:
                 print(f"[EMAIL ERROR] Loan approved email failed: {e}")
@@ -133,11 +109,7 @@ def loan_detail_view(request, pk):
         elif new_status == 'Declined':
             loan.status         = 'Declined'
             loan.decline_reason = request.data.get('decline_reason', '')
-            log_activity(
-                'loan',
-                f'Loan declined: {loan.loan_id} — {loan.member.fullname}',
-                request.user
-            )
+            log_activity('loan', f'Loan declined: {loan.loan_id} — {loan.member.fullname}', request.user)
         else:
             loan.status = new_status
 
@@ -155,18 +127,14 @@ def due_dates_view(request):
         return Response({'error': 'Unauthorized.'}, status=403)
 
     loans = Loan.objects.filter(
-        status__in=['Active', 'Overdue'],
-        next_due_date__isnull=False
+        status__in=['Active', 'Overdue'], next_due_date__isnull=False
     ).select_related('member', 'member__pre_member')
 
     month_str = request.query_params.get('month', '')
     if month_str:
         try:
             year, month = map(int, month_str.split('-'))
-            loans = loans.filter(
-                next_due_date__year=year,
-                next_due_date__month=month
-            )
+            loans = loans.filter(next_due_date__year=year, next_due_date__month=month)
         except Exception:
             pass
 
@@ -186,3 +154,289 @@ def due_dates_view(request):
         })
 
     return Response(grouped)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GCASH PAYMENT REQUESTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def gcash_request_list_view(request):
+    if request.method == 'GET':
+        from .models import GCashPaymentRequest
+        if request.user.role in ['admin', 'staff']:
+            qs = GCashPaymentRequest.objects.select_related(
+                'loan', 'member', 'member__pre_member'
+            ).all()
+            if s := request.query_params.get('status'):
+                qs = qs.filter(status=s)
+        else:
+            try:
+                from members.models import Member
+                member = Member.objects.get(user=request.user)
+                qs = GCashPaymentRequest.objects.filter(member=member).select_related('loan')
+            except Member.DoesNotExist:
+                return Response([], status=200)
+
+        return Response([{
+            'id':               r.id,
+            'loan_id':          r.loan.loan_id,
+            'loan_pk':          r.loan.id,
+            'member_id':        r.member.member_id,
+            'member_name':      r.member.fullname,
+            'amount':           float(r.amount),
+            'reference_number': r.reference_number,
+            'screenshot_url':   r.screenshot_url,
+            'status':           r.status,
+            'note':             r.note,
+            'verified_by':      r.verified_by,
+            'verified_at':      str(r.verified_at)[:16] if r.verified_at else '',
+            'reject_reason':    r.reject_reason,
+            'created_at':       r.created_at.strftime('%Y-%m-%d %H:%M'),
+        } for r in qs])
+
+    # POST — member submits
+    if request.user.role not in ['member']:
+        return Response({'error': 'Only members can submit GCash payment requests.'}, status=403)
+
+    try:
+        from members.models import Member
+        member = Member.objects.get(user=request.user)
+    except Member.DoesNotExist:
+        return Response({'error': 'Member profile not found.'}, status=404)
+
+    from .models import GCashPaymentRequest
+    data    = request.data
+    loan_pk = data.get('loan_id')
+    amount  = data.get('amount')
+    ref_no  = data.get('reference_number', '').strip()
+    note    = data.get('note', '')
+
+    if not loan_pk:
+        return Response({'error': 'loan_id is required.'}, status=400)
+    if not amount or float(amount) <= 0:
+        return Response({'error': 'Valid amount is required.'}, status=400)
+    if not ref_no:
+        return Response({'error': 'GCash reference number is required.'}, status=400)
+    if len(ref_no) < 10:
+        return Response({'error': 'Invalid reference number format. Must be at least 10 characters.'}, status=400)
+    if GCashPaymentRequest.objects.filter(reference_number=ref_no).exists():
+        return Response({'error': 'This GCash reference number has already been submitted.'}, status=400)
+
+    try:
+        loan = Loan.objects.get(pk=loan_pk, member=member)
+    except Loan.DoesNotExist:
+        return Response({'error': 'Loan not found.'}, status=404)
+
+    if loan.status not in ['Active', 'Overdue']:
+        return Response({'error': 'Payment can only be submitted for active or overdue loans.'}, status=400)
+
+    existing = GCashPaymentRequest.objects.filter(loan=loan, status='Pending').first()
+    if existing:
+        return Response({'error': f'You already have a pending GCash request (Ref: {existing.reference_number}). Wait for admin verification.'}, status=400)
+
+    req = GCashPaymentRequest.objects.create(
+        loan=loan, member=member, amount=float(amount),
+        reference_number=ref_no, note=note,
+    )
+
+    log_activity('payment',
+        f'GCash payment request: {member.fullname} ({member.member_id}) — Loan {loan.loan_id} — ₱{float(amount):,.2f} — Ref: {ref_no}',
+        request.user)
+
+    return Response({
+        'id':               req.id,
+        'message':          'GCash payment request submitted! Admin will verify and record your payment.',
+        'reference_number': ref_no,
+        'amount':           float(amount),
+        'status':           'Pending',
+    }, status=201)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def gcash_request_detail_view(request, pk):
+    from .models import GCashPaymentRequest
+    try:
+        req = GCashPaymentRequest.objects.select_related(
+            'loan', 'member', 'member__pre_member'
+        ).get(pk=pk)
+    except GCashPaymentRequest.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=404)
+
+    if request.user.role == 'member':
+        from members.models import Member
+        try:
+            member = Member.objects.get(user=request.user)
+            if req.member != member:
+                return Response({'error': 'Unauthorized.'}, status=403)
+        except Member.DoesNotExist:
+            return Response({'error': 'Unauthorized.'}, status=403)
+
+    return Response({
+        'id':               req.id,
+        'loan_id':          req.loan.loan_id,
+        'loan_pk':          req.loan.id,
+        'member_id':        req.member.member_id,
+        'member_name':      req.member.fullname,
+        'amount':           float(req.amount),
+        'reference_number': req.reference_number,
+        'screenshot_url':   req.screenshot_url,
+        'status':           req.status,
+        'note':             req.note,
+        'verified_by':      req.verified_by,
+        'verified_at':      str(req.verified_at)[:16] if req.verified_at else '',
+        'reject_reason':    req.reject_reason,
+        'created_at':       req.created_at.strftime('%Y-%m-%d %H:%M'),
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def gcash_verify_view(request, pk):
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    from .models import GCashPaymentRequest
+    try:
+        req = GCashPaymentRequest.objects.select_related('loan', 'member', 'member__user').get(pk=pk)
+    except GCashPaymentRequest.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=404)
+
+    if req.status != 'Pending':
+        return Response({'error': f'Request already {req.status}.'}, status=400)
+
+    action        = request.data.get('action')
+    reject_reason = request.data.get('reject_reason', '')
+
+    if action not in ['verify', 'reject']:
+        return Response({'error': "action must be 'verify' or 'reject'."}, status=400)
+
+    # ── REJECT ────────────────────────────────────────────────────────────────
+    if action == 'reject':
+        req.status        = 'Rejected'
+        req.reject_reason = reject_reason or 'Payment could not be verified.'
+        req.verified_by   = request.user.username
+        req.verified_at   = tz.now()
+        req.save()
+
+        log_activity('payment',
+            f'GCash payment REJECTED: {req.member.fullname} Ref:{req.reference_number} — {req.reject_reason}',
+            request.user)
+
+        # ── Send rejected email ──
+        try:
+            pm = getattr(req.member, 'pre_member', None)
+            email_addr = (pm.email if pm else None) or getattr(req.member.user, 'email', None)
+            if email_addr:
+                send_gcash_rejected_email(
+                    email=email_addr, fullname=req.member.fullname,
+                    member_id=req.member.member_id, loan_id=req.loan.loan_id,
+                    reference_number=req.reference_number,
+                    amount=float(req.amount), reject_reason=req.reject_reason,
+                )
+        except Exception as e:
+            print(f"[EMAIL ERROR] GCash rejected email failed: {e}")
+
+        # ── In-app notification ──
+        try:
+            from notifications.models import Notification
+            Notification.objects.create(
+                user       = req.member.user,
+                title      = "GCash Payment Not Verified ❌",
+                message    = f"Your GCash payment (Ref: {req.reference_number}, ₱{float(req.amount):,.2f}) for loan {req.loan.loan_id} was not verified. Reason: {req.reject_reason}. Please resubmit with the correct details.",
+                notif_type = "payment",
+            )
+        except Exception as e:
+            print(f"[NOTIF ERROR] {e}")
+
+        return Response({'message': 'Payment request rejected.', 'status': 'Rejected'})
+
+    # ── VERIFY ────────────────────────────────────────────────────────────────
+    from decimal import Decimal
+    from payments.models import Payment
+
+    loan   = req.loan
+    amount = Decimal(str(req.amount))
+
+    new_balance = max(Decimal('0'), loan.balance - amount)
+
+    # ── Create payment (tx_id and hash auto-generated by Payment model) ──
+    payment = Payment.objects.create(
+        loan        = loan,
+        member      = loan.member,
+        amount      = amount,
+        balance     = new_balance,
+        recorded_by = request.user.username,
+        note        = f'GCash payment — Ref: {req.reference_number}',
+    )
+
+    # ── Record on blockchain ──
+    try:
+        from payments.blockchain import record_payment_on_blockchain
+        bc = record_payment_on_blockchain(
+            tx_id     = payment.tx_id,
+            member_id = loan.member.member_id,
+            loan_id   = loan.loan_id,
+            amount    = float(amount),
+        )
+        payment.hash         = bc.get('hash', payment.hash)
+        payment.polygon_tx   = bc.get('tx_hash')
+        payment.block_number = bc.get('block')
+        payment.network      = bc.get('network', 'local')
+        payment.save()
+    except Exception as e:
+        print(f"[BLOCKCHAIN ERROR] GCash blockchain record failed: {e}")
+
+    tx_id = payment.tx_id
+    loan.balance = new_balance
+    if new_balance <= 0:
+        loan.status  = 'Completed'
+        loan.balance = Decimal('0')
+    else:
+        loan.next_due_date = datetime.date.today() + relativedelta(months=1)
+    loan.save()
+
+    req.status      = 'Verified'
+    req.verified_by = request.user.username
+    req.verified_at = tz.now()
+    req.save()
+
+    log_activity('payment',
+        f'GCash payment VERIFIED: {req.member.fullname} ({req.member.member_id}) — Loan {loan.loan_id} — ₱{float(amount):,.2f} — Ref: {req.reference_number} — by {request.user.username}',
+        request.user)
+
+    # ── Send verified email ──
+    try:
+        pm = getattr(req.member, 'pre_member', None)
+        email_addr = (pm.email if pm else None) or getattr(req.member.user, 'email', None)
+        if email_addr:
+            send_gcash_verified_email(
+                email=email_addr, fullname=req.member.fullname,
+                member_id=req.member.member_id, loan_id=loan.loan_id,
+                reference_number=req.reference_number,
+                amount=float(amount), new_balance=float(new_balance),
+            )
+    except Exception as e:
+        print(f"[EMAIL ERROR] GCash verified email failed: {e}")
+
+    # ── In-app notification ──
+    try:
+        from notifications.models import Notification
+        Notification.objects.create(
+            user       = req.member.user,
+            title      = "GCash Payment Verified ✅",
+            message    = f"Your GCash payment of ₱{float(amount):,.2f} for loan {loan.loan_id} (Ref: {req.reference_number}) has been verified and recorded. New balance: ₱{float(new_balance):,.2f}.",
+            notif_type = "payment",
+        )
+    except Exception as e:
+        print(f"[NOTIF ERROR] {e}")
+
+    return Response({
+        'message':    f'Payment of ₱{float(amount):,.2f} verified and recorded.',
+        'tx_id':      tx_id,
+        'new_balance':float(new_balance),
+        'loan_status':loan.status,
+        'status':     'Verified',
+    })

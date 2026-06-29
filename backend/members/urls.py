@@ -1,5 +1,7 @@
 from django.urls import path
 from .views import (
+    share_capital_deposit_view,
+    share_capital_history_view, deactivate_member_view,
     application_list_view, application_detail_view,
     convert_to_member_view, my_application_view,
     member_list_view, member_detail_view,
@@ -38,4 +40,14 @@ urlpatterns = [
     # Savings
     path('savings/',                      savings_list_view,                   name='savings-list'),
     path('<int:pk>/savings-summary/',     member_savings_summary_view,         name='member-savings-summary'),
+
+    # Share Capital
+    path('<int:pk>/share-capital-deposit/', share_capital_deposit_view,        name='share-capital-deposit'),
+    path('share-capital-history/',          share_capital_history_view,         name='share-capital-history'),
+
+    # Deactivate
+    path('<int:pk>/deactivate/',            deactivate_member_view,             name='member-deactivate'),
+
+    # Deactivate
+    path('<int:pk>/deactivate/',            deactivate_member_view,             name='member-deactivate'),
 ]

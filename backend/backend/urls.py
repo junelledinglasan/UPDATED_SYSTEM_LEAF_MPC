@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     # LEAF MPC API
+    path('api/notifications/', include('notifications.urls')),
     path('api/auth/',          include('auth_app.urls')),
     path('api/members/',       include('members.urls')),
     path('api/loans/',         include('loans.urls')),

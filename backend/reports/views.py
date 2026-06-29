@@ -28,10 +28,6 @@ def filter_by_year(qs, field, year):
     return qs.filter(**{f'{field}__year': year})
 
 
-# ══════════════════════════════════════════════════════════════════
-# EXISTING ANALYTICS ENDPOINTS
-# ══════════════════════════════════════════════════════════════════
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def overview_view(request):
@@ -53,6 +49,9 @@ def overview_view(request):
 
     all_loans_qs = filter_by_year(Loan.objects, 'applied_at', year)
 
+    # ── FIX: Total share capital across all members ──
+    total_share_capital = float(Member.objects.aggregate(t=Sum('share_capital'))['t'] or 0)
+
     return Response({
         'total_members':         Member.objects.count(),
         'active_members':        Member.objects.filter(membership_status='Active').count(),
@@ -61,13 +60,15 @@ def overview_view(request):
         'approved_applications': LeafMemberInfo.objects.filter(application_status='Approved').count(),
         'total_loans':           all_loans_qs.count(),
         'active_loans':          all_loans_qs.filter(status='Active').count(),
-        'overdue_loans':         all_loans_qs.filter(status='Overdue').count(),
+        # ── Overdue: check ALL loans regardless of year (current status) ──
+        'overdue_loans':         Loan.objects.filter(status='Overdue').count(),
         'pending_loans':         all_loans_qs.filter(status='For Review').count(),
         'total_releases':        total_releases,
         'avg_loan_amount':       float(all_loans_qs.aggregate(a=Avg('amount'))['a'] or 0),
         'total_collection':      total_paid,
         'collection_rate':       rate,
         'total_savings_balance': deposits - withdrawals,
+        'total_share_capital':   total_share_capital,
     })
 
 
@@ -101,7 +102,12 @@ def loan_status_view(request):
     year = get_year(request)
     qs   = filter_by_year(Loan.objects, 'applied_at', year)
     data = qs.values('status').annotate(count=Count('id'))
-    return Response({d['status']: d['count'] for d in data})
+    result = {d['status']: d['count'] for d in data}
+    # ── Always include current overdue loans (may be from previous years) ──
+    total_overdue = Loan.objects.filter(status='Overdue').count()
+    if total_overdue > 0:
+        result['Overdue'] = total_overdue
+    return Response(result)
 
 
 @api_view(['GET'])
@@ -170,10 +176,6 @@ def audit_log_view(request):
         'recorded_by': p.recorded_by,
     } for p in payments])
 
-
-# ══════════════════════════════════════════════════════════════════
-# NEW ANALYTICS ENDPOINTS
-# ══════════════════════════════════════════════════════════════════
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -404,7 +406,7 @@ def share_capital_growth_view(request):
             'name':            m.fullname,
             'classification':  pm.classification if pm else '—',
             'share_capital':   float(m.share_capital),
-            'max_loanable':    float(m.share_capital),
+            'max_loanable':    float(m.share_capital) * 2,
             'loan_count':      loan_count,
             'total_loaned':    total_loans,
             'savings_balance': dep - wth,
@@ -477,7 +479,7 @@ def build_report_data(report_type, date_from_str, date_to_str):
     dt = _parse_date(date_to_str)   or date.today()
 
     if report_type == 'Financial Summary':
-        payments = Payment.objects.filter(paid_at__date__gte=df, paid_at__date__lte=dt)
+        payments = Payment.objects.filter(paid_at__date__gte=df, paid_at__date__lte=dt).select_related('member', 'loan')
         total    = float(payments.aggregate(t=Sum('amount'))['t'] or 0)
         count    = payments.count()
         loans    = Loan.objects.filter(applied_at__date__gte=df, applied_at__date__lte=dt)
@@ -522,9 +524,9 @@ def build_report_data(report_type, date_from_str, date_to_str):
         }
 
     elif report_type == 'Loan Summary':
-        loans = Loan.objects.filter(applied_at__date__gte=df, applied_at__date__lte=dt)
+        loans = Loan.objects.filter(applied_at__date__gte=df, applied_at__date__lte=dt).select_related('member')
         rows  = []
-        for l in loans.select_related('member').order_by('-applied_at'):
+        for l in loans.order_by('-applied_at'):
             rows.append([
                 l.loan_id, l.member.fullname, l.member.member_id,
                 l.loan_type, f'₱{float(l.amount):,.2f}',
@@ -625,7 +627,7 @@ def build_report_data(report_type, date_from_str, date_to_str):
         }
 
     elif report_type == 'Member Performance Report':
-        members = Member.objects.filter(loans__isnull=False).distinct()
+        members = Member.objects.filter(loans__isnull=False).distinct().select_related('pre_member')
         rows = []
         for m in members:
             payments = Payment.objects.filter(
@@ -782,6 +784,9 @@ def export_pdf_view(request):
     return response
 
 
+# ── Simple preview cache (per-process, resets on server restart) ──
+_preview_cache = {}
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def preview_report_view(request):
@@ -792,13 +797,421 @@ def preview_report_view(request):
     date_to     = request.query_params.get('to',   '2026-12-31')
     if not report_type:
         return Response({'error': 'Report type required.'}, status=400)
+
+    # ── Cache key ──
+    cache_key = f"{report_type}|{date_from}|{date_to}"
+    if cache_key in _preview_cache:
+        return Response(_preview_cache[cache_key])
+
     data = build_report_data(report_type, date_from, date_to)
-    return Response({
+    rows = data.get('rows', [])
+    result = {
         'report_type': report_type,
         'date_from':   date_from,
         'date_to':     date_to,
         'summary':     data.get('summary', []),
         'columns':     data.get('columns', []),
-        'rows':        data.get('rows', [])[:50],
-        'total_rows':  len(data.get('rows', [])),
+        'rows':        rows[:25],
+        'total_rows':  len(rows),
+    }
+    # Cache result (max 50 entries)
+    if len(_preview_cache) < 50:
+        _preview_cache[cache_key] = result
+    return Response(result)
+
+
+
+# ══════════════════════════════════════════════════════════════════
+# NEW ANALYTICS ENDPOINTS — ADDITIONAL
+# ══════════════════════════════════════════════════════════════════
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def loan_repayment_progress_view(request):
+    """Per-member repayment progress — amount paid vs remaining."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    year  = get_year(request)
+    loans = filter_by_year(
+        Loan.objects.filter(status__in=['Active','Overdue']).select_related('member'),
+        'applied_at', year
+    )
+
+    result = []
+    for l in loans:
+        principal  = float(l.amount or 0)
+        balance    = float(l.balance or 0)
+        paid       = principal - balance
+        pct        = round((paid / principal) * 100, 1) if principal > 0 else 0
+        result.append({
+            'loan_id':     l.loan_id,
+            'member_id':   l.member.member_id,
+            'member_name': l.member.fullname,
+            'loan_type':   l.loan_type,
+            'principal':   principal,
+            'paid':        paid,
+            'balance':     balance,
+            'pct_paid':    pct,
+            'monthly_due': float(l.monthly_due or 0),
+            'status':      l.status,
+            'applied_at':  str(l.applied_at)[:10],
+        })
+
+    result.sort(key=lambda x: x['pct_paid'], reverse=True)
+    return Response(result)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def delinquency_report_view(request):
+    """Members who haven't paid in X months."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    from datetime import date, timedelta
+    from django.db.models import Max
+
+    today        = date.today()
+    months_param = int(request.query_params.get('months', 1))
+    cutoff       = today - timedelta(days=30 * months_param)
+
+    overdue_loans = Loan.objects.filter(
+        status__in=['Active','Overdue']
+    ).select_related('member').annotate(
+        last_payment=Max('payments__paid_at')
+    )
+
+    result = []
+    for l in overdue_loans:
+        last_pay = l.last_payment
+        if last_pay:
+            last_pay_date = last_pay.date() if hasattr(last_pay, 'date') else last_pay
+            if last_pay_date > cutoff:
+                continue
+            days_since = (today - last_pay_date).days
+        else:
+            days_since = (today - l.applied_at.date()).days
+
+        result.append({
+            'loan_id':      l.loan_id,
+            'member_id':    l.member.member_id,
+            'member_name':  l.member.fullname,
+            'loan_type':    l.loan_type,
+            'balance':      float(l.balance or 0),
+            'monthly_due':  float(l.monthly_due or 0),
+            'last_payment': str(last_pay)[:10] if last_pay else 'No payment yet',
+            'days_since':   days_since,
+            'status':       l.status,
+        })
+
+    result.sort(key=lambda x: x['days_since'], reverse=True)
+    return Response({'months': months_param, 'count': len(result), 'data': result})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def collection_efficiency_view(request):
+    """Actual collected vs expected collection per month."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    year = get_year(request)
+
+    # Expected = sum of monthly_due of all active loans
+    active_loans = Loan.objects.filter(status__in=['Active','Overdue'])
+    expected_monthly = float(active_loans.aggregate(t=Sum('monthly_due'))['t'] or 0)
+
+    # Actual = payments collected per month
+    payments_qs = filter_by_year(Payment.objects, 'paid_at', year)
+    monthly_data = (
+        payments_qs
+        .annotate(month=TruncMonth('paid_at'))
+        .values('month')
+        .annotate(collected=Sum('amount'), count=Count('id'))
+        .order_by('month')
+    )
+
+    result = []
+    for m in monthly_data:
+        collected   = float(m['collected'] or 0)
+        efficiency  = round((collected / expected_monthly) * 100, 1) if expected_monthly > 0 else 0
+        result.append({
+            'month':           m['month'].strftime('%b %Y'),
+            'collected':       collected,
+            'expected':        expected_monthly,
+            'efficiency_pct':  efficiency,
+            'tx_count':        m['count'],
+        })
+
+    return Response({
+        'expected_monthly': expected_monthly,
+        'active_loans':     active_loans.count(),
+        'data':             result,
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def member_growth_view(request):
+    """Monthly member registrations over time."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    year = get_year(request)
+    qs   = filter_by_year(Member.objects, 'membership_date', year)
+
+    monthly = (
+        qs.annotate(month=TruncMonth('membership_date'))
+        .values('month')
+        .annotate(count=Count('id'))
+        .order_by('month')
+    )
+
+    # Cumulative total
+    cumulative = 0
+    result     = []
+    for m in monthly:
+        cumulative += m['count']
+        result.append({
+            'month':      m['month'].strftime('%b %Y'),
+            'new':        m['count'],
+            'cumulative': cumulative,
+        })
+
+    return Response({
+        'total_members': Member.objects.count(),
+        'data': result,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def loan_approval_rate_view(request):
+    """Loan approval rate — approved vs declined."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    year = get_year(request)
+    qs   = filter_by_year(Loan.objects, 'applied_at', year)
+
+    total    = qs.count()
+    approved = qs.filter(status__in=['Active','Completed','Overdue']).count()
+    declined = qs.filter(status='Declined').count()
+    pending  = qs.filter(status='For Review').count()
+    rate     = round((approved / total) * 100, 1) if total else 0
+
+    # By loan type
+    by_type = []
+    for lt in ['Regular Loan','Emergency Loan','Salary Loan','Housing Loan','Business Loan']:
+        lt_qs    = qs.filter(loan_type=lt)
+        lt_total = lt_qs.count()
+        if lt_total == 0:
+            continue
+        lt_approved = lt_qs.filter(status__in=['Active','Completed','Overdue']).count()
+        lt_declined = lt_qs.filter(status='Declined').count()
+        by_type.append({
+            'loan_type': lt,
+            'total':     lt_total,
+            'approved':  lt_approved,
+            'declined':  lt_declined,
+            'rate':      round((lt_approved / lt_total) * 100, 1) if lt_total else 0,
+        })
+
+    # Monthly trend
+    monthly = (
+        qs.annotate(month=TruncMonth('applied_at'))
+        .values('month')
+        .annotate(total=Count('id'))
+        .order_by('month')
+    )
+    monthly_data = []
+    for m in monthly:
+        m_qs  = qs.filter(applied_at__month=m['month'].month, applied_at__year=m['month'].year)
+        m_app = m_qs.filter(status__in=['Active','Completed','Overdue']).count()
+        m_dec = m_qs.filter(status='Declined').count()
+        monthly_data.append({
+            'month':    m['month'].strftime('%b %Y'),
+            'total':    m['total'],
+            'approved': m_app,
+            'declined': m_dec,
+        })
+
+    return Response({
+        'total':        total,
+        'approved':     approved,
+        'declined':     declined,
+        'pending':      pending,
+        'approval_rate':rate,
+        'by_type':      by_type,
+        'monthly':      monthly_data,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def upcoming_maturities_view(request):
+    """Loans maturing within the next N months."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    from datetime import date, timedelta
+    from dateutil.relativedelta import relativedelta
+
+    months = int(request.query_params.get('months', 3))
+    today  = date.today()
+    future = today + relativedelta(months=months)
+
+    loans = Loan.objects.filter(
+        status__in=['Active','Overdue']
+    ).select_related('member')
+
+    result = []
+    for l in loans:
+        if not l.approved_at:
+            continue
+        try:
+            from dateutil.relativedelta import relativedelta as rd
+            maturity = l.approved_at.date() + rd(months=int(l.term_months or 0))
+        except Exception:
+            continue
+
+        if today <= maturity <= future:
+            result.append({
+                'loan_id':     l.loan_id,
+                'member_id':   l.member.member_id,
+                'member_name': l.member.fullname,
+                'loan_type':   l.loan_type,
+                'amount':      float(l.amount or 0),
+                'balance':     float(l.balance or 0),
+                'monthly_due': float(l.monthly_due or 0),
+                'maturity':    str(maturity),
+                'days_left':   (maturity - today).days,
+                'status':      l.status,
+            })
+
+    result.sort(key=lambda x: x['days_left'])
+    return Response({'months': months, 'count': len(result), 'data': result})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def first_time_borrowers_view(request):
+    """Members applying for their first loan."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    year = get_year(request)
+    qs   = filter_by_year(Loan.objects, 'applied_at', year)
+
+    # Members who have exactly 1 loan total
+    from django.db.models import Count as C
+    first_timers = (
+        qs.values('member_id')
+        .annotate(loan_count=C('id'))
+        .filter(loan_count=1)
+    )
+    member_ids = [ft['member_id'] for ft in first_timers]
+
+    result = []
+    for mid in member_ids:
+        try:
+            loan   = qs.filter(member_id=mid).first()
+            member = loan.member
+            result.append({
+                'member_id':   member.member_id,
+                'member_name': member.fullname,
+                'loan_id':     loan.loan_id,
+                'loan_type':   loan.loan_type,
+                'amount':      float(loan.amount or 0),
+                'status':      loan.status,
+                'applied_at':  str(loan.applied_at)[:10],
+                'classification': member.pre_member.classification if member.pre_member else '—',
+            })
+        except Exception:
+            pass
+
+    result.sort(key=lambda x: x['applied_at'], reverse=True)
+    return Response({'count': len(result), 'data': result})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def risk_assessment_view(request):
+    """Members at risk — high balance, overdue, or no recent payment."""
+    if request.user.role not in ['admin', 'staff']:
+        return Response({'error': 'Unauthorized.'}, status=403)
+
+    from datetime import date, timedelta
+    from django.db.models import Max
+
+    today  = date.today()
+    cutoff = today - timedelta(days=60)  # 60 days no payment = at risk
+
+    loans = Loan.objects.filter(
+        status__in=['Active','Overdue']
+    ).select_related('member').annotate(
+        last_payment=Max('payments__paid_at')
+    )
+
+    result = []
+    for l in loans:
+        risk_score  = 0
+        risk_flags  = []
+
+        # Flag 1: Overdue
+        if l.status == 'Overdue':
+            risk_score += 40
+            risk_flags.append('Overdue')
+
+        # Flag 2: No payment in 60+ days
+        last_pay = l.last_payment
+        if last_pay:
+            last_date = last_pay.date() if hasattr(last_pay, 'date') else last_pay
+            days_since = (today - last_date).days
+            if days_since > 60:
+                risk_score += 30
+                risk_flags.append(f'No payment {days_since}d')
+        else:
+            days_since = (today - l.applied_at.date()).days
+            risk_score += 20
+            risk_flags.append('No payment yet')
+
+        # Flag 3: Balance > 80% of original
+        principal = float(l.amount or 0)
+        balance   = float(l.balance or 0)
+        pct_remaining = (balance / principal * 100) if principal > 0 else 0
+        if pct_remaining > 80:
+            risk_score += 20
+            risk_flags.append(f'{pct_remaining:.0f}% unpaid')
+
+        # Flag 4: Balance > 50,000
+        if balance > 50000:
+            risk_score += 10
+            risk_flags.append('High balance')
+
+        if risk_score >= 20:
+            risk_level = 'Critical' if risk_score >= 70 else 'High' if risk_score >= 50 else 'Medium'
+            result.append({
+                'loan_id':      l.loan_id,
+                'member_id':    l.member.member_id,
+                'member_name':  l.member.fullname,
+                'loan_type':    l.loan_type,
+                'balance':      balance,
+                'monthly_due':  float(l.monthly_due or 0),
+                'pct_remaining':round(pct_remaining, 1),
+                'last_payment': str(last_pay)[:10] if last_pay else 'None',
+                'days_since':   days_since,
+                'risk_score':   risk_score,
+                'risk_level':   risk_level,
+                'risk_flags':   risk_flags,
+                'status':       l.status,
+            })
+
+    result.sort(key=lambda x: x['risk_score'], reverse=True)
+    summary = {
+        'critical': sum(1 for r in result if r['risk_level']=='Critical'),
+        'high':     sum(1 for r in result if r['risk_level']=='High'),
+        'medium':   sum(1 for r in result if r['risk_level']=='Medium'),
+    }
+    return Response({'summary': summary, 'count': len(result), 'data': result})
