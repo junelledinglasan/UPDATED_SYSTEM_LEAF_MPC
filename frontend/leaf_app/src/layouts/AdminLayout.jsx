@@ -4,9 +4,9 @@ import { useAuth } from "../context/AuthContext";
 import {
   LayoutDashboard, Users, UserCog, FileText,
   CreditCard, CheckSquare, Megaphone, BarChart2,
-  GraduationCap, UserRound, BriefcaseBusiness
+  GraduationCap, UserRound, BriefcaseBusiness, Smartphone
 } from "lucide-react";
-import { getLoansAPI, createLoanAPI, updateLoanStatusAPI } from "../api/loans";
+import { getLoansAPI, createLoanAPI, updateLoanStatusAPI, getGCashRequestsAPI } from "../api/loans";
 import { getMembersAPI, registerMemberAPI, recordSavingsAPI, getMemberSavingsAPI } from "../api/members";
 import { recordPaymentAPI } from "../api/payments";
 import "./AdminLayout.css";
@@ -24,8 +24,9 @@ const NAV_ITEMS = [
   { to: "/admin/staff",        icon: <UserCog         size={15} />, label: "Manage Staff"       },
   { to: "/admin/applications", icon: <FileText        size={15} />, label: "Online Application" },
   { to: "/admin/loan-payment", icon: <CreditCard      size={15} />, label: "Loan Payment"       },
-  { to: "/admin/loan-approval",icon: <CheckSquare     size={15} />, label: "Loan Approval"      },
-  { to: "/admin/announcement", icon: <Megaphone       size={15} />, label: "Announcement"       },
+  { to: "/admin/loan-approval",      icon: <CheckSquare size={15}/>, label: "Loan Approval"    },
+  { to: "/admin/gcash-verification", icon: <Smartphone  size={15}/>, label: "Online Payments"   },
+  { to: "/admin/announcement",       icon: <Megaphone   size={15}/>, label: "Announcement"     },
   { to: "/admin/reports",      icon: <BarChart2       size={15} />, label: "Reports"            },
 ];
 
@@ -33,14 +34,16 @@ const PAGE_CONFIG = {
   "/admin/dashboard": {
     title: "Office Operations Dashboard",
     sub:   "Manage LEAF MPC member records and financial audits.",
-    actions: []
+    actions: [
+    ],
   },
   "/admin/members": {
     title: "Manage Members",
     sub:   "View, edit, and manage all registered LEAF MPC members.",
     actions: [
-      { label: "🏦 Savings/Deposit", cls: "btn-savings", action: "savings"  },
-      { label: "+ Register Member",  cls: "btn-green",   action: "register" },
+      { label: "Savings/Deposit",        cls: "btn-savings",  action: "savings"      },
+      { label: "Share Capital Deposit",  cls: "btn-sharecap", action: "sharecap"     },
+      { label: "+ Register Member",          cls: "btn-green",    action: "register"     },
     ],
   },
   "/admin/staff": {
@@ -62,10 +65,15 @@ const PAGE_CONFIG = {
     ],
   },
   "/admin/loan-approval": {
-    title: "Loan Approval",
-    sub:   "Evaluate and process member loan applications.",
-    actions: [],
-  },
+title: "Loan Approval",
+sub:   "Evaluate and process member loan applications.",
+actions: [],
+},
+"/admin/gcash-verification": {
+title: "GCash Payment Requests",
+sub:   "Verify member GCash payments and record once confirmed.",
+actions: [],
+},
   "/admin/announcement": {
     title: "Announcements",
     sub:   "Post activities, seminars, and notices to all members.",
@@ -241,7 +249,7 @@ function SavingsModal({ onClose }) {
   const [mainTab,  setMainTab] = useState("new");
   const [step,     setStep]    = useState(1);
   const [members,  setMembers] = useState([]);
-  const [balances, setBalances]= useState({});
+  // balances fetched on-demand when member is selected
   const [selected, setSelect]  = useState(null);
   const [type,     setType]    = useState("Deposit");
   const [amount,   setAmount]  = useState("");
@@ -258,15 +266,7 @@ function SavingsModal({ onClose }) {
 
   useEffect(() => {
     getMembersAPI()
-      .then(async data => {
-        setMembers(data);
-        const results = await Promise.allSettled(
-          data.map(m => getMemberSavingsAPI(m.id).then(s => ({ id: m.id, balance: s.balance || 0 })))
-        );
-        const bMap = {};
-        results.forEach(r => { if (r.status === "fulfilled") bMap[r.value.id] = r.value.balance; });
-        setBalances(bMap);
-      })
+      .then(data => setMembers(data))
       .catch(e => console.error(e))
       .finally(() => setFetch(false));
   }, []);
@@ -275,7 +275,7 @@ function SavingsModal({ onClose }) {
     if (mainTab !== "history") return;
     setHistLoading(true);
     import("../api/axiosInstance").then(({ default: api }) =>
-      api.get("/members/savings/")
+      api.get("/members/savings/?limit=100&ordering=-created_at")
     )
       .then(res => setAllSavings(Array.isArray(res.data) ? res.data : []))
       .catch(() => setAllSavings([]))
@@ -284,8 +284,11 @@ function SavingsModal({ onClose }) {
 
   useEffect(() => {
     if (!selected) return;
-    setBalance(balances[selected.id] || 0);
-  }, [selected, balances]);
+    // ── Fetch savings balance only for the selected member ──
+    getMemberSavingsAPI(selected.id)
+      .then(s => setBalance(s.balance || 0))
+      .catch(() => setBalance(0));
+  }, [selected]);
 
   const filtered = members.filter(m =>
     (m.fullname||"").toLowerCase().includes(search.toLowerCase()) ||
@@ -382,7 +385,6 @@ function SavingsModal({ onClose }) {
                     : filtered.length === 0
                     ? <div style={{textAlign:"center",padding:24,color:"#aaa",fontSize:13}}>No members found.</div>
                     : filtered.map(m => {
-                      const bal = balances[m.id] ?? null;
                       const isSelected = selected?.id === m.id;
                       return (
                         <div key={m.id} className={`al-loan-item ${isSelected ? "selected" : ""}`}
@@ -396,17 +398,11 @@ function SavingsModal({ onClose }) {
                             <div className="al-loan-name">{m.fullname}</div>
                             <div className="al-loan-meta">{m.member_id}</div>
                           </div>
-                          <div style={{textAlign:"right",flexShrink:0}}>
-                            {bal === null
-                              ? <div style={{fontSize:10,color:"#bbb"}}>...</div>
-                              : (<>
-                                <div style={{fontSize:13,fontWeight:800,color:bal>0?"#e65100":"#bbb"}}>
-                                  ₱{Number(bal).toLocaleString()}
-                                </div>
-                                <div style={{fontSize:9,color:"#aaa",textTransform:"uppercase",letterSpacing:"0.4px"}}>savings</div>
-                              </>)
-                            }
-                          </div>
+                          {isSelected && (
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:13,fontWeight:800,color:"#f57f17"}}>✓ Selected</div>
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -1144,14 +1140,318 @@ function NewLoanModal({ onClose }) {
   );
 }
 
+
+// ─── Share Capital Deposit Modal ──────────────────────────────────────────────
+function ShareCapitalModal({ onClose }) {
+  const [mainTab,     setMainTab]  = useState("new");
+  const [step,        setStep]     = useState(1);
+  const [members,     setMembers]  = useState([]);
+  const [selected,    setSelect]   = useState(null);
+  const [amount,      setAmount]   = useState("");
+  const [note,        setNote]     = useState("");
+  const [error,       setError]    = useState("");
+  const [done,        setDone]     = useState(false);
+  const [loading,     setLoad]     = useState(false);
+  const [fetching,    setFetch]    = useState(true);
+  const [search,      setSearch]   = useState("");
+  const [allHistory,  setAllHistory]  = useState([]);
+  const [histLoading, setHistLoading] = useState(false);
+  const [histSearch,  setHistSearch]  = useState("");
+
+  useEffect(() => {
+    getMembersAPI()
+      .then(data => setMembers(data))
+      .catch(e => console.error(e))
+      .finally(() => setFetch(false));
+  }, []);
+
+  useEffect(() => {
+    if (mainTab !== "history") return;
+    setHistLoading(true);
+    import("../api/axiosInstance").then(({ default: api }) =>
+      api.get("/members/share-capital-history/")
+    )
+      .then(res => setAllHistory(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setAllHistory([]))
+      .finally(() => setHistLoading(false));
+  }, [mainTab]);
+
+  const filtered = members.filter(m =>
+    (m.fullname||"").toLowerCase().includes(search.toLowerCase()) ||
+    (m.member_id||"").toLowerCase().includes(search.toLowerCase())
+  );
+
+  const filteredHist = allHistory.filter(t =>
+    (t.member_name||"").toLowerCase().includes(histSearch.toLowerCase()) ||
+    (t.member_id||"").toLowerCase().includes(histSearch.toLowerCase())
+  );
+
+  const totalDeposits = allHistory.reduce((s,t) => s + t.amount, 0);
+
+  const parsed   = parseFloat(amount) || 0;
+  const isValid  = parsed > 0 && selected;
+  const newSC    = parseFloat(selected?.share_capital || 0) + parsed;
+  const newMaxLoan = newSC * 2;
+
+  const handleSave = async () => {
+    if (!parsed || parsed <= 0) { setError("Enter a valid amount."); return; }
+    setLoad(true);
+    try {
+      await import("../api/axiosInstance").then(({ default: api }) =>
+        api.post(`/members/${selected.id}/share-capital-deposit/`, {
+          amount: parsed,
+          note: note || "Share capital deposit",
+          txn_type: "Deposit",
+        })
+      );
+      setDone(true);
+    } catch(e) {
+      setError(e.response?.data?.error || "Failed to record deposit.");
+    } finally { setLoad(false); }
+  };
+
+  if (done) return (
+    <div className="al-overlay" onClick={onClose}>
+      <div className="al-modal al-modal-sm" onClick={e => e.stopPropagation()}>
+        <div className="al-modal-body" style={{alignItems:"center",textAlign:"center",padding:"32px 24px",gap:12}}>
+          <div style={{fontSize:40}}>💰</div>
+          <div style={{fontSize:15,fontWeight:700,color:"#1565c0"}}>Share Capital Deposit Recorded!</div>
+          <div style={{fontSize:12,color:"#888"}}>
+            ₱{parsed.toLocaleString()} deposited for <strong>{selected.fullname}</strong>.<br/>
+            New Share Capital: <strong style={{color:"#1565c0"}}>₱{newSC.toLocaleString()}</strong><br/>
+            New Max Loanable: <strong style={{color:"#2e7d32"}}>₱{newMaxLoan.toLocaleString()}</strong>
+          </div>
+        </div>
+        <div className="al-modal-footer">
+          <button className="al-btn-save" style={{background:"#1565c0",borderColor:"#1565c0"}} onClick={onClose}>Done</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="al-overlay" onClick={onClose}>
+      <div className="al-modal" onClick={e => e.stopPropagation()}>
+        <div className="al-modal-header">
+          <div>
+            <div className="al-modal-title">💰 Share Capital</div>
+            <div className="al-modal-sub">
+              {mainTab==="new"
+                ? `Step ${step} of 2 — ${step===1?"Select Member":"Deposit Details"}`
+                : "Share capital transaction history"}
+            </div>
+          </div>
+          <button className="al-modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{display:"flex",borderBottom:"2px solid #f0f0f0",flexShrink:0}}>
+          {[
+            {key:"new",     label:"💰 New Deposit"},
+            {key:"history", label:`📋 History${allHistory.length > 0 ? " ("+allHistory.length+")" : ""}`},
+          ].map(t => (
+            <button key={t.key} onClick={() => { setMainTab(t.key); setDone(false); setStep(1); }} style={{
+              flex:1, padding:"10px 8px", fontSize:12, fontWeight:600, cursor:"pointer",
+              border:"none", background:"none",
+              color: mainTab===t.key ? "#1565c0" : "#aaa",
+              borderBottom: mainTab===t.key ? "2px solid #1565c0" : "2px solid transparent",
+              marginBottom:-2, transition:"all 0.15s",
+            }}>{t.label}</button>
+          ))}
+        </div>
+
+        {mainTab === "new" && step === 1 && (<>
+          <div className="al-modal-body">
+            <div className="al-step-info">Select the member to record share capital deposit.</div>
+            <div className="al-search-wrap">
+              <span>🔍</span>
+              <input className="al-search-in" placeholder="Search by name or member ID..."
+                value={search} onChange={e => setSearch(e.target.value)} autoFocus/>
+            </div>
+            <div className="al-loan-list">
+              {fetching
+                ? <div style={{textAlign:"center",padding:24,color:"#aaa"}}>Loading members...</div>
+                : filtered.length===0
+                ? <div style={{textAlign:"center",padding:24,color:"#aaa"}}>No members found.</div>
+                : filtered.map(m => {
+                  const sc = parseFloat(m.share_capital||0);
+                  const isSelected = selected?.id === m.id;
+                  return (
+                    <div key={m.id} className={`al-loan-item ${isSelected?"selected":""}`}
+                      onClick={() => { setSelect(m); setError(""); }}>
+                      <div className="al-loan-avatar" style={{
+                        background: isSelected?"#1565c0":"#e3f2fd",
+                        color: isSelected?"#fff":"#1565c0",
+                        border:`2px solid ${isSelected?"#1565c0":"#bbdefb"}`,
+                      }}>{(m.fullname||"M")[0]}</div>
+                      <div className="al-loan-info">
+                        <div className="al-loan-name">{m.fullname}</div>
+                        <div className="al-loan-meta">{m.member_id}</div>
+                      </div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontSize:13,fontWeight:800,color:"#1565c0"}}>₱{sc.toLocaleString()}</div>
+                        <div style={{fontSize:9,color:"#aaa",textTransform:"uppercase"}}>share capital</div>
+                      </div>
+                    </div>
+                  );
+                })
+              }
+            </div>
+          </div>
+          <div className="al-modal-footer">
+            <button className="al-btn-cancel" onClick={onClose}>Cancel</button>
+            <button className="al-btn-save" style={{background:"#1565c0",borderColor:"#1565c0"}}
+              onClick={() => setStep(2)} disabled={!selected}>Next →</button>
+          </div>
+        </>)}
+
+        {mainTab === "new" && step === 2 && (<>
+          <div className="al-modal-body">
+            <div className="al-borrower-strip" style={{background:"#e3f2fd",borderColor:"#90caf9"}}>
+              <div className="al-loan-avatar" style={{background:"#1565c0",color:"#fff",border:"2px solid #90caf9"}}>
+                {(selected.fullname||"M")[0]}
+              </div>
+              <div style={{flex:1}}>
+                <div className="al-loan-name">{selected.fullname}</div>
+                <div className="al-loan-meta">{selected.member_id}</div>
+              </div>
+              <div style={{background:"#e3f2fd",border:"1px solid #90caf9",borderRadius:10,padding:"6px 14px",textAlign:"center"}}>
+                <div style={{fontSize:10,color:"#1565c0",fontWeight:600,textTransform:"uppercase"}}>Current SC</div>
+                <div style={{fontSize:16,fontWeight:800,color:"#0d47a1"}}>₱{Number(selected.share_capital||0).toLocaleString()}</div>
+              </div>
+            </div>
+
+            <div className="al-field">
+              <label className="al-label">Deposit Amount (₱) <span className="al-req">*</span></label>
+              <div className="al-amount-wrap">
+                <span className="al-peso">₱</span>
+                <input className="al-amount-in" type="number" min="1"
+                  value={amount} onChange={e => { setAmount(e.target.value); setError(""); }} autoFocus/>
+              </div>
+            </div>
+            <div className="al-field">
+              <label className="al-label">Note (optional)</label>
+              <input className="al-input" type="text" value={note}
+                onChange={e => setNote(e.target.value)}
+                placeholder="e.g. Additional share capital, membership fee..." maxLength={100}/>
+            </div>
+            {error && <div className="al-error">⚠ {error}</div>}
+            {isValid && (
+              <div className="al-preview">
+                <div className="al-prev-row"><span>Current Share Capital</span><span>₱{Number(selected.share_capital||0).toLocaleString()}</span></div>
+                <div className="al-prev-row deduct">
+                  <span>Deposit</span>
+                  <span style={{color:"#1565c0",fontWeight:700}}>+ ₱{parsed.toLocaleString()}</span>
+                </div>
+                <div className="al-prev-divider"/>
+                <div className="al-prev-row result">
+                  <span>New Share Capital</span>
+                  <span style={{color:"#1565c0",fontWeight:800}}>₱{newSC.toLocaleString()}</span>
+                </div>
+                <div className="al-prev-row" style={{fontSize:11,color:"#888"}}>
+                  <span>New Max Loanable</span>
+                  <span style={{color:"#2e7d32",fontWeight:700}}>₱{newMaxLoan.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="al-modal-footer">
+            <button className="al-btn-cancel" onClick={() => setStep(1)}>← Back</button>
+            <button className="al-btn-save" style={{background:"#1565c0",borderColor:"#1565c0"}}
+              onClick={handleSave} disabled={!isValid||loading}>
+              {loading?"Saving...":"💰 Record Deposit"}
+            </button>
+          </div>
+        </>)}
+
+        {/* History Tab */}
+        {mainTab === "history" && (<>
+          <div className="al-modal-body" style={{gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
+              <div style={{background:"#e3f2fd",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
+                <div style={{fontSize:10,color:"#1565c0",fontWeight:600}}>Total Deposited</div>
+                <div style={{fontSize:15,fontWeight:800,color:"#0d47a1"}}>₱{totalDeposits.toLocaleString()}</div>
+              </div>
+              <div style={{background:"#e8f5e9",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
+                <div style={{fontSize:10,color:"#2e7d32",fontWeight:600}}>Transactions</div>
+                <div style={{fontSize:15,fontWeight:800,color:"#1b5e20"}}>{allHistory.length}</div>
+              </div>
+            </div>
+            <div className="al-search-wrap">
+              <span>🔍</span>
+              <input className="al-search-in" placeholder="Search by member name or ID..."
+                value={histSearch} onChange={e => setHistSearch(e.target.value)}/>
+            </div>
+            {histLoading ? (
+              <div style={{textAlign:"center",padding:24,color:"#aaa",fontSize:13}}>Loading history...</div>
+            ) : filteredHist.length === 0 ? (
+              <div style={{textAlign:"center",padding:24,color:"#bbb",fontSize:13}}>No share capital transactions found.</div>
+            ) : (
+              <div style={{borderRadius:8,overflow:"hidden",border:"1px solid #90caf9",maxHeight:320,overflowY:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead style={{position:"sticky",top:0,zIndex:1}}>
+                    <tr style={{background:"#e3f2fd"}}>
+                      <th style={{padding:"8px 10px",textAlign:"left",fontWeight:600,color:"#777",fontSize:10}}>Date</th>
+                      <th style={{padding:"8px 10px",textAlign:"left",fontWeight:600,color:"#777",fontSize:10}}>Member</th>
+                      <th style={{padding:"8px 10px",textAlign:"left",fontWeight:600,color:"#777",fontSize:10}}>Type</th>
+                      <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,color:"#777",fontSize:10}}>Amount</th>
+                      <th style={{padding:"8px 10px",textAlign:"right",fontWeight:600,color:"#777",fontSize:10}}>Balance After</th>
+                      <th style={{padding:"8px 10px",textAlign:"left",fontWeight:600,color:"#777",fontSize:10}}>Note</th>
+                      <th style={{padding:"8px 10px",textAlign:"left",fontWeight:600,color:"#777",fontSize:10}}>By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredHist.map((t, idx) => (
+                      <tr key={t.id} style={{background:idx%2===0?"#fff":"#e3f2fd22",borderTop:"1px solid #f5f5f5"}}>
+                        <td style={{padding:"7px 10px",color:"#888",fontSize:10,whiteSpace:"nowrap"}}>{t.created_at}</td>
+                        <td style={{padding:"7px 10px"}}>
+                          <div style={{fontWeight:600,fontSize:11,color:"#222"}}>{t.member_name}</div>
+                          <div style={{fontSize:9,color:"#aaa",fontFamily:"monospace"}}>{t.member_id}</div>
+                        </td>
+                        <td style={{padding:"7px 10px"}}>
+                          <span style={{
+                            background: t.txn_type==="CBU"?"#e8f5e9":t.txn_type==="Initial"?"#fff8e1":"#e3f2fd",
+                            color: t.txn_type==="CBU"?"#2e7d32":t.txn_type==="Initial"?"#f57f17":"#1565c0",
+                            padding:"2px 7px",borderRadius:20,fontSize:10,fontWeight:700,
+                          }}>
+                            {t.txn_type==="CBU"?"📈 CBU":t.txn_type==="Initial"?"🌱 Initial":"💰 Deposit"}
+                          </span>
+                        </td>
+                        <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700,color:"#1565c0"}}>
+                          +₱{Number(t.amount).toLocaleString()}
+                        </td>
+                        <td style={{padding:"7px 10px",textAlign:"right",fontWeight:600,color:"#0d47a1"}}>
+                          ₱{Number(t.balance_after).toLocaleString()}
+                        </td>
+                        <td style={{padding:"7px 10px",color:"#888",fontSize:10}}>{t.note||"—"}</td>
+                        <td style={{padding:"7px 10px",color:"#888",fontSize:10}}>{t.recorded_by||"—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <div className="al-modal-footer">
+            <button className="al-btn-cancel" onClick={onClose}>Close</button>
+          </div>
+        </>)}
+
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Layout ──────────────────────────────────────────────────────────────
 export default function AdminLayout() {
   const [clock,       setClock]   = useState("");
   const [showF2F,     setF2F]     = useState(false);
   const [showReg,     setReg]     = useState(false);
   const [showLoan,    setLoan]    = useState(false);
-  const [showSavings, setShowSav] = useState(false);
-  const [sidebarOpen, setSidebar] = useState(false);
+  const [showSavings, setShowSav]    = useState(false);
+  const [showShareCap,  setShareCap]     = useState(false);
+  const [sidebarOpen,   setSidebar]      = useState(false);
+  const [gcashPending,  setGcashPending] = useState(0);
   const navigate                  = useNavigate();
   const location                  = useLocation();
   const { logout, user }          = useAuth();
@@ -1173,11 +1473,23 @@ export default function AdminLayout() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    const fetchCount = () => {
+      getGCashRequestsAPI({ status:"Pending" })
+        .then(d => setGcashPending(Array.isArray(d) ? d.length : 0))
+        .catch(() => {});
+    };
+    fetchCount();
+    const id = setInterval(fetchCount, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const handleAction = (action) => {
     if (action === "f2f")      setF2F(true);
     if (action === "register") setReg(true);
     if (action === "newloan")  setLoan(true);
-    if (action === "savings")  setShowSav(true);
+    if (action === "savings")   setShowSav(true);
+    if (action === "sharecap")  setShareCap(true);
     if (action === "export")   alert("Export feature will be connected to the backend.");
   };
 
@@ -1188,7 +1500,8 @@ export default function AdminLayout() {
       {showF2F     && <F2FModal      onClose={() => setF2F(false)}     />}
       {showReg     && <RegisterModal onClose={() => setReg(false)}     />}
       {showLoan    && <NewLoanModal  onClose={() => setLoan(false)}    />}
-      {showSavings && <SavingsModal  onClose={() => setShowSav(false)} />}
+      {showSavings  && <SavingsModal       onClose={() => setShowSav(false)}   />}
+      {showShareCap && <ShareCapitalModal onClose={() => setShareCap(false)} />}
 
       <div className={`sidebar-overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebar(false)} />
 
@@ -1201,8 +1514,13 @@ export default function AdminLayout() {
         <nav className="sidebar-nav">
           {NAV_ITEMS.map(item => (
             <NavLink key={item.to} to={item.to} className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
-              <span className="nav-icon">{item.icon}</span>
-              {item.label}
+            <span className="nav-icon">{item.icon}</span>
+            {item.label}
+            {item.to === "/admin/gcash-verification" && gcashPending > 0 && (
+            <span style={{marginLeft:"auto",background:"#c62828",color:"#fff",borderRadius:20,padding:"1px 7px",fontSize:10,fontWeight:800}}>
+            {gcashPending}
+            </span>
+            )}
             </NavLink>
           ))}
         </nav>
@@ -1223,8 +1541,12 @@ export default function AdminLayout() {
           <div className="topbar-right">
             {config.actions.map((action, i) => (
               <button key={i}
-                className={action.cls !== "btn-savings" ? `btn ${action.cls}` : "btn"}
-                style={action.cls === "btn-savings" ? { background:"#f57f17", borderColor:"#f57f17", color:"#fff" } : {}}
+                className={action.cls !== "btn-savings" && action.cls !== "btn-sharecap" ? `btn ${action.cls}` : "btn"}
+                style={
+                  action.cls === "btn-savings"  ? { background:"#f57f17", borderColor:"#f57f17", color:"#fff" } :
+                  action.cls === "btn-sharecap" ? { background:"#1565c0", borderColor:"#1565c0", color:"#fff" } :
+                  {}
+                }
                 onClick={() => handleAction(action.action)}>
                 {action.label}
               </button>

@@ -43,3 +43,13 @@ export const exportPDF = async (type, from, to) => {
   a.click();
   URL.revokeObjectURL(url);
 };
+
+// ── New Analytics APIs ────────────────────────────────────────────────────────
+export const getRepaymentProgressAPI   = async (year)   => (await api.get(`/reports/repayment-progress/?year=${year}`)).data;
+export const getDelinquencyAPI         = async (months=1) => (await api.get(`/reports/delinquency/?months=${months}`)).data;
+export const getCollectionEfficiencyAPI= async (year)   => (await api.get(`/reports/collection-efficiency/?year=${year}`)).data;
+export const getMemberGrowthAPI        = async (year)   => (await api.get(`/reports/member-growth/?year=${year}`)).data;
+export const getLoanApprovalRateAPI    = async (year)   => (await api.get(`/reports/approval-rate/?year=${year}`)).data;
+export const getUpcomingMaturitiesAPI  = async (months=3) => (await api.get(`/reports/upcoming-maturities/?months=${months}`)).data;
+export const getFirstTimeBorrowersAPI  = async (year)   => (await api.get(`/reports/first-time-borrowers/?year=${year}`)).data;
+export const getRiskAssessmentAPI      = async ()       => (await api.get(`/reports/risk-assessment/`)).data;

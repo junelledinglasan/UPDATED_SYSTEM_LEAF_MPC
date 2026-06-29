@@ -20,6 +20,7 @@ import LoanApproval        from "./components/admin/LoanApproval";
 import LoanPayment         from "./components/admin/LoanPayment";
 import Announcement        from "./components/admin/Announcement";
 import Reports             from "./components/admin/Reports";
+import GCashVerification   from "./components/admin/GCashVerification";
 
 // Staff components
 import StaffHome           from "./components/staff/StaffHome";
@@ -54,14 +55,15 @@ export default function App() {
             }
           >
             <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard"     element={<Dashboard />}          />
-            <Route path="members"       element={<ManageMember />}       />
-            <Route path="staff"         element={<ManageStaff />}        />
-            <Route path="applications"  element={<OnlineApplications />} />
-            <Route path="loan-approval" element={<LoanApproval />}       />
-            <Route path="loan-payment"  element={<LoanPayment />}        />
-            <Route path="announcement"  element={<Announcement />}       />
-            <Route path="reports"       element={<Reports />}            />
+            <Route path="dashboard"          element={<Dashboard />}          />
+            <Route path="members"            element={<ManageMember />}       />
+            <Route path="staff"              element={<ManageStaff />}        />
+            <Route path="applications"       element={<OnlineApplications />} />
+            <Route path="loan-approval"      element={<LoanApproval />}       />
+            <Route path="loan-payment"       element={<LoanPayment />}        />
+            <Route path="gcash-verification" element={<GCashVerification />}  />
+            <Route path="announcement"       element={<Announcement />}       />
+            <Route path="reports"            element={<Reports />}            />
           </Route>
 
           {/* ── Staff Routes ── */}

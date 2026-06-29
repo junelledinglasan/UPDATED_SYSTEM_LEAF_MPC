@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { getLoansAPI } from "../../api/loans";
 import { getPaymentsAPI, getPaymentStatsAPI, recordPaymentAPI } from "../../api/payments";
-import { Search, Eye, ChevronDown, ChevronUp, Wallet, AlertTriangle, BarChart3, Receipt, Printer } from "lucide-react";
+import { Search, Eye, ChevronDown, ChevronUp, Wallet, AlertTriangle, BarChart3, Receipt, History } from "lucide-react";
+import api from "../../api/axiosInstance";
 import "./LoanPayment.css";
+import logo from '../../assets/logo.png';
 
 const ROWS_PER_PAGE = 8;
 
@@ -20,9 +22,8 @@ function RecordModal({ loan, onClose, onSave }) {
     if (!parsed||parsed<=0)   { setError("Please enter a valid amount."); return; }
     if (parsed>balance)       { setError(`Exceeds remaining balance of ₱${balance.toLocaleString()}.`); return; }
     setLoading(true);
-    try {
-      await onSave({ loan, amount: parsed, note });
-    } catch { setError("Failed to record payment. Please try again."); }
+    try { await onSave({ loan, amount: parsed, note }); }
+    catch { setError("Failed to record payment. Please try again."); }
     finally { setLoading(false); }
   };
   return (
@@ -41,9 +42,9 @@ function RecordModal({ loan, onClose, onSave }) {
             </div>
           </div>
           <div className="lp-balance-row">
-            <div className="lp-bal-item"><span className="lp-bal-label">Principal</span><span className="lp-bal-val">₱{Number(loan.amount||loan.principal||0).toLocaleString()}</span></div>
+            <div className="lp-bal-item"><span className="lp-bal-label">Principal</span><span className="lp-bal-val">₱{Number(loan.amount||0).toLocaleString()}</span></div>
             <div className="lp-bal-item highlight"><span className="lp-bal-label">Remaining Balance</span><span className="lp-bal-val danger">₱{balance.toLocaleString()}</span></div>
-            <div className="lp-bal-item"><span className="lp-bal-label">Monthly Due</span><span className="lp-bal-val green">₱{Number(loan.monthly_due||loan.monthlyDue||0).toLocaleString()}</span></div>
+            <div className="lp-bal-item"><span className="lp-bal-label">Monthly Due</span><span className="lp-bal-val green">₱{Number(loan.monthly_due||0).toLocaleString()}</span></div>
           </div>
           <div className="lp-field">
             <label className="lp-field-label">Payment Amount (₱) <span className="lp-required">*</span></label>
@@ -52,7 +53,7 @@ function RecordModal({ loan, onClose, onSave }) {
               <input className="lp-amount-input" type="number" min="1" max={balance} value={amount} onChange={e=>{setAmount(e.target.value);setError("");}} autoFocus/>
             </div>
             <div className="lp-quick-btns">
-              <button className="lp-quick" onClick={()=>{setAmount(String(loan.monthly_due||loan.monthlyDue||0));setError("");}}>Monthly Due ₱{Number(loan.monthly_due||loan.monthlyDue||0).toLocaleString()}</button>
+              <button className="lp-quick" onClick={()=>{setAmount(String(loan.monthly_due||0));setError("");}}>Monthly Due ₱{Number(loan.monthly_due||0).toLocaleString()}</button>
               <button className="lp-quick" onClick={()=>{setAmount(String(balance));setError("");}}>Full Balance ₱{balance.toLocaleString()}</button>
             </div>
           </div>
@@ -82,67 +83,157 @@ function RecordModal({ loan, onClose, onSave }) {
   );
 }
 
+// ── ReceiptModal — updated with professional print layout ──────────────────────
 function ReceiptModal({ tx, onClose }) {
   if (!tx) return null;
   const isOnBlockchain = tx.polygon_tx && tx.network === 'polygon';
-  const explorerUrl = tx.polygon_tx ? `https://polygonscan.com/tx/${tx.polygon_tx}` : null;
-  const rows = [
-    ["Member",        tx.member_name||tx.fullname||""],
-    ["Member ID",     tx.member_code||tx.memberId||""],
-    ["Loan ID",       tx.loan_code||tx.loanId||""],
-    ["Amount Paid",   `₱${Number(tx.amount||0).toLocaleString()}`],
-    ["Balance After", `₱${Number(tx.balance||tx.balanceAfter||0).toLocaleString()}`],
-    ["Note",          tx.note||"—"],
-    ["Date & Time",   tx.paid_at||tx.date||""],
-    ["SHA-256 Hash",  tx.hash||""],
-    ["Blockchain",    isOnBlockchain ? "✅ Recorded on Polygon Mainnet" : "⚠ Local only"],
-    ["Polygon TX",    tx.polygon_tx || "—"],
-    ["Block Number",  tx.block_number || "—"],
-  ];
+  const explorerUrl    = tx.polygon_tx ? `https://polygonscan.com/tx/${tx.polygon_tx}` : null;
+  const isFullyPaid    = parseFloat(tx.balance || 0) === 0;
+
+  const handlePrint = () => {
+    // Set print-specific data attributes so CSS can show only the receipt
+    document.body.setAttribute('data-printing', 'receipt');
+    window.print();
+    setTimeout(() => document.body.removeAttribute('data-printing'), 1000);
+  };
+
   return (
     <div className="lp-overlay" onClick={onClose}>
-      <div className="lp-modal lp-modal-sm" onClick={e=>e.stopPropagation()}>
-        <div className="lp-modal-header">
-          <div><div className="lp-modal-title">Transaction Receipt</div><div className="lp-modal-sub mono">{tx.tx_id||tx.txId}</div></div>
+      <div className="lp-modal lp-modal-sm lp-receipt-modal" onClick={e=>e.stopPropagation()}>
+        <div className="lp-modal-header no-print">
+          <div>
+            <div className="lp-modal-title">Transaction Receipt</div>
+            <div className="lp-modal-sub mono">{tx.tx_id||tx.txId}</div>
+          </div>
           <button className="lp-modal-close" onClick={onClose}>✕</button>
         </div>
-        <div className="lp-modal-body">
-          <div className="lp-receipt">
-            {rows.map(([k,v])=>(
-              <div key={k} className="lp-receipt-row">
-                <span className="lp-rk">{k}</span>
-                <span className={`lp-rv ${k==="Amount Paid"?"green":""} ${k==="SHA-256 Hash"||k==="Polygon TX"?"mono hash-text":""}`}>{v}</span>
-              </div>
-            ))}
+
+        {/* ── Printable Receipt Area ── */}
+        <div className="lp-modal-body lp-printable-receipt" id="receipt-print-area">
+
+          {/* Receipt Header — visible on print */}
+          <div className="lp-receipt-print-header">
+            <div className="lp-receipt-logo"><img src={logo} alt="LEAF MPC Logo" style={{ height: "35px", width: "300px", objectFit: "contain" }} /></div>
+            <div className="lp-receipt-org">LEAF Multi-Purpose Cooperative</div>
+            <div className="lp-receipt-org-sub">61 Conception St, Lucban, Quezon Province</div>
+            <div className="lp-receipt-title-line">OFFICIAL PAYMENT RECEIPT</div>
+            <div className="lp-receipt-tx-id">{tx.tx_id || tx.txId}</div>
           </div>
+
+          {/* Status Banner */}
+          {isFullyPaid && (
+            <div className="lp-receipt-paid-banner">
+              LOAN FULLY PAID
+            </div>
+          )}
+
+          {/* Member & Loan Info */}
+          <div className="lp-receipt-section">
+            <div className="lp-receipt-section-title">Member Information</div>
+            <div className="lp-receipt-row-item">
+              <span className="lp-rk">Member Name</span>
+              <span className="lp-rv">{tx.member_name || tx.fullname || "—"}</span>
+            </div>
+            <div className="lp-receipt-row-item">
+              <span className="lp-rk">Member ID</span>
+              <span className="lp-rv mono">{tx.member_code || tx.memberId || "—"}</span>
+            </div>
+            <div className="lp-receipt-row-item">
+              <span className="lp-rk">Loan ID</span>
+              <span className="lp-rv mono">{tx.loan_code || tx.loanId || "—"}</span>
+            </div>
+          </div>
+
+          <div className="lp-receipt-divider"/>
+
+          {/* Payment Details */}
+          <div className="lp-receipt-section">
+            <div className="lp-receipt-section-title">Payment Details</div>
+            <div className="lp-receipt-row-item">
+              <span className="lp-rk">Amount Paid</span>
+              <span className="lp-rv green fw">₱{Number(tx.amount||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+            </div>
+            <div className="lp-receipt-row-item">
+              <span className="lp-rk">Balance After</span>
+              <span className="lp-rv" style={{color: isFullyPaid ? "#1565c0" : "#c62828", fontWeight:700}}>
+                {isFullyPaid ? "₱0.00 — FULLY PAID ✓" : `₱${Number(tx.balance||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`}
+              </span>
+            </div>
+            <div className="lp-receipt-row-item">
+              <span className="lp-rk">Date & Time</span>
+              <span className="lp-rv">{tx.paid_at ? new Date(tx.paid_at).toLocaleString("en-PH", {timeZone:"Asia/Manila",dateStyle:"long",timeStyle:"short"}) : "—"}</span>
+            </div>
+            <div className="lp-receipt-row-item">
+              <span className="lp-rk">Note</span>
+              <span className="lp-rv">{tx.note || "—"}</span>
+            </div>
+            <div className="lp-receipt-row-item">
+              <span className="lp-rk">Recorded By</span>
+              <span className="lp-rv">{tx.recorded_by || "—"}</span>
+            </div>
+          </div>
+
+          <div className="lp-receipt-divider"/>
+
+          {/* Blockchain Info */}
+          <div className="lp-receipt-section">
+            <div className="lp-receipt-section-title">Verification</div>
+            <div className="lp-receipt-row-item">
+              <span className="lp-rk">SHA-256 Hash</span>
+              <span className="lp-rv mono hash-text" style={{fontSize:10,wordBreak:"break-all"}}>{tx.hash || "—"}</span>
+            </div>
+            <div className="lp-receipt-row-item">
+              <span className="lp-rk">Blockchain</span>
+              <span className="lp-rv">{isOnBlockchain ? "Polygon Mainnet" : "⚠ Local only"}</span>
+            </div>
+            {tx.polygon_tx && (
+              <div className="lp-receipt-row-item">
+                <span className="lp-rk">Polygon TX</span>
+                <span className="lp-rv mono hash-text" style={{fontSize:10,wordBreak:"break-all"}}>{tx.polygon_tx}</span>
+              </div>
+            )}
+            {tx.block_number && (
+              <div className="lp-receipt-row-item">
+                <span className="lp-rk">Block Number</span>
+                <span className="lp-rv mono">{tx.block_number}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Polygonscan link — screen only */}
           {explorerUrl && (
-            <div style={{marginTop: 12, textAlign: 'center'}}>
-              <a href={explorerUrl} target="_blank" rel="noopener noreferrer"
-                 style={{color: '#7c3aed', fontWeight: 600, fontSize: 13}}>
+            <div className="no-print" style={{marginTop:12,textAlign:'center'}}>
+              <a href={explorerUrl} target="_blank" rel="noopener noreferrer" style={{color:'#7c3aed',fontWeight:600,fontSize:13}}>
                 🔗 View on Polygonscan
               </a>
             </div>
           )}
+
+          {/* Print Footer */}
+          <div className="lp-receipt-print-footer">
+            <div className="lp-receipt-footer-line">Thank you for your payment!</div>
+            <div className="lp-receipt-footer-sub">LEAF MPC · 61 Conception St, Lucban, Quezon Province · 09153810368</div>
+            <div className="lp-receipt-footer-sub">This is an official receipt. Please keep for your records.</div>
+            <div className="lp-receipt-footer-sub" style={{marginTop:24,borderTop:"1px solid #ccc",paddingTop:8}}>
+              Received by: _______________________
+            </div>
+          </div>
         </div>
-        <div className="lp-modal-footer">
+
+        <div className="lp-modal-footer no-print">
           <button className="lp-btn-cancel" onClick={onClose}>Close</button>
-          <button className="lp-btn-print" onClick={()=>window.print()}>🖨 Print Receipt</button>
+          <button className="lp-btn-print" onClick={handlePrint}>🖨 Print Receipt</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── FIX: parse paid_at in local Philippine time (Asia/Manila) ──
-// Dati: "2026-10-30T08:00:00+08:00".split("T")[0] → "2026-10-30" (wrong, UTC artifact)
-// Ngayon: ginagamit ang actual local date ng transaction
 function parsePaidAtDate(paid_at) {
   if (!paid_at) return "Unknown";
-  // Kung may timezone offset (e.g. +08:00), i-convert sa local date
   const d = new Date(paid_at);
   if (isNaN(d.getTime())) return paid_at.split("T")[0] || "Unknown";
-  // Format as YYYY-MM-DD using Asia/Manila timezone
-  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }); // "en-CA" = YYYY-MM-DD format
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
 }
 
 function groupByDate(transactions) {
@@ -152,12 +243,15 @@ function groupByDate(transactions) {
     if (!groups[dateStr]) groups[dateStr] = [];
     groups[dateStr].push(tx);
   });
-  return Object.entries(groups).sort((a, b) => { const maxIdA = Math.max(...a[1].map(t => t.id || 0)); const maxIdB = Math.max(...b[1].map(t => t.id || 0)); return maxIdB - maxIdA; });
+  return Object.entries(groups).sort((a, b) => {
+    const maxIdA = Math.max(...a[1].map(t => t.id || 0));
+    const maxIdB = Math.max(...b[1].map(t => t.id || 0));
+    return maxIdB - maxIdA;
+  });
 }
 
 function formatDateLabel(dateStr) {
   if (dateStr === "Unknown") return "Unknown Date";
-  // ── FIX: compare using Asia/Manila local date, not UTC ──
   const todayStr     = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
   const yesterdayD   = new Date();
   yesterdayD.setDate(yesterdayD.getDate() - 1);
@@ -196,7 +290,7 @@ function DailyGroup({ dateStr, txList, onViewTx }) {
               <th style={{width:"10%"}}>Balance After</th>
               <th style={{width:"13%"}}>Time</th>
               <th style={{width:"8%"}}>Hash</th>
-              <th style={{width:"4%", textAlign:"center"}}>View</th>
+              <th style={{width:"4%",textAlign:"center"}}>View</th>
             </tr>
           </thead>
           <tbody>
@@ -220,23 +314,119 @@ function DailyGroup({ dateStr, txList, onViewTx }) {
   );
 }
 
-export default function LoanPayment() {
-  const [loans,       setLoans]   = useState([]);
-  const [transactions,setTx]      = useState([]);
-  const [pStats,      setPStats]  = useState({ total_collected:0, transaction_count:0 });
-  const [loading,     setLoading] = useState(true);
-  const [activeTab,   setTab]     = useState("loans");
-  const [search,      setSearch]  = useState("");
-  const [filterStatus,setFilter]  = useState("All");
-  const [page,        setPage]    = useState(1);
-  const [recordLoan,  setRecord]  = useState(null);
-  const [viewTx,      setViewTx]  = useState(null);
-  const [toast,       setToast]   = useState(null);
-  const [historyView, setHistoryView] = useState("daily");
-  const [loanHistory, setLoanHistory] = useState(null);
-  const [loanHistoryData, setLoanHistoryData] = useState([]);
+function LoanHistoryRow({ loan, transactions, idx }) {
+  const [expanded, setExpanded] = useState(false);
+  const payments  = transactions.filter(p => String(p.loan_code).trim() === String(loan.loan_id).trim());
+  const totalPaid = payments.reduce((s,p) => s + parseFloat(p.amount||0), 0);
+  const isPaid    = loan.status === "Completed" || parseFloat(loan.balance||0) === 0;
 
-  // ── FIX 2: String().trim() para walang type/whitespace mismatch sa filter ──
+  const statusColor = { Active:"#2e7d32", Overdue:"#c62828", Completed:"#1565c0", "For Review":"#e65100", Declined:"#757575" };
+  const statusBg    = { Active:"#e8f5e9", Overdue:"#ffebee", Completed:"#e3f2fd", "For Review":"#fff8e1", Declined:"#f5f5f5" };
+  const sc = isPaid ? "#1565c0" : (statusColor[loan.status] || "#555");
+  const sb = isPaid ? "#e3f2fd" : (statusBg[loan.status]   || "#f5f5f5");
+
+  return (
+    <div style={{borderRadius:10, border:`1px solid ${expanded?"#a5d6a7":"#e0e0e0"}`, overflow:"hidden", marginBottom:8, transition:"border 0.2s"}}>
+      <div onClick={() => setExpanded(e => !e)} style={{
+        display:"grid", gridTemplateColumns:"1.5fr 1fr 1fr 1fr 1fr auto",
+        padding:"10px 14px", cursor:"pointer", gap:8,
+        background: expanded ? "#f1f8e9" : idx%2===0 ? "#fff" : "#fafafa",
+        alignItems:"center",
+      }}>
+        <div>
+          <div style={{fontFamily:"monospace",color:"#1b5e20",fontWeight:700,fontSize:12}}>{loan.loan_id}</div>
+          <div style={{fontSize:10,color:"#888",marginTop:1}}>{loan.member_name} · {loan.member_code}</div>
+        </div>
+        <div>
+          <div style={{fontSize:10,color:"#999"}}>Type</div>
+          <div style={{fontSize:11,fontWeight:600}}>{loan.loan_type}</div>
+        </div>
+        <div>
+          <div style={{fontSize:10,color:"#999"}}>Amount</div>
+          <div style={{fontWeight:700,fontSize:13}}>₱{Number(loan.amount||0).toLocaleString()}</div>
+        </div>
+        <div>
+          <div style={{fontSize:10,color:"#999"}}>Balance</div>
+          <div style={{fontWeight:700,fontSize:13,color:isPaid?"#2e7d32":"#c62828"}}>
+            {isPaid ? "₱0 ✓" : `₱${Number(loan.balance||0).toLocaleString()}`}
+          </div>
+        </div>
+        <div>
+          <span style={{background:sb,color:sc,border:`1px solid ${sc}33`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>
+            {isPaid?"Completed":loan.status}
+          </span>
+        </div>
+        <div style={{fontSize:13,color:"#bbb",userSelect:"none",paddingRight:4}}>
+          {expanded ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+        </div>
+      </div>
+      {expanded && (
+        <div style={{borderTop:"1px solid #e8f5e9",background:"#f9fef9"}}>
+          <div style={{padding:"8px 14px 4px",fontSize:11,fontWeight:700,color:"#2e7d32",display:"flex",alignItems:"center",gap:8}}>
+            💳 Payment History — {loan.loan_id}
+            <span style={{fontWeight:400,color:"#aaa",fontSize:10}}>({payments.length} payment{payments.length!==1?"s":""})</span>
+          </div>
+          {payments.length === 0 ? (
+            <div style={{padding:"12px 14px",color:"#bbb",fontSize:12,textAlign:"center"}}>No payments recorded yet.</div>
+          ) : (
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+              <thead>
+                <tr style={{background:"#e8f5e9"}}>
+                  <th style={{padding:"6px 14px",textAlign:"left",color:"#558b2f",fontWeight:600}}>Date</th>
+                  <th style={{padding:"6px 14px",textAlign:"left",color:"#558b2f",fontWeight:600}}>TX ID</th>
+                  <th style={{padding:"6px 14px",textAlign:"right",color:"#558b2f",fontWeight:600}}>Amount Paid</th>
+                  <th style={{padding:"6px 14px",textAlign:"right",color:"#558b2f",fontWeight:600}}>Balance After</th>
+                  <th style={{padding:"6px 14px",textAlign:"left",color:"#558b2f",fontWeight:600}}>Recorded By</th>
+                  <th style={{padding:"6px 14px",textAlign:"left",color:"#558b2f",fontWeight:600}}>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p,pi) => (
+                  <tr key={p.tx_id||pi} style={{background:pi%2===0?"#fff":"#f1f8e9",borderTop:"1px solid #e8f5e9"}}>
+                    <td style={{padding:"6px 14px",color:"#666",fontSize:10}}>{p.paid_at?.slice(0,10)}</td>
+                    <td style={{padding:"6px 14px",fontFamily:"monospace",color:"#1b5e20",fontSize:10}}>{p.tx_id}</td>
+                    <td style={{padding:"6px 14px",textAlign:"right",fontWeight:700,color:"#2e7d32"}}>₱{Number(p.amount||0).toLocaleString()}</td>
+                    <td style={{padding:"6px 14px",textAlign:"right",fontWeight:600,color:parseFloat(p.balance||0)===0?"#1565c0":"#c62828"}}>
+                      {parseFloat(p.balance||0)===0?"₱0 ✓":` ₱${Number(p.balance||0).toLocaleString()}`}
+                    </td>
+                    <td style={{padding:"6px 14px",color:"#888",fontSize:10}}>{p.recorded_by||"—"}</td>
+                    <td style={{padding:"6px 14px",color:"#aaa",fontSize:10}}>{p.note||"—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div style={{padding:"8px 14px",display:"flex",gap:16,fontSize:11,color:"#888",borderTop:"1px solid #e8f5e9",flexWrap:"wrap"}}>
+            <span>Monthly Due: <strong style={{color:"#555"}}>₱{Number(loan.monthly_due||0).toLocaleString()}</strong></span>
+            <span>Total Paid: <strong style={{color:"#2e7d32"}}>₱{totalPaid.toLocaleString()}</strong></span>
+            <span>Remaining: <strong style={{color:isPaid?"#1565c0":"#c62828"}}>{isPaid?"₱0 — Fully Paid ✓":`₱${Number(loan.balance||0).toLocaleString()}`}</strong></span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function LoanPayment() {
+  const [loans,           setLoans]          = useState([]);
+  const [allLoans,        setAllLoans]       = useState([]);
+  const [allLoansLoading, setAllLoansLoading]= useState(false);
+  const [allLoansFetched, setAllLoansFetched]= useState(false);
+  const [transactions,    setTx]             = useState([]);
+  const [pStats,          setPStats]         = useState({ total_collected:0, transaction_count:0 });
+  const [loading,         setLoading]        = useState(true);
+  const [activeTab,       setTab]            = useState("loans");
+  const [search,          setSearch]         = useState("");
+  const [filterStatus,    setFilter]         = useState("All");
+  const [loanHistFilter,  setLoanHistFilter] = useState("All");
+  const [page,            setPage]           = useState(1);
+  const [recordLoan,      setRecord]         = useState(null);
+  const [viewTx,          setViewTx]         = useState(null);
+  const [toast,           setToast]          = useState(null);
+  const [historyView,     setHistoryView]    = useState("daily");
+  const [loanHistory,     setLoanHistory]    = useState(null);
+  const [loanHistoryData, setLoanHistoryData]= useState([]);
+
   const handleViewLoanHistory = (e, loan) => {
     e.stopPropagation();
     const filtered = transactions.filter(
@@ -266,12 +456,35 @@ export default function LoanPayment() {
     finally { setLoading(false); }
   };
 
+  const fetchAllLoans = async () => {
+    if (allLoansFetched) return;
+    setAllLoansLoading(true);
+    try {
+      const [active, overdue, completed, declined] = await Promise.allSettled([
+        getLoansAPI({ status: "Active" }),
+        getLoansAPI({ status: "Overdue" }),
+        getLoansAPI({ status: "Completed" }),
+        getLoansAPI({ status: "Declined" }),
+      ]);
+      const all = [
+        ...(active.status    === "fulfilled" ? active.value    : []),
+        ...(overdue.status   === "fulfilled" ? overdue.value   : []),
+        ...(completed.status === "fulfilled" ? completed.value : []),
+        ...(declined.status  === "fulfilled" ? declined.value  : []),
+      ].sort((a,b) => b.id - a.id);
+      setAllLoans(all);
+      setAllLoansFetched(true);
+    } catch(e) { console.error(e); }
+    finally { setAllLoansLoading(false); }
+  };
+
   useEffect(() => { fetchData(); }, []);
 
   const totalCollected   = parseFloat(pStats.total_collected||0);
   const overdueCount     = loans.filter(l=>l.status==="Overdue").length;
   const totalOutstanding = loans.reduce((s,l)=>s+parseFloat(l.balance||0),0);
 
+  // ── FIX: After save, auto-show receipt modal ──────────────────────────────
   const handleSave = async ({ loan, amount, note }) => {
     try {
       const payment = await recordPaymentAPI({ loan: loan.id, member: loan.member, amount, note });
@@ -281,15 +494,11 @@ export default function LoanPayment() {
       const newBalance  = Math.max(0, parseFloat(loan.balance||0) - amount);
       const isFullyPaid = newBalance <= 0;
 
-      // Update loan balance directly in state
       setLoans(prev =>
-        prev
-          .map(l => l.id === loan.id ? { ...l, balance: newBalance, status: isFullyPaid ? "Completed" : l.status } : l)
-          .filter(l => l.status !== "Completed")
+        prev.map(l => l.id === loan.id ? { ...l, balance: newBalance, status: isFullyPaid ? "Completed" : l.status } : l)
+            .filter(l => l.status !== "Completed")
       );
 
-      // ── FIX 1: Normalize returned payment object para may loan_code,
-      //    member_name, etc. agad — visible sa Daily View at All Transactions ──
       if (payment) {
         const normalized = {
           ...payment,
@@ -298,25 +507,22 @@ export default function LoanPayment() {
           loan_code:   payment.loan_code   || loan.loan_id     || "",
           paid_at:     payment.paid_at     || new Date().toISOString(),
         };
-
-        // Add new payment to top of transactions list instantly
         setTx(prev => [normalized, ...prev]);
 
-        // ── FIX 3: Kung bukas ang loan history modal ng same loan,
-        //    i-update din ang loanHistoryData at loanHistory balance ──
         if (loanHistory && loanHistory.id === loan.id) {
           setLoanHistoryData(prev => [normalized, ...prev]);
           setLoanHistory(prev => ({ ...prev, balance: newBalance }));
         }
+
+        // ── Auto-show receipt modal after successful payment ──
+        setViewTx(normalized);
       }
 
-      // Update KPI stats
       setPStats(prev => ({
         ...prev,
         total_collected:   (parseFloat(prev.total_collected||0) + amount).toFixed(2),
         transaction_count: (parseInt(prev.transaction_count||0) + 1),
       }));
-
     } catch { showToast("Failed to record payment.", "danger"); }
   };
 
@@ -338,14 +544,25 @@ export default function LoanPayment() {
            (t.loan_code||"").toLowerCase().includes(q);
   });
 
-  const totalPages = Math.max(1, Math.ceil(
-    (activeTab==="loans" ? filteredLoans : filteredTx).length / ROWS_PER_PAGE
-  ));
-  const safePage = Math.min(page, totalPages);
+  const filteredAllLoans = allLoans.filter(l => {
+    const matchS = loanHistFilter==="All" || l.status===loanHistFilter;
+    const q = search.toLowerCase();
+    return matchS && (
+      (l.loan_id||"").toLowerCase().includes(q) ||
+      (l.member_name||"").toLowerCase().includes(q) ||
+      (l.member_code||"").toLowerCase().includes(q)
+    );
+  });
+
+  const totalPages     = Math.max(1, Math.ceil((activeTab==="loans" ? filteredLoans : filteredTx).length / ROWS_PER_PAGE));
+  const safePage       = Math.min(page, totalPages);
   const paginatedLoans = filteredLoans.slice((safePage-1)*ROWS_PER_PAGE, safePage*ROWS_PER_PAGE);
   const paginatedTx    = filteredTx.slice((safePage-1)*ROWS_PER_PAGE, safePage*ROWS_PER_PAGE);
 
-  const switchTab = tab => { setTab(tab); setPage(1); setSearch(""); setFilter("All"); };
+  const switchTab = tab => {
+    setTab(tab); setPage(1); setSearch(""); setFilter("All");
+    if (tab === "loanhistory") fetchAllLoans();
+  };
 
   const dailyGroups = groupByDate(filteredTx);
 
@@ -368,7 +585,6 @@ export default function LoanPayment() {
     </div>
   );
 
-  // ── Loan History Modal ──────────────────────────────────────────────────────
   const LoanHistoryModal = () => {
     if (!loanHistory) return null;
     return (
@@ -455,6 +671,9 @@ export default function LoanPayment() {
             <button className={`lp-tab ${activeTab==="history"?"active":""}`} onClick={()=>switchTab("history")}>
               Payment History <span className="lp-tab-count">{transactions.length}</span>
             </button>
+            <button className={`lp-tab ${activeTab==="loanhistory"?"active":""}`} onClick={()=>switchTab("loanhistory")}>
+              <History size={12}/> Loan History <span className="lp-tab-count">{allLoans.length||""}</span>
+            </button>
           </div>
           <div className="lp-toolbar-right">
             <div className="lp-search-wrap">
@@ -462,17 +681,17 @@ export default function LoanPayment() {
               <input className="lp-search-input" placeholder="Search..." value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
               {search && <button className="lp-clear-btn" onClick={()=>{setSearch("");setPage(1);}}>✕</button>}
             </div>
-            {activeTab==="loans" && (
-              <div className="lp-filter-tabs">
-                {["All","Active","Overdue"].map(s=>(
-                  <button key={s} className={`lp-filter-tab ${filterStatus===s?"active":""} ftab-${s.toLowerCase()}`} onClick={()=>{setFilter(s);setPage(1);}}>{s}</button>
-                ))}
-              </div>
-            )}
             {activeTab==="history" && (
               <div className="lp-filter-tabs">
                 <button className={`lp-filter-tab ${historyView==="daily"?"active ftab-all":""}`} onClick={()=>setHistoryView("daily")}>📅 Daily View</button>
                 <button className={`lp-filter-tab ${historyView==="all"?"active ftab-all":""}`} onClick={()=>setHistoryView("all")}>📋 All Transactions</button>
+              </div>
+            )}
+            {activeTab==="loanhistory" && (
+              <div className="lp-filter-tabs">
+                {["All","Active","Overdue","Completed","Declined"].map(s=>(
+                  <button key={s} className={`lp-filter-tab ${loanHistFilter===s?"active ftab-all":""}`} onClick={()=>setLoanHistFilter(s)}>{s}</button>
+                ))}
               </div>
             )}
           </div>
@@ -564,6 +783,25 @@ export default function LoanPayment() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {activeTab==="loanhistory" && (
+          <div style={{padding:"12px 16px"}}>
+            {allLoansLoading ? (
+              <div className="lp-empty">Loading loan history...</div>
+            ) : filteredAllLoans.length === 0 ? (
+              <div className="lp-empty">No loans found.</div>
+            ) : (
+              <>
+                <div style={{fontSize:12,color:"#888",marginBottom:10,fontWeight:600}}>
+                  {filteredAllLoans.length} loan{filteredAllLoans.length!==1?"s":""} found · Click a row to see payment history
+                </div>
+                {filteredAllLoans.map((loan, idx) => (
+                  <LoanHistoryRow key={loan.id} loan={loan} transactions={transactions} idx={idx}/>
+                ))}
+              </>
+            )}
           </div>
         )}
 

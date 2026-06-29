@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getMyProfileAPI, getMyApplicationAPI } from "../api/members";
+import { getMyProfileAPI, getMyOnlineAppAPI } from "../api/members";
 import { LayoutDashboard, CreditCard, Bell, Megaphone, FileText, UserCircle, Lock } from "lucide-react";
 import "./MemberLayout.css";
 import logo from "../assets/logo.png";
@@ -62,12 +62,14 @@ export default function MemberLayout() {
     const fetch = async () => {
       setLoading(true);
       try {
+        // ── Try to get official member profile first ──
         const profile = await getMyProfileAPI();
         setMemberData({ ...profile, isOfficial: true });
       } catch {
         try {
-          const app = await getMyApplicationAPI();
-          setMemberData({ isOfficial: false, appStatus: app.status });
+          // ── Fallback: check online application status ──
+          const app = await getMyOnlineAppAPI();
+          setMemberData({ isOfficial: false, appStatus: app.application_status });
         } catch {
           setMemberData({ isOfficial: false, appStatus: null });
         }
@@ -109,19 +111,11 @@ export default function MemberLayout() {
 
       <div className={`ml-overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebar(false)} />
 
-      {/* ── Sidebar ── */}
       <aside className={`ml-sidebar ${sidebarOpen ? "open" : ""}`}>
-
-        {/* Logo */}
         <div className="ml-logo">
-          <img
-            src={logo}
-            alt="LEAF MPC Logo"
-            style={{ height: "35px", width: "160px", objectFit: "contain" }}
-          />
+          <img src={logo} alt="LEAF MPC Logo" style={{ height: "35px", width: "160px", objectFit: "contain" }}/>
         </div>
 
-        {/* Profile strip */}
         <div className="ml-profile-strip">
           <div className="ml-avatar">{member.initials}</div>
           <div className="ml-profile-info">
@@ -136,7 +130,6 @@ export default function MemberLayout() {
           />
         </div>
 
-        {/* Non-official warning */}
         {!isOfficial && (
           <div className="ml-unofficial-notice">
             <span>⚠️</span>
@@ -146,7 +139,6 @@ export default function MemberLayout() {
           </div>
         )}
 
-        {/* Nav */}
         <nav className="ml-nav">
           {NAV_ITEMS.map(item => {
             const isLocked = item.locked && !isOfficial;
@@ -172,16 +164,12 @@ export default function MemberLayout() {
           })}
         </nav>
 
-        {/* Bottom */}
         <div className="ml-sidebar-bottom">
           <button className="ml-logout-btn" onClick={handleLogout}>Sign Out</button>
         </div>
       </aside>
 
-      {/* ── Main ── */}
       <div className="ml-main">
-
-        {/* Topbar */}
         <header className="ml-topbar">
           <button
             className={`ml-hamburger ${sidebarOpen ? "open" : ""}`}
@@ -200,7 +188,6 @@ export default function MemberLayout() {
           </div>
         </header>
 
-        {/* Content */}
         <main className="ml-content">
           <Outlet context={{ member, notifCount, setNotif }} />
         </main>

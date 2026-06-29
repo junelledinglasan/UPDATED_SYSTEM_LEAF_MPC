@@ -497,3 +497,186 @@
   color: #1b5e20;
   font-size: 14px;
 }
+
+/* ─── Receipt Modal Styles ───────────────────────────────────────────────── */
+.lp-receipt-modal {
+  max-width: 480px !important;
+}
+
+.lp-receipt-print-header {
+  text-align: center;
+  padding: 16px 0 12px;
+  border-bottom: 2px solid #1b5e20;
+  margin-bottom: 16px;
+  display: none; /* hidden on screen, shown on print */
+}
+
+.lp-receipt-logo {
+  font-size: 32px;
+  margin-bottom: 4px;
+}
+
+.lp-receipt-org {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1b5e20;
+}
+
+.lp-receipt-org-sub {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.lp-receipt-title-line {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #333;
+  border-top: 1px dashed #ccc;
+  border-bottom: 1px dashed #ccc;
+  padding: 6px 0;
+  margin: 8px 0 4px;
+}
+
+.lp-receipt-tx-id {
+  font-family: monospace;
+  font-size: 12px;
+  color: #1b5e20;
+  font-weight: 700;
+}
+
+.lp-receipt-paid-banner {
+  background: #e8f5e9;
+  border: 2px solid #1b5e20;
+  border-radius: 8px;
+  text-align: center;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1b5e20;
+  margin-bottom: 16px;
+}
+
+.lp-receipt-section {
+  margin-bottom: 12px;
+}
+
+.lp-receipt-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: #1b5e20;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e8f5e9;
+}
+
+.lp-receipt-row-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 5px 0;
+  gap: 12px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.lp-receipt-row-item:last-child {
+  border-bottom: none;
+}
+
+.lp-receipt-divider {
+  border: none;
+  border-top: 1px dashed #ccc;
+  margin: 12px 0;
+}
+
+.lp-receipt-print-footer {
+  margin-top: 16px;
+  text-align: center;
+  display: none; /* hidden on screen, shown on print */
+}
+
+.lp-receipt-footer-line {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b5e20;
+  margin-bottom: 4px;
+}
+
+.lp-receipt-footer-sub {
+  font-size: 10px;
+  color: #888;
+  line-height: 1.6;
+}
+
+/* ─── Print Media Query ──────────────────────────────────────────────────── */
+@media print {
+  /* Hide everything by default */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Show only the printable receipt */
+  body[data-printing="receipt"] .lp-printable-receipt,
+  body[data-printing="receipt"] .lp-printable-receipt * {
+    visibility: visible !important;
+  }
+
+  body[data-printing="receipt"] .lp-printable-receipt {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 80mm !important; /* standard receipt width */
+    padding: 8mm !important;
+    background: #fff !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 11px !important;
+  }
+
+  /* Show print-only elements */
+  .lp-receipt-print-header,
+  .lp-receipt-print-footer {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /* Hide screen-only elements */
+  .no-print {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Receipt rows on print */
+  .lp-receipt-row-item {
+    padding: 3px 0 !important;
+    font-size: 10px !important;
+  }
+
+  .lp-rk {
+    color: #555 !important;
+    font-size: 10px !important;
+  }
+
+  .lp-rv {
+    font-size: 10px !important;
+    text-align: right !important;
+  }
+
+  .lp-receipt-section-title {
+    font-size: 9px !important;
+    margin-top: 8px !important;
+  }
+
+  .lp-receipt-paid-banner {
+    border: 2px solid #000 !important;
+    font-size: 12px !important;
+  }
+
+  /* Page setup */
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+}

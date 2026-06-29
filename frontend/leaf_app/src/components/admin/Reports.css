@@ -339,3 +339,81 @@
 /* ─── Fix audit table to show tx_id ─────────────────────────── */
 .rp-audit-table th:nth-child(2),
 .rp-audit-table td:nth-child(2) { display:table-cell !important; }
+
+/* ─── Professional Table ──────────────────────────────────────────────────── */
+.rp-pro-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid #e4f0e5;
+  margin-top: 10px;
+}
+.rp-pro-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 600px;
+}
+.rp-pro-table thead tr {
+  background: linear-gradient(135deg, #1b5e20, #2e7d32);
+}
+.rp-pro-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+.rp-pro-table th:last-child  { border-right: none; }
+.rp-pro-table th:first-child { border-radius: 10px 0 0 0; }
+.rp-pro-table th:last-child  { border-radius: 0 10px 0 0; }
+.rp-pro-table td {
+  padding: 11px 16px;
+  border-bottom: 1px solid #f0f4f1;
+  color: #333;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.rp-pro-table tbody tr:nth-child(even) { background: #f9fef9; }
+.rp-pro-table tbody tr:hover { background: #e8f5e9; transition: background 0.1s; }
+.rp-pro-table tbody tr:last-child td { border-bottom: none; }
+
+/* ─── No data ─────────────────────────────────────────────────────────────── */
+.rp-no-data {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 120px;
+  color: #bbb;
+  font-size: 13px;
+  font-style: italic;
+}
+.rp-loading {
+  text-align: center;
+  padding: 40px;
+  color: #aaa;
+  font-size: 13px;
+}
+
+/* ─── Gen label ───────────────────────────────────────────────────────────── */
+.rp-gen-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.rp-gen-input {
+  padding: 9px 12px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #333;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.rp-gen-input:focus { border-color: #4caf50; }

@@ -6,7 +6,8 @@ import {
 } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 import { getOverviewAPI, getMonthlyCollectionAPI, getLoanStatusAPI, getLoanTypeAPI, getAuditLogAPI } from "../../api/reports";
-import { getMemberStatsAPI, getApplicationsAPI } from "../../api/members";
+import { getMemberStatsAPI } from "../../api/members";
+import { getOnlineApplicationsAPI } from "../../api/members";
 import { getDueDatesAPI, getLoansAPI } from "../../api/loans";
 import { getActivityLogAPI } from "../../api/activity";
 import "./Dashboard.css";
@@ -28,7 +29,6 @@ function StatCard({ label, value, icon }) {
   );
 }
 
-// ─── Due Date Modal ────────────────────────────────────────────────────────────
 function DueDateModal({ date, members, onClose }) {
   if (!date) return null;
   const formatted = new Date(date + "T00:00:00").toLocaleDateString("en-PH", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
@@ -36,10 +36,7 @@ function DueDateModal({ date, members, onClose }) {
     <div className="cal-modal-overlay" onClick={onClose}>
       <div className="cal-modal-box" onClick={e=>e.stopPropagation()}>
         <div className="cal-modal-header">
-          <div>
-            <div className="cal-modal-title">📅 Collection Due</div>
-            <div className="cal-modal-sub">{formatted}</div>
-          </div>
+          <div><div className="cal-modal-title">📅 Collection Due</div><div className="cal-modal-sub">{formatted}</div></div>
           <button className="cal-modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="cal-modal-body">
@@ -75,7 +72,6 @@ function DueDateModal({ date, members, onClose }) {
   );
 }
 
-// ─── Collection Calendar ───────────────────────────────────────────────────────
 function CollectionCalendar() {
   const today = new Date();
   const [year,    setYear]    = useState(today.getFullYear());
@@ -111,13 +107,7 @@ function CollectionCalendar() {
 
   return (
     <>
-      {selDate && (
-        <DueDateModal
-          date={selDate}
-          members={dueDates[selDate]||[]}
-          onClose={()=>setSelDate(null)}
-        />
-      )}
+      {selDate && <DueDateModal date={selDate} members={dueDates[selDate]||[]} onClose={()=>setSelDate(null)}/>}
       <div className="chart-card">
         <div className="card-header">
           <div><div className="card-title">Collection Calendar</div><div className="card-sub">{MONTHS[month]} {year}</div></div>
@@ -145,9 +135,9 @@ function CollectionCalendar() {
             const hasDue     = dueDates[key]?.length > 0;
             const hasOverdue = dueDates[key]?.some(m=>m.status==="Overdue");
             let cls = "cal-day";
-            if (isToday)       cls += " today";
+            if (isToday) cls += " today";
             else if (hasOverdue) cls += " has-overdue";
-            else if (hasDue)   cls += " has-event clickable";
+            else if (hasDue) cls += " has-event clickable";
             if (hasDue && !isToday) cls += " clickable";
             return (
               <div key={d} className={cls} onClick={()=>handleDayClick(d)} title={hasDue?`${dueDates[key].length} member(s) due`:""}>
@@ -189,10 +179,7 @@ function ActivityLog({ log }) {
 function BlockchainLedger({ data }) {
   return (
     <div className="ledger-card">
-      <div className="ledger-title">
-        🔗 Real-time Blockchain Ledger
-        <span className="ledger-badge">AUDIT</span>
-      </div>
+      <div className="ledger-title">🔗 Real-time Blockchain Ledger<span className="ledger-badge">AUDIT</span></div>
       <table className="ledger-table">
         <thead>
           <tr><th>Date</th><th>Member</th><th>Amount</th><th>Hash (SHA-256)</th><th>Receipt</th></tr>
@@ -220,7 +207,6 @@ export default function Dashboard() {
   const [monthly,    setMonthly]  = useState([]);
   const [loanStat,   setLoanStat] = useState({});
   const [loanType,   setLoanType] = useState({});
-  const [activeLoans,setActiveLoans] = useState([]);
   const [ledger,     setLedger]   = useState([]);
   const [actLog,     setActLog]   = useState([]);
   const [loading,    setLoading]  = useState(true);
@@ -229,44 +215,55 @@ export default function Dashboard() {
     const load = async () => {
       try {
         const currentYear = new Date().getFullYear();
-        const [overview, mon, ls, lt, audit, memberStats, apps, activity, activeLoansRes] = await Promise.allSettled([
+        const [overview, mon, ls, lt, audit, activeLoansRes, onlineApps, activity] = await Promise.allSettled([
           getOverviewAPI(currentYear),
           getMonthlyCollectionAPI(currentYear),
-          getLoanStatusAPI("All"),   // ── FIX: All years para makita lahat ng loan statuses
-          getLoanTypeAPI("All"),     // ── FIX: All years para makita lahat ng loan types
+          getLoanStatusAPI("All"),
+          getLoanTypeAPI("All"),
           getAuditLogAPI(currentYear),
-          getMemberStatsAPI(),
-          getApplicationsAPI(),
-          getActivityLogAPI(7),
           getLoansAPI(),
+          getOnlineApplicationsAPI(),
+          getActivityLogAPI(7),
         ]);
 
-        if (overview.status==="fulfilled") {
+        if (overview.status === "fulfilled") {
           const d = overview.value;
+
+          // ── Online applicants — count Pending from online applications ──
+          let onlineCount = 0;
+          if (onlineApps.status === "fulfilled") {
+            const appList = onlineApps.value.applications || (Array.isArray(onlineApps.value) ? onlineApps.value : []);
+            onlineCount = appList.filter(a => a.application_status === "Pending").length;
+          }
+
           setStats({
-            totalShareCapital:    0,
-            activeMembers:        d.active_members || 0,
-            pendingLoanApprovals: d.pending_loans  || 0,
-            onlineApplicants:     apps.status==="fulfilled" ? apps.value.filter(a=>a.status==="Pending").length : 0,
+            totalShareCapital:    d.total_share_capital || 0,
+            activeMembers:        d.active_members      || 0,
+            pendingLoanApprovals: d.pending_loans       || 0,
+            onlineApplicants:     onlineCount,
           });
         }
-        if (mon.status==="fulfilled") setMonthly(mon.value);
-        if (ls.status==="fulfilled")  setLoanStat(ls.value);
-        if (lt.status==="fulfilled")  setLoanType(lt.value);
 
-        // ── FIX: Build loan type breakdown including Active and Overdue ──
-        if (activeLoansRes.status==="fulfilled") {
+        if (mon.status === "fulfilled") setMonthly(mon.value);
+        if (ls.status  === "fulfilled") setLoanStat(ls.value);
+
+        // ── Loan type breakdown from active loans ──
+        if (activeLoansRes.status === "fulfilled") {
           const actLoans = activeLoansRes.value.filter(l => ["Active","Overdue"].includes(l.status));
-          setActiveLoans(actLoans);
           const breakdown = {};
           actLoans.forEach(l => {
             const t = l.loan_type || "Other";
             breakdown[t] = (breakdown[t] || 0) + 1;
           });
           if (Object.keys(breakdown).length > 0) setLoanType(breakdown);
+          else if (lt.status === "fulfilled") setLoanType(lt.value);
+        } else if (lt.status === "fulfilled") {
+          setLoanType(lt.value);
         }
-        if (audit.status==="fulfilled")    setLedger(audit.value.slice(0,12));
-        if (activity.status==="fulfilled") setActLog(activity.value);
+
+        if (audit.status    === "fulfilled") setLedger(audit.value.slice(0,12));
+        if (activity.status === "fulfilled") setActLog(activity.value);
+
       } catch(e) { console.error(e); }
       finally { setLoading(false); }
     };
@@ -306,17 +303,17 @@ export default function Dashboard() {
     }],
   };
 
-  const lineOptions    = { responsive:true, plugins:{ legend:{display:false}, tooltip:{mode:"index",intersect:false} }, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f0f4f1"}, ticks:{callback:v=>"₱"+v.toLocaleString()}} } };
-  const barOptions     = { responsive:true, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f0f4f1"}} } };
-  const doughnutOptions= { responsive:true, cutout:"68%", plugins:{ legend:{position:"bottom",labels:{boxWidth:8,padding:8,font:{size:10}}} } };
+  const lineOptions     = { responsive:true, plugins:{ legend:{display:false}, tooltip:{mode:"index",intersect:false} }, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f0f4f1"}, ticks:{callback:v=>"₱"+v.toLocaleString()}} } };
+  const barOptions      = { responsive:true, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f0f4f1"}} } };
+  const doughnutOptions = { responsive:true, cutout:"68%", plugins:{ legend:{position:"bottom",labels:{boxWidth:8,padding:8,font:{size:10}}} } };
 
   return (
     <div className="dashboard-content">
       <div className="stat-grid">
-        <StatCard label="Total Share Capital"    value={`₱${stats.totalShareCapital.toLocaleString()}`} icon="📈"/>
-        <StatCard label="Active Members"         value={stats.activeMembers}                            icon="👤"/>
-        <StatCard label="Pending Loan Approvals" value={stats.pendingLoanApprovals}                     icon="⏳"/>
-        <StatCard label="Online Applicants"      value={stats.onlineApplicants}                         icon="🌐"/>
+        <StatCard label="Total Share Capital"    value={`₱${Number(stats.totalShareCapital).toLocaleString()}`} icon="📈"/>
+        <StatCard label="Active Members"         value={stats.activeMembers}                                    icon="👤"/>
+        <StatCard label="Pending Loan Approvals" value={stats.pendingLoanApprovals}                             icon="⏳"/>
+        <StatCard label="Online Applicants"      value={stats.onlineApplicants}                                 icon="🌐"/>
       </div>
 
       <div className="chart-row">

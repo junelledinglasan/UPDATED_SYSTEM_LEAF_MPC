@@ -15,6 +15,7 @@ const STATUS_COLOR  = {
 function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) {
   const [rejectMode, setRejectMode] = useState(false);
   const [reason,     setReason]     = useState("");
+  const [idTab,      setIdTab]      = useState("front");
 
   if (!app) return null;
   const status = app.application_status || app.status || "Pending";
@@ -30,6 +31,9 @@ function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) 
       <span className={`oa-info-val${mono?" mono":""}`}>{value || "—"}</span>
     </div>
   );
+
+  const hasIdFront = !!app.id_front_url;
+  const hasIdBack  = !!app.id_back_url;
 
   return (
     <div className="oa-modal-overlay" onClick={onClose}>
@@ -51,65 +55,137 @@ function ViewModal({ app, loadingDetails=false, onClose, onApprove, onReject }) 
               <div style={{fontSize:24,marginBottom:8}}>⏳</div>
               Loading full application details...
             </div>
-          ) : (
-            <>
+          ) : (<>
+            {/* ── Personal Info ── */}
+            <div className="oa-section">
+              <div className="oa-section-title">Personal Information</div>
+              <div className="oa-info-grid">
+                <InfoRow label="Last Name"              value={app.last_name} />
+                <InfoRow label="First Name"             value={app.first_name} />
+                <InfoRow label="Middle Name"            value={app.middle_name} />
+                <InfoRow label="Birthdate"              value={app.birth_date} />
+                <InfoRow label="Civil Status"           value={app.civil_status} />
+                <InfoRow label="Classification"         value={app.classification} />
+                <InfoRow label="Educational Attainment" value={app.educational_attainment} />
+                <InfoRow label="Occupation"             value={app.occupation} />
+                <InfoRow label="Monthly Income"         value={app.income && app.income !== "0.00" ? `₱${Number(app.income).toLocaleString()}` : "—"} />
+                <InfoRow label="Contact No."            value={app.contact_number} mono />
+                <InfoRow label="Email"                  value={app.email} mono />
+                <InfoRow label="Address"                value={app.address} full />
+                <InfoRow label="Birth Certificate"      value={app.birth_certificate ? "✅ Submitted" : "❌ Not submitted"} />
+                <InfoRow label="Marriage Certificate"   value={app.marriage_certificate ? "✅ Submitted" : "❌ Not submitted"} />
+              </div>
+            </div>
+
+            {/* ── Valid ID Images ── */}
+            <div className="oa-section">
+              <div className="oa-section-title">📎 Valid ID Verification</div>
+              {!hasIdFront && !hasIdBack ? (
+                <div style={{padding:"16px",background:"#fff8e1",borderRadius:8,border:"1px solid #ffe082",fontSize:12,color:"#f57c00"}}>
+                  ⚠ No ID uploaded by the applicant.
+                </div>
+              ) : (
+                <>
+                  {/* Tab switcher */}
+                  <div style={{display:"flex",gap:8,marginBottom:12}}>
+                    {[["front","🪪 Front Side"],["back","🪪 Back Side"]].map(([key, label]) => (
+                      <button key={key} onClick={() => setIdTab(key)} style={{
+                        padding:"7px 16px",fontSize:12,fontWeight:600,cursor:"pointer",
+                        border:`2px solid ${idTab===key?"#2e7d32":"#e0e0e0"}`,
+                        borderRadius:8,
+                        background: idTab===key?"#e8f5e9":"#fafafa",
+                        color: idTab===key?"#1b5e20":"#888",
+                        transition:"all 0.15s",
+                      }}>{label}</button>
+                    ))}
+                  </div>
+
+                  {/* ID Image display */}
+                  {idTab === "front" && (
+                    hasIdFront ? (
+                      <div style={{textAlign:"center"}}>
+                        <img
+                          src={app.id_front_url}
+                          alt="Valid ID Front"
+                          style={{maxWidth:"100%",maxHeight:320,borderRadius:10,border:"2px solid #a5d6a7",objectFit:"contain"}}
+                        />
+                        <div style={{marginTop:8,fontSize:11,color:"#888"}}>
+                          <a href={app.id_front_url} target="_blank" rel="noopener noreferrer" style={{color:"#2e7d32"}}>
+                            🔗 Open full size
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{padding:"16px",background:"#fafafa",borderRadius:8,border:"1px solid #e0e0e0",fontSize:12,color:"#aaa",textAlign:"center"}}>
+                        No front ID uploaded.
+                      </div>
+                    )
+                  )}
+
+                  {idTab === "back" && (
+                    hasIdBack ? (
+                      <div style={{textAlign:"center"}}>
+                        <img
+                          src={app.id_back_url}
+                          alt="Valid ID Back"
+                          style={{maxWidth:"100%",maxHeight:320,borderRadius:10,border:"2px solid #a5d6a7",objectFit:"contain"}}
+                        />
+                        <div style={{marginTop:8,fontSize:11,color:"#888"}}>
+                          <a href={app.id_back_url} target="_blank" rel="noopener noreferrer" style={{color:"#2e7d32"}}>
+                            🔗 Open full size
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{padding:"16px",background:"#fafafa",borderRadius:8,border:"1px solid #e0e0e0",fontSize:12,color:"#aaa",textAlign:"center"}}>
+                        No back ID uploaded.
+                      </div>
+                    )
+                  )}
+
+                  <div style={{marginTop:10,padding:"8px 12px",background:"#e8f5e9",borderRadius:8,fontSize:11,color:"#2e7d32",fontWeight:600}}>
+                    ✅ Please verify that the name and other details on the ID match the information provided in the form above before approving.
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* ── Account Credentials ── */}
+            {(app.username || app.plain_password) && (
               <div className="oa-section">
-                <div className="oa-section-title">Personal Information</div>
+                <div className="oa-section-title">🔐 Account Credentials</div>
                 <div className="oa-info-grid">
-                  <InfoRow label="Last Name"              value={app.last_name} />
-                  <InfoRow label="First Name"             value={app.first_name} />
-                  <InfoRow label="Middle Name"            value={app.middle_name} />
-                  <InfoRow label="Birthdate"              value={app.birth_date} />
-                  <InfoRow label="Civil Status"           value={app.civil_status} />
-                  <InfoRow label="Classification"         value={app.classification} />
-                  <InfoRow label="Educational Attainment" value={app.educational_attainment} />
-                  <InfoRow label="Occupation"             value={app.occupation} />
-                  <InfoRow label="Monthly Income"         value={app.income && app.income !== "0.00" ? `₱${Number(app.income).toLocaleString()}` : "—"} />
-                  <InfoRow label="Contact No."            value={app.contact_number} mono />
-                  <InfoRow label="Email"                  value={app.email} mono />
-                  <InfoRow label="Address"                value={app.address} full />
-                  <InfoRow label="Birth Certificate"      value={app.birth_certificate ? "✅ Submitted" : "❌ Not submitted"} />
-                  <InfoRow label="Marriage Certificate"   value={app.marriage_certificate ? "✅ Submitted" : "❌ Not submitted"} />
+                  <InfoRow label="Username" value={app.username} mono />
+                  <InfoRow label="Password"  value={app.plain_password} mono />
                 </div>
               </div>
+            )}
 
-              {/* ── Account Credentials ── */}
-              {(app.username || app.plain_password) && (
-                <div className="oa-section">
-                  <div className="oa-section-title">🔐 Account Credentials</div>
-                  <div className="oa-info-grid">
-                    <InfoRow label="Username" value={app.username} mono />
-                    <InfoRow label="Password"  value={app.plain_password} mono />
-                  </div>
-                </div>
-              )}
+            {status === "Rejected" && app.reject_reason && (
+              <div className="oa-notice oa-notice-rejected">
+                ✗ Rejected: <strong>{app.reject_reason}</strong>
+              </div>
+            )}
+            {status === "Approved" && (
+              <div className="oa-notice oa-notice-approved">
+                ✓ This application has been <strong>approved</strong>.
+              </div>
+            )}
 
-              {status === "Rejected" && app.reject_reason && (
-                <div className="oa-notice oa-notice-rejected">
-                  ✗ Rejected: <strong>{app.reject_reason}</strong>
-                </div>
-              )}
-              {status === "Approved" && (
-                <div className="oa-notice oa-notice-approved">
-                  ✓ This application has been <strong>approved</strong>.
-                </div>
-              )}
-
-              {rejectMode && (
-                <div className="oa-section">
-                  <div className="oa-section-title reject-title-text">✗ Reason for Rejection</div>
-                  <textarea
-                    className="oa-textarea"
-                    placeholder="e.g. Incomplete requirements, applicant is underage..."
-                    value={reason}
-                    onChange={e => setReason(e.target.value)}
-                    rows={3}
-                    autoFocus
-                  />
-                </div>
-              )}
-            </>
-          )}
+            {rejectMode && (
+              <div className="oa-section">
+                <div className="oa-section-title reject-title-text">✗ Reason for Rejection</div>
+                <textarea
+                  className="oa-textarea"
+                  placeholder="e.g. Incomplete requirements, ID does not match provided info..."
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  rows={3}
+                  autoFocus
+                />
+              </div>
+            )}
+          </>)}
         </div>
 
         <div className="oa-modal-footer">
@@ -153,14 +229,10 @@ export default function OnlineApplications() {
     setLoading(true);
     try {
       const res = await getOnlineApplicationsAPI();
-      // ── Handle new response format with counts ──
-      if (res.applications) {
-        setApps(res.applications);
-        setApprovedCount(res.approved_count || 0);
-        setTotalCount(res.total_count || 0);
-      } else {
-        setApps(res); // fallback
-      }
+      const appList = res.applications || (Array.isArray(res) ? res : []);
+      setApps(appList);
+      setApprovedCount(appList.filter(a => a.application_status === "Approved").length);
+      setTotalCount(res.total_count || appList.length);
     } catch (err) {
       console.error("Failed to fetch online applications:", err);
     } finally {
@@ -192,7 +264,7 @@ export default function OnlineApplications() {
   const counts = {
     total:    totalCount || apps.length,
     pending:  apps.filter(a => a.application_status === "Pending").length,
-    approved: approvedCount, // ── Approved are converted and deleted from table
+    approved: approvedCount,
     rejected: apps.filter(a => a.application_status === "Rejected").length,
   };
 
@@ -307,17 +379,19 @@ export default function OnlineApplications() {
                 <th style={{ width:"10%" }}>Birthdate</th>
                 <th style={{ width:"13%" }}>Contact No.</th>
                 <th style={{ width:"17%" }}>Email</th>
-                <th style={{ width:"12%" }}>Occupation</th>
-                <th style={{ width:"14%" }}>Submitted</th>
+                <th style={{ width:"10%" }}>Occupation</th>
+                <th style={{ width:"8%",textAlign:"center" }}>ID</th>
+                <th style={{ width:"8%" }}>Submitted</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="oa-empty">Loading applications...</td></tr>
+                <tr><td colSpan={8} className="oa-empty">Loading applications...</td></tr>
               ) : paginated.length === 0 ? (
-                <tr><td colSpan={7} className="oa-empty">No applications found.</td></tr>
+                <tr><td colSpan={8} className="oa-empty">No applications found.</td></tr>
               ) : paginated.map(app => {
-                const appStatus = app.application_status || "Pending"; // ── FIX: defined per row
+                const appStatus = app.application_status || "Pending";
+                const hasId = app.id_front_url || app.id_back_url;
                 return (
                   <tr
                     key={app.id}
@@ -335,6 +409,11 @@ export default function OnlineApplications() {
                     <td className="mono">{app.contact_number}</td>
                     <td className="cell-email">{app.email}</td>
                     <td>{app.occupation}</td>
+                    <td style={{textAlign:"center"}}>
+                      <span title={hasId?"ID uploaded":"No ID"} style={{fontSize:16}}>
+                        {hasId ? "✅" : "❌"}
+                      </span>
+                    </td>
                     <td className="cell-date">{app.created_at?.slice(0,10)}</td>
                   </tr>
                 );

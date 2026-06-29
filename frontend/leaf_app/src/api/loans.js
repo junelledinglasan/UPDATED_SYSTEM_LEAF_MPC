@@ -6,5 +6,10 @@ export const createLoanAPI       = async (data)                          => (awa
 export const updateLoanStatusAPI = async (id, status, declineReason="") => (await api.patch(`/loans/${id}/`, { status, decline_reason: declineReason })).data;
 
 // ─── Collection Calendar ──────────────────────────────────────────────────────
-// Returns { "2026-04-15": [...members due], "2026-04-22": [...] }
 export const getDueDatesAPI = async (month="") => (await api.get(`/loans/due-dates/${month ? `?month=${month}` : ""}`)).data;
+
+// ─── GCash Payment Requests ───────────────────────────────────────────────────
+export const submitGCashRequestAPI = async (data)      => (await api.post('/loans/gcash-requests/', data)).data;
+export const getGCashRequestsAPI   = async (params)    => (await api.get('/loans/gcash-requests/', { params })).data;
+export const getGCashRequestAPI    = async (id)        => (await api.get(`/loans/gcash-requests/${id}/`)).data;
+export const verifyGCashRequestAPI = async (id, data)  => (await api.post(`/loans/gcash-requests/${id}/verify/`, data)).data;
