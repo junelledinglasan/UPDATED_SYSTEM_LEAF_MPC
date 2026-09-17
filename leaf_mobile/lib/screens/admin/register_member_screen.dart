@@ -370,7 +370,12 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Share Capital = ₱${((double.tryParse('${_form['share_capital']}') ?? 0) * 2).toStringAsFixed(0)} (paid × 2) · Max Loanable = ₱${((double.tryParse('${_form['share_capital']}') ?? 0) * 2).toStringAsFixed(0)} (×1, new member default)',
+                      // ── FIX: dating "(paid × 2)" ang display — hindi
+                      // na doble ang Share Capital sa bagong member,
+                      // 1:1 na lang (ang Loan Multiplier system mismo
+                      // ang bahalang mag-scale ng Max Loanable sa
+                      // paglipas ng panahon). ──────────────────────────
+                      'Share Capital = ₱${(double.tryParse('${_form['share_capital']}') ?? 0).toStringAsFixed(0)} · Max Loanable = ₱${(double.tryParse('${_form['share_capital']}') ?? 0).toStringAsFixed(0)} (×1, new member default)',
                       style: const TextStyle(fontSize: 10.5, color: _RMColors.green, fontWeight: FontWeight.w600),
                     ),
                   ),

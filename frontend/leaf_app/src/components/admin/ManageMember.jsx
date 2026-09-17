@@ -866,7 +866,7 @@ function PendingModal({ app, onClose, onConvert }) {
               <input style={{border:"none",outline:"none",padding:"9px 8px",fontSize:14,width:"100%"}} type="number" value={sharePaid} onChange={e=>setSharePaid(e.target.value)} placeholder="e.g. 4000"/>
             </div>
             {sharePaid>0&&<div style={{marginTop:6,padding:"6px 10px",background:"#e8f5e9",borderRadius:8,fontSize:11,color:"#2e7d32",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
-              <Lightbulb size={12}/> Share Capital = ₱{(parseFloat(sharePaid||0)*2).toLocaleString()} · Max Loanable = ₱{(parseFloat(sharePaid||0)*2).toLocaleString()} (×1, new member default)
+              <Lightbulb size={12}/> Share Capital = ₱{parseFloat(sharePaid||0).toLocaleString()} · Max Loanable = ₱{parseFloat(sharePaid||0).toLocaleString()} (×1, new member default)
             </div>}
           </div>
           <div className="mm-view-section-title">Personal Information</div>
@@ -996,7 +996,12 @@ function RegisterMemberModal({ onClose, onSuccess }) {
                 <input style={{border:"none",outline:"none",padding:"9px 8px",fontSize:14,width:"100%"}} type="number" name="share_capital" value={form.share_capital||""} onChange={handle} placeholder="e.g. 4000"/>
               </div>
               {form.share_capital>0&&<div style={{marginTop:6,padding:"6px 10px",background:"#e8f5e9",borderRadius:8,fontSize:11,color:"#2e7d32",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
-                <Lightbulb size={12}/> Share Capital = ₱{(parseFloat(form.share_capital||0)*2).toLocaleString()} (paid × 2) · Max Loanable = ₱{(parseFloat(form.share_capital||0)*2).toLocaleString()} (×1, new member default)
+                {/* ── FIX: dating "(paid × 2)" ang display — hindi na
+                    doble ang Share Capital sa Bagong member, 1:1 na
+                    lang (ang Loan Multiplier system mismo ang
+                    bahalang mag-scale ng Max Loanable sa paglipas ng
+                    panahon, hindi dapat doble na agad sa umpisa). ──── */}
+                <Lightbulb size={12}/> Share Capital = ₱{parseFloat(form.share_capital||0).toLocaleString()} · Max Loanable = ₱{parseFloat(form.share_capital||0).toLocaleString()} (×1, new member default)
               </div>}
             </div>
             <RegisterField label="Complete Address" name="address" full form={form} handle={handle} errors={errors}/>

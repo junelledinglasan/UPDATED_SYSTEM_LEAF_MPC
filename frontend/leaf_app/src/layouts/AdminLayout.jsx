@@ -5,7 +5,8 @@ import {
   LayoutDashboard, Users, UserCog, FileText,
   CreditCard, CheckSquare, Megaphone, BarChart2,
   GraduationCap, UserRound, BriefcaseBusiness, Smartphone,
-  PiggyBank, Landmark
+  PiggyBank, Landmark, User, Calendar, ClipboardList, MapPin, Phone, Check, Pencil, Settings2,
+  CheckCircle2, X, Search, AlertTriangle, PartyPopper, Calculator, Lightbulb
 } from "lucide-react";
 import { getLoansAPI, createLoanAPI, updateLoanStatusAPI, getGCashRequestsAPI } from "../api/loans";
 import { getMembersAPI, registerMemberAPI } from "../api/members";
@@ -161,7 +162,7 @@ function F2FModal({ onClose }) {
     <div className="al-overlay" onClick={onClose}>
       <div className="al-modal al-modal-sm" onClick={e => e.stopPropagation()}>
         <div className="al-modal-body" style={{alignItems:"center",textAlign:"center",padding:"32px 24px",gap:12}}>
-          <div style={{fontSize:40}}>✅</div>
+          <div style={{display:"flex",justifyContent:"center"}}><CheckCircle2 size={40} color="#2e7d32"/></div>
           <div style={{fontSize:15,fontWeight:700,color:"#1b5e20"}}>Payment Recorded!</div>
           <div style={{fontSize:12,color:"#888"}}>
             ₱{parsed.toLocaleString()} payment for <strong>{selected.member_name}</strong> has been saved.
@@ -182,14 +183,14 @@ function F2FModal({ onClose }) {
             <div className="al-modal-title">New F2F Payment</div>
             <div className="al-modal-sub">Step {step} of 2 — {step === 1 ? "Select Member Loan" : "Enter Payment Details"}</div>
           </div>
-          <button className="al-modal-close" onClick={onClose}>✕</button>
+          <button className="al-modal-close" onClick={onClose}><X size={16}/></button>
         </div>
         {step === 1 && (
           <>
             <div className="al-modal-body">
               <div className="al-step-info">Select the member's active loan to record payment for.</div>
               <div className="al-search-wrap">
-                <span>🔍</span>
+                <Search size={14}/>
                 <input className="al-search-in" placeholder="Search by name, member ID, loan ID..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
               <div className="al-loan-list">
@@ -243,7 +244,7 @@ function F2FModal({ onClose }) {
                 <label className="al-label">Note (optional)</label>
                 <input className="al-input" type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Partial payment, advance..." maxLength={80} />
               </div>
-              {error && <div className="al-error">⚠ {error}</div>}
+              {error && <div className="al-error" style={{display:"flex",alignItems:"center",gap:5}}><AlertTriangle size={12}/> {error}</div>}
               {isValid && (
                 <div className="al-preview">
                   <div className="al-prev-row"><span>Current balance</span><span>₱{balance.toLocaleString()}</span></div>
@@ -253,7 +254,7 @@ function F2FModal({ onClose }) {
                     <span>New balance</span>
                     <span className={(balance-parsed)===0?"paid-green":""}>
                       ₱{(balance-parsed).toLocaleString()}
-                      {(balance-parsed)===0 && " 🎉 FULLY PAID"}
+                      {(balance-parsed)===0 && " FULLY PAID"}
                     </span>
                   </div>
                 </div>
@@ -497,7 +498,7 @@ function RegisterModal({ onClose }) {
             <div className="al-modal-title">Register New Member</div>
             <div className="al-modal-sub">LEAF MPC Member Application & Information Sheet</div>
           </div>
-          <button className="al-modal-close" onClick={onClose}>✕</button>
+          <button className="al-modal-close" onClick={onClose}><X size={16}/></button>
         </div>
 
         {/* Tabs */}
@@ -511,7 +512,14 @@ function RegisterModal({ onClose }) {
           ))}
         </div>
 
-        <div>
+        {/* ── FIX: dating plain na "<div>" lang ito (walang className) —
+            hindi tulad ng ibang modal sa file na 'to na gumagamit ng
+            "al-modal-body" (may overflow-y:auto + flex:1). Dahil dito,
+            HINDI naka-scroll ang laman sa loob mismo ng modal — basta
+            umaapaw ito palabas, kaya "dumidikit"/lumalabas ang buong
+            modal sa itaas at ibaba ng screen sa halip na mag-scroll
+            nang maayos sa loob ng nakatakdang sukat nito. ─────────────── */}
+        <div className="al-modal-body">
 
           {/* ── TAB 1: Personal Info ── */}
           {tab === "personal" && (
@@ -519,7 +527,7 @@ function RegisterModal({ onClose }) {
 
               {/* Section: Name */}
               <div className="al-full" style={{gridColumn:"1/-1"}}>
-                <div className="al-section-header">Full Name</div>
+                <div className="al-section-header"><User size={13}/> Full Name</div>
               </div>
               <RegField name="last_name"   label="Surname"     required form={form} errors={errors} handle={handle} clearErr={n=>setErrors(p=>({...p,[n]:""})) }/>
               <RegField name="first_name"  label="First Name"  required form={form} errors={errors} handle={handle} clearErr={n=>setErrors(p=>({...p,[n]:""})) }/>
@@ -527,14 +535,14 @@ function RegisterModal({ onClose }) {
 
               {/* Section: Birth */}
               <div style={{gridColumn:"1/-1",marginTop:4}}>
-                <div className="al-section-header">Birth Information</div>
+                <div className="al-section-header"><Calendar size={13}/> Birth Information</div>
               </div>
               <RegField name="birth_date"     label="Date of Birth"  required type="date" form={form} errors={errors} handle={handle} clearErr={n=>setErrors(p=>({...p,[n]:""})) }/>
               <RegField name="place_of_birth" label="Place of Birth"  required form={form} errors={errors} handle={handle} placeholder="e.g. Lucban, Quezon"/>
 
               {/* Section: Personal Details */}
               <div style={{gridColumn:"1/-1",marginTop:4}}>
-                <div className="al-section-header">Personal Details</div>
+                <div className="al-section-header"><ClipboardList size={13}/> Personal Details</div>
               </div>
 
               {/* Sex */}
@@ -563,7 +571,7 @@ function RegisterModal({ onClose }) {
 
               {/* Section: Address */}
               <div style={{gridColumn:"1/-1",marginTop:4}}>
-                <div className="al-section-header">Address <span className="al-req"> *</span></div>
+                <div className="al-section-header"><MapPin size={13}/> Address <span className="al-req"> *</span></div>
                 <div style={{fontSize:11,color:"#888",marginTop:2,marginBottom:8}}>Select from dropdowns to auto-fill address, or type street/sitio manually.</div>
               </div>
 
@@ -641,21 +649,21 @@ function RegisterModal({ onClose }) {
 
               {/* Section: Contact */}
               <div style={{gridColumn:"1/-1",marginTop:4}}>
-                <div className="al-section-header">Contact Information</div>
+                <div className="al-section-header"><Phone size={13}/> Contact Information</div>
               </div>
               <RegField name="contact_number" label="Tel. No. / CP No."  required form={form} errors={errors} handle={handle} clearErr={n=>setErrors(p=>({...p,[n]:""})) } placeholder="09XXXXXXXXX"/>
               <RegField name="email"          label="Email Address"       required type="email" form={form} errors={errors} handle={handle} placeholder="email@example.com"/>
 
               {/* Section: Employment */}
               <div style={{gridColumn:"1/-1",marginTop:4}}>
-                <div className="al-section-header">Employment</div>
+                <div className="al-section-header"><BriefcaseBusiness size={13}/> Employment</div>
               </div>
               <RegField name="occupation" label="Occupation"          required form={form} errors={errors} handle={handle} placeholder="e.g. Teacher, Farmer"/>
               <RegField name="income"     label="Monthly Income (₱)"  required type="number" form={form} errors={errors} handle={handle}/>
 
               {/* Section: Membership */}
               <div style={{gridColumn:"1/-1",marginTop:4}}>
-                <div className="al-section-header">Membership Payment</div>
+                <div className="al-section-header"><PiggyBank size={13}/> Membership Payment</div>
               </div>
               <div className="al-field">
                 <label className="al-label">Amount Paid (₱) <span className="al-req"> *</span></label>
@@ -697,17 +705,17 @@ function RegisterModal({ onClose }) {
               <div style={{gridColumn:"1/-1",background:"#f9fef9",border:"1px solid #e8f5e9",borderRadius:10,padding:"12px 16px",fontSize:12,color:"#555",marginBottom:4}}>
                 Fill in if married. All fields in this tab are optional.
               </div>
-              <div style={{gridColumn:"1/-1"}}><div className="al-section-header">Spouse Information</div></div>
+              <div style={{gridColumn:"1/-1"}}><div className="al-section-header"><Users size={13}/> Spouse Information</div></div>
               <RegField name="spouse_name"       label="Spouse Name"               optional form={form} errors={errors} handle={handle}/>
               <RegField name="spouse_occupation" label="Spouse Occupation"          optional form={form} errors={errors} handle={handle}/>
               <RegField name="spouse_income"     label="Spouse Monthly Income (₱)"  optional type="number" form={form} errors={errors} handle={handle}/>
               <RegField name="no_of_dependants"  label="No. of Dependants"           optional type="number" form={form} errors={errors} handle={handle}/>
 
-              <div style={{gridColumn:"1/-1",marginTop:4}}><div className="al-section-header">Beneficiary Information</div></div>
+              <div style={{gridColumn:"1/-1",marginTop:4}}><div className="al-section-header"><UserRound size={13}/> Beneficiary Information</div></div>
               <RegField name="beneficiary_name"         label="Beneficiary Name"         optional form={form} errors={errors} handle={handle}/>
               <RegField name="beneficiary_relationship" label="Relationship to Member"    optional form={form} errors={errors} handle={handle}/>
 
-              <div style={{gridColumn:"1/-1",marginTop:4}}><div className="al-section-header">Credit References</div></div>
+              <div style={{gridColumn:"1/-1",marginTop:4}}><div className="al-section-header"><CreditCard size={13}/> Credit References</div></div>
               <div className="al-field al-full">
                 <label className="al-label">Credit References <span className="al-opt"> (optional)</span></label>
                 <textarea className="al-input" name="credit_references" rows={3}
@@ -764,7 +772,7 @@ function RegisterModal({ onClose }) {
             <div className="al-form-grid">
               {done ? (<>
                 <div className="al-field al-full" style={{textAlign:"center",padding:"12px 0"}}>
-                  <div style={{fontSize:40,marginBottom:8}}>🎉</div>
+                  <div style={{display:"flex",justifyContent:"center",marginBottom:8}}><PartyPopper size={40} color="#f57c00"/></div>
                   <div style={{fontSize:15,fontWeight:800,color:"#1b5e20",marginBottom:4}}>
                     {form.first_name} {form.last_name} is now an official member!
                   </div>
@@ -797,7 +805,7 @@ function RegisterModal({ onClose }) {
           )}
         </div>
 
-        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:16}}>
+        <div className="al-modal-footer">
           {!done ? (<>
             {tab !== "personal" && (
               <button className="al-btn-cancel" onClick={() => {
@@ -832,6 +840,30 @@ function RegisterModal({ onClose }) {
 // Business), tugma na sa binago nating LOAN_TYPES sa member-side
 // LoanApplication.jsx. ──────────────────────────────────────────────
 const LOAN_TYPES_LIST = ["Regular Loan","Petty Cash Loan","Appliance Loan","ATM Loan"];
+
+// ══════════════════════════════════════════════════════════════════
+//  BAGO: magkakaiba ang interest/fees PER LOAN TYPE (at para sa
+//  Regular Loan, magkaiba pa base sa AMOUNT BRACKET). Ito ang JS
+//  katumbas ng backend's "get_loan_fee_structure()" at ng ginawa na
+//  nating parehong function sa member-side LoanApplication.jsx —
+//  dapat parehong-pareho ang logic sa lahat ng lugar. ─────────────────
+function getLoanFeeStructure(loanType, amount) {
+  if (loanType === "Regular Loan") {
+    if (amount <= 50000)  return { interestRate:0.0125,  serviceFeeRate:0.03, filingFee:50,  cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+    if (amount <= 150000) return { interestRate:0.01125, serviceFeeRate:0.03, filingFee:100, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+    return { interestRate:0.01, serviceFeeRate:0.03, filingFee:100, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+  }
+  if (loanType === "Appliance Loan") {
+    return { interestRate:0.0125, serviceFeeRate:0.03, filingFee:50, cbuRate:0, insuranceRate:0.0125, sdRate:0 };
+  }
+  if (loanType === "ATM Loan") {
+    return { interestRate:0.02, serviceFeeRate:0.03, filingFee:100, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+  }
+  if (loanType === "Petty Cash Loan") {
+    return { interestRate:0, serviceFeeRate:0.03, filingFee:0, cbuRate:0, insuranceRate:0, sdRate:0 };
+  }
+  return { interestRate:0.0125, serviceFeeRate:0.03, filingFee:50, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+}
 
 function NewLoanModal({ onClose }) {
   // ── BAGO: para awtomatikong ma-navigate papunta sa Loan Approval
@@ -883,7 +915,12 @@ function NewLoanModal({ onClose }) {
   const maxLoanable  = selMember ? parseFloat(selMember.max_loanable || selMember.share_capital || 0) : 0;
   const amount       = parseFloat(form.amount) || 0;
   const term         = parseInt(form.term) || 12;
-  const defaultRate  = amount <= 50000 ? 0.0125 : amount <= 150000 ? 0.01125 : 0.01;
+  // ── FIX: dating "amount <= 50000 ? 0.0125 : ..." — Regular Loan
+  // tiering LANG ang ginagamit kahit anong "form.loanType" ang napili
+  // (mali, dapat FIXED ang rate ng ATM/Appliance/Petty Cash, hindi
+  // tiered). Gamit na ngayon ang "getLoanFeeStructure()". ─────────────
+  const typeFees      = getLoanFeeStructure(form.loanType, amount);
+  const defaultRate   = typeFees.interestRate;
   const effectiveRate= rates.interestOverride > 0 ? rates.interestOverride / 100 : defaultRate;
   const interest     = effectiveRate * amount * term;
   const serviceFee   = amount * (rates.serviceFeePct / 100);
@@ -893,6 +930,23 @@ function NewLoanModal({ onClose }) {
   const sc           = amount * (rates.scPct / 100);
   const totalDed     = interest + serviceFee + filingFee + insurance + sd + sc;
   const netProceeds  = amount - totalDed;
+
+  // ── BAGO: awtomatikong ina-update ang "rates" (Service Fee, Filing
+  // Fee, CBU, Insurance, SD) tuwing nagbabago ang loan type o
+  // amount bracket — dating naka-static ang mga 'to sa unang default
+  // (3%/1.25%/1%/3%/₱50) kahit ano pang loan type ang napili, kaya
+  // hindi tama ang lumalabas maliban na lang kung mano-manong i-reset
+  // ng admin. Ngayon, tama na agad ang default sa bawat pagpili. ──────
+  useEffect(() => {
+    setRates({
+      serviceFeePct: typeFees.serviceFeeRate * 100,
+      insurancePct:  typeFees.insuranceRate * 100,
+      sdPct:         typeFees.sdRate * 100,
+      scPct:         typeFees.cbuRate * 100,
+      filingFeeAmt:  typeFees.filingFee,
+      interestOverride: 0,
+    });
+  }, [form.loanType, amount <= 50000, amount > 50000 && amount <= 150000, amount > 150000]);
   // ── FIX: dating "(amount + interest) / term" — dito ang aktwal na
   // bug, hindi lang sa display. Kaparehong ayos ng backend
   // (serializers.py) at member-side LoanApplication.jsx. ─────────────
@@ -942,6 +996,12 @@ function NewLoanModal({ onClose }) {
       // Sa pagpasa ng "is_f2f: true", awtomatiko nang gagawing "Active"
       // ng backend serializer, KASAMA na ang auto 1% savings deposit
       // (na dati rin nale-skip dahil hindi na-trigger ang F2F path). ──
+      // ── BAGO: ipinapadala na ngayon ang aktwal na "rates" state
+      // (default o na-edit ng admin sa pamamagitan ng "Edit Rates")
+      // papunta sa backend — dating hindi ito ipinapadala kahit
+      // anong i-type ng admin sa rate editor, kaya cosmetic lang ito
+      // sa preview, ini-ignore ng backend at basta kino-compute ulit
+      // ang sarili nitong default. ─────────────────────────────────────
       const result = await createLoanAPI({
         member:      selMember.id,
         loan_type:   form.loanType,
@@ -950,6 +1010,12 @@ function NewLoanModal({ onClose }) {
         purpose:     form.purpose,
         collateral:  form.collateral,
         is_f2f:      true,
+        custom_interest_rate:    effectiveRate,
+        custom_service_fee_rate: rates.serviceFeePct / 100,
+        custom_filing_fee:       rates.filingFeeAmt,
+        custom_cbu_rate:         rates.scPct / 100,
+        custom_insurance_rate:   rates.insurancePct / 100,
+        custom_sd_rate:          rates.sdPct / 100,
       });
       setRefNo(result.loan_id);
       setMonthlyResult(result.monthly_due);
@@ -973,15 +1039,15 @@ function NewLoanModal({ onClose }) {
     <div className="al-overlay" onClick={handleDone}>
       <div className="al-modal al-modal-sm" onClick={e => e.stopPropagation()}>
         <div className="al-modal-header">
-          <div className="al-modal-title">✅ Application Recorded!</div>
-          <button className="al-modal-close" onClick={handleDone}>✕</button>
+          <div className="al-modal-title" style={{display:"flex",alignItems:"center",gap:8}}><CheckCircle2 size={18}/> Application Recorded!</div>
+          <button className="al-modal-close" onClick={handleDone}><X size={16}/></button>
         </div>
         <div className="al-modal-body" style={{gap:12}}>
           <div style={{fontSize:12,color:"#666",lineHeight:1.6}}>
             Loan application for <strong>{selMember.fullname}</strong> has been recorded.
           </div>
           <div className="al-cred-card">
-            <div className="al-cred-title">📋 Application Details</div>
+            <div className="al-cred-title" style={{display:"flex",alignItems:"center",gap:6}}><ClipboardList size={13}/> Application Details</div>
             <div className="al-cred-row"><span className="al-cred-label">Loan ID</span><span className="al-cred-val">{refNo}</span></div>
             <div className="al-cred-row"><span className="al-cred-label">Member</span><span className="al-cred-val">{selMember.member_id}</span></div>
             <div className="al-cred-row"><span className="al-cred-label">Loan Type</span><span className="al-cred-val">{form.loanType}</span></div>
@@ -1005,7 +1071,7 @@ function NewLoanModal({ onClose }) {
             <div className="al-modal-title">New F2F Loan Application</div>
             <div className="al-modal-sub">Step {step} of 2 — {step===1 ? "Select Member" : "Loan Details"}</div>
           </div>
-          <button className="al-modal-close" onClick={onClose}>✕</button>
+          <button className="al-modal-close" onClick={onClose}><X size={16}/></button>
         </div>
 
         {step === 1 && (
@@ -1013,7 +1079,7 @@ function NewLoanModal({ onClose }) {
             <div className="al-modal-body">
               <div className="al-step-info">Select the member who is applying for a loan.</div>
               <div className="al-search-wrap">
-                <span>🔍</span>
+                <Search size={14}/>
                 <input className="al-search-in" placeholder="Search by name or member ID..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
               <div className="al-loan-list">
@@ -1059,7 +1125,30 @@ function NewLoanModal({ onClose }) {
               <div className="al-form-grid">
                 <div className="al-field al-full">
                   <label className="al-label">Loan Type</label>
-                  <select className="al-input" name="loanType" value={form.loanType} onChange={e => { handle(e); setErrors({}); }}>
+                  <select className="al-input" name="loanType" value={form.loanType} onChange={e => {
+                    handle(e);
+                    setErrors({});
+                    // ── FIX: dating "1 month" lang ang DISPLAY sa term
+                    // dropdown kapag Petty Cash Loan, pero HINDI na-
+                    // fo-force ang aktwal na "form.term" state papuntang
+                    // 1 — kaya nananatiling 12 (default) ito sa likod,
+                    // at ginagamit pa rin ang 12 sa Monthly Amortization
+                    // computation (₱3,000 ÷ 12 = ₱250, mali dapat ₱3,000
+                    // dahil 1 buwan lang). ─────────────────────────────
+                    if (e.target.value === "Petty Cash Loan") {
+                      // ── FIX: FIXED na ₱2,000 talaga ang Petty Cash
+                      // Loan, kaya i-set diretso sa "2000" imbes na
+                      // basta i-clear (na siyang ginagawa sa ibang
+                      // types sa baba). ─────────────────────────────────
+                      setForm(p => ({ ...p, term: "1", amount: "2000" }));
+                    } else {
+                      // ── BAGO: PALAGING kino-clear ang amount tuwing
+                      // magpapalit ng loan type (kahit hindi papuntang
+                      // Petty Cash), dahil magkaiba ang min/max range
+                      // ng bawat type. ────────────────────────────────
+                      setForm(p => ({ ...p, amount: "" }));
+                    }
+                  }}>
                     {LOAN_TYPES_LIST.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
@@ -1079,8 +1168,10 @@ function NewLoanModal({ onClose }) {
                         BAGO RIN: tinanggal ang ₱3,000 minimum — desisyon
                         na lang ng admin/member kung magkano, basta
                         hindi lalagpas sa max. ─────────────────────────── */}
-                    <input ref={amountRef} className="al-amount-in" type="text" inputMode="numeric" name="amount" placeholder="Enter amount"
-                      value={form.amount} onChange={e => {
+                    <input ref={amountRef} className="al-amount-in" type="text" inputMode="numeric" name="amount" placeholder={`Min ₱3,000 — Max ₱${maxLoanable.toLocaleString()}`}
+                      value={form.loanType==="Petty Cash Loan" ? "2000" : form.amount}
+                      disabled={form.loanType==="Petty Cash Loan"}
+                      onChange={e => {
                         const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
                         if (digitsOnly === "") { setForm(p => ({...p, amount: ""})); setErrors(p=>({...p,amount:""})); return; }
                         const parsed = parseInt(digitsOnly, 10);
@@ -1089,19 +1180,28 @@ function NewLoanModal({ onClose }) {
                         setErrors(p=>({...p,amount:""}));
                       }} />
                   </div>
-                  <div style={{fontSize:10,color:"#888",marginTop:4}}>Max Loanable: ₱{maxLoanable.toLocaleString()}</div>
+                  {/* ── FIX: dating "max ₱2,000" ang paguugali (parang
+                      range) — pero FIXED na ₱2,000 LANG talaga ang
+                      Petty Cash Loan, hindi variable na halaga. Dating
+                      nakakapasa kahit ₱2 lang (walang minimum check).
+                      Ngayon, naka-lock ang field sa eksaktong ₱2,000,
+                      kagaya ng ginawa sa Term. ─────────────────────── */}
+                  <div style={{fontSize:10,color:"#888",marginTop:4}}>{form.loanType==="Petty Cash Loan" ? "Petty Cash Loan is a fixed amount of ₱2,000." : `Max Loanable: ₱${maxLoanable.toLocaleString()}`}</div>
                   {errors.amount && <div className="al-error" style={{marginTop:4}}>{errors.amount}</div>}
                 </div>
                 <div className="al-field">
                   <label className="al-label">Term (months)</label>
                   {/* ── BAGO: dating "jump" na options (3,6,9,12,18,24,
                       36,48) — ngayon sunod-sunod na 1-12 buwan, dahil
-                      dito na lang talaga pipili ang admin. ─────────── */}
-                  <select className="al-input" name="term" value={form.term} onChange={handle}>
-                    {Array.from({length:12}, (_,i) => i+1).map(t => (
+                      dito na lang talaga pipili ang admin. Kung Petty
+                      Cash Loan ang napili, 1 buwan LANG (payable within
+                      a month only), kaya naka-lock/disable ito. ──────── */}
+                  <select className="al-input" name="term" value={form.loanType==="Petty Cash Loan" ? 1 : form.term} onChange={handle} disabled={form.loanType==="Petty Cash Loan"}>
+                    {(form.loanType==="Petty Cash Loan" ? [1] : Array.from({length:12}, (_,i) => i+1)).map(t => (
                       <option key={t} value={t}>{t} month{t!==1?"s":""}</option>
                     ))}
                   </select>
+                  {form.loanType==="Petty Cash Loan" && <div style={{fontSize:10,color:"#888",marginTop:4}}>Petty Cash Loan is payable within 1 month only.</div>}
                 </div>
                 <div className="al-field al-full">
                   <label className="al-label">Purpose <span className="al-req">*</span></label>
@@ -1116,10 +1216,14 @@ function NewLoanModal({ onClose }) {
                 </div>
               </div>
 
-              {amount >= 3000 && (
+              {/* ── FIX: dating "amount >= 3000" lang ang check para
+                  lumabas ang computation — pero ₱2,000 lang ang max ng
+                  Petty Cash Loan (mas mababa sa ₱3,000), kaya HINDI
+                  KAILANMAN lumalabas ang preview para dito. ─────────── */}
+              {(form.loanType === "Petty Cash Loan" ? amount > 0 : amount >= 3000) && (
                 <div style={{marginTop:12}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                    <div className="al-deduct-title" style={{margin:0}}>🧮 Loan Computation (LEAF MPC)</div>
+                    <div className="al-deduct-title" style={{margin:0,display:"flex",alignItems:"center",gap:6}}><Calculator size={13}/> Loan Computation (LEAF MPC)</div>
                     <button type="button" onClick={() => setShowRateEdit(p=>!p)} style={{
                       fontSize:11,fontWeight:600,padding:"3px 10px",
                       background:showRateEdit?"#fff3e0":"#f5f5f5",
@@ -1127,12 +1231,12 @@ function NewLoanModal({ onClose }) {
                       border:`1px solid ${showRateEdit?"#ffcc80":"#e0e0e0"}`,
                       borderRadius:20,cursor:"pointer",
                     }}>
-                      {showRateEdit ? "✓ Done Editing" : "✏ Edit Rates"}
+                      {showRateEdit ? <><Check size={12}/> Done Editing</> : <><Pencil size={12}/> Edit Rates</>}
                     </button>
                   </div>
                   {showRateEdit && (
                     <div style={{background:"#fff8e1",border:"1px solid #ffe082",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
-                      <div style={{fontSize:11,fontWeight:700,color:"#f57f17",marginBottom:10}}>⚙ Customize Rates</div>
+                      <div style={{fontSize:11,fontWeight:700,color:"#f57f17",marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Settings2 size={12}/> Customize Rates</div>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                         {[
                           ["Service Fee","serviceFeePct","%"],["Insurance","insurancePct","%"],
@@ -1160,7 +1264,7 @@ function NewLoanModal({ onClose }) {
                           <div style={{fontSize:9,color:"#bbb",marginTop:2}}>0 = use default tiered rate</div>
                         </div>
                       </div>
-                      <button type="button" onClick={() => setRates({serviceFeePct:3,insurancePct:1.25,sdPct:1,scPct:3,filingFeeAmt:amount<=50000?50:100,interestOverride:0})}
+                      <button type="button" onClick={() => setRates({serviceFeePct:typeFees.serviceFeeRate*100,insurancePct:typeFees.insuranceRate*100,sdPct:typeFees.sdRate*100,scPct:typeFees.cbuRate*100,filingFeeAmt:typeFees.filingFee,interestOverride:0})}
                         style={{marginTop:10,fontSize:10,color:"#c62828",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>
                         ↺ Reset to defaults
                       </button>
@@ -1178,17 +1282,31 @@ function NewLoanModal({ onClose }) {
                         (isa lang talaga ang aktwal na binabawas). Ngayon
                         isang linya na lang — ang rate info ay nailipat
                         dito sa loob ng "Interest" deduction mismo. ────── */}
-                    <div className="al-deduct-row"><span className="al-deduct-label">Interest <span style={{fontSize:10,color:"#999",fontWeight:400}}>({(effectiveRate*100).toFixed(3)}%/mo × {term} months{rates.interestOverride>0?" (custom)":""})</span></span><span className="al-deduct-val al-deduct-red">− ₱{interest.toFixed(2)}</span></div>
+                    {/* ── BAGO: itinatago na ang mga row na 0 ang rate
+                        para sa napiling loan type (hal. walang CBU/SD
+                        ang Appliance Loan, halos lahat 0 ang Petty
+                        Cash Loan maliban sa Service Fee). ───────────── */}
+                    {effectiveRate > 0 && (
+                      <div className="al-deduct-row"><span className="al-deduct-label">Interest <span style={{fontSize:10,color:"#999",fontWeight:400}}>({(effectiveRate*100).toFixed(3)}%/mo × {term} months{rates.interestOverride>0?" (custom)":""})</span></span><span className="al-deduct-val al-deduct-red">− ₱{interest.toFixed(2)}</span></div>
+                    )}
                     <div className="al-deduct-row"><span className="al-deduct-label">Service Fee ({rates.serviceFeePct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{serviceFee.toFixed(2)}</span></div>
-                    <div className="al-deduct-row"><span className="al-deduct-label">Filing Fee (₱{rates.filingFeeAmt})</span><span className="al-deduct-val al-deduct-red">− ₱{filingFee.toFixed(2)}</span></div>
-                    <div className="al-deduct-row"><span className="al-deduct-label">Insurance ({rates.insurancePct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{insurance.toFixed(2)}</span></div>
-                    <div className="al-deduct-row"><span className="al-deduct-label">Savings Deposit ({rates.sdPct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{sd.toFixed(2)}</span></div>
-                    <div className="al-deduct-row"><span className="al-deduct-label">Share Capital CBU ({rates.scPct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{sc.toFixed(2)}</span></div>
+                    {filingFee > 0 && (
+                      <div className="al-deduct-row"><span className="al-deduct-label">Filing Fee (₱{rates.filingFeeAmt})</span><span className="al-deduct-val al-deduct-red">− ₱{filingFee.toFixed(2)}</span></div>
+                    )}
+                    {rates.insurancePct > 0 && (
+                      <div className="al-deduct-row"><span className="al-deduct-label">Insurance ({rates.insurancePct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{insurance.toFixed(2)}</span></div>
+                    )}
+                    {rates.sdPct > 0 && (
+                      <div className="al-deduct-row"><span className="al-deduct-label">Savings Deposit ({rates.sdPct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{sd.toFixed(2)}</span></div>
+                    )}
+                    {rates.scPct > 0 && (
+                      <div className="al-deduct-row"><span className="al-deduct-label">Share Capital CBU ({rates.scPct}%)</span><span className="al-deduct-val al-deduct-red">− ₱{sc.toFixed(2)}</span></div>
+                    )}
                     <div className="al-deduct-divider"/>
                     <div className="al-deduct-row al-deduct-net"><span className="al-deduct-label">Net Proceeds</span><span className="al-net-val">₱{netProceeds.toFixed(2)}</span></div>
                   </div>
                   <div className="al-deduct-notice">
-                    💡 Member will receive <strong>₱{netProceeds.toFixed(2)}</strong> after all deductions.
+                    <Lightbulb size={12} style={{verticalAlign:"-2px",marginRight:4}}/> Member will receive <strong>₱{netProceeds.toFixed(2)}</strong> after all deductions.
                   </div>
                 </div>
               )}

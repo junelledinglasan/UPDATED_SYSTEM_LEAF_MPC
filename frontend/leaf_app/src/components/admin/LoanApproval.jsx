@@ -13,6 +13,31 @@ const ROWS_PER_PAGE = 8;
 // (e.g. .status-pending-release) in LoanApproval.css and swap it in here.
 const STATUS_COLOR  = { "For Review":"status-review", "Approved":"status-review", "Active":"status-approved", "Declined":"status-declined", "Completed":"status-approved", "Overdue":"status-declined", "Cancelled":"status-declined" };
 
+// ══════════════════════════════════════════════════════════════════
+//  BAGO: magkakaiba ang interest/fees PER LOAN TYPE (at para sa
+//  Regular Loan, magkaiba pa base sa AMOUNT BRACKET). JS katumbas ito
+//  ng backend's "get_loan_fee_structure()" (loans_models.py) — dapat
+//  parehong-pareho ang logic dito at doon. Dating naka-hardcode na
+//  "Regular Loan" tiering LANG ang ginagamit kahit anong loan_type
+//  ang isinumite ng member — mali. ──────────────────────────────────────
+function getLoanFeeStructure(loanType, amount) {
+  if (loanType === "Regular Loan") {
+    if (amount <= 50000)  return { interestRate:0.0125,  serviceFeeRate:0.03, filingFee:50,  cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+    if (amount <= 150000) return { interestRate:0.01125, serviceFeeRate:0.03, filingFee:100, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+    return { interestRate:0.01, serviceFeeRate:0.03, filingFee:100, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+  }
+  if (loanType === "Appliance Loan") {
+    return { interestRate:0.0125, serviceFeeRate:0.03, filingFee:50, cbuRate:0, insuranceRate:0.0125, sdRate:0 };
+  }
+  if (loanType === "ATM Loan") {
+    return { interestRate:0.02, serviceFeeRate:0.03, filingFee:100, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+  }
+  if (loanType === "Petty Cash Loan") {
+    return { interestRate:0, serviceFeeRate:0.03, filingFee:0, cbuRate:0, insuranceRate:0, sdRate:0 };
+  }
+  return { interestRate:0.0125, serviceFeeRate:0.03, filingFee:50, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+}
+
 function ProcessModal({ loan, onClose, onApprove, onDecline, onRelease }) {
   const [declineMode, setDeclineMode] = useState(false);
   const [remarks,     setRemarks]     = useState(loan?.remarks||"");
@@ -22,16 +47,19 @@ function ProcessModal({ loan, onClose, onApprove, onDecline, onRelease }) {
   const amount = parseFloat(loan.amount||0);
   const term   = parseInt(loan.term_months||loan.term||6);
 
-  const monthlyRate =
-    amount <= 50000  ? 0.0125  :
-    amount <= 150000 ? 0.01125 : 0.01;
+  // ── FIX: dating "amount <= 50000 ? 0.0125 : ..." — Regular Loan
+  // tiering LANG ang ginagamit kahit anong "loan.loan_type" ang
+  // isinumite ng member (mali, dapat FIXED ang rate ng ATM/Appliance/
+  // Petty Cash). Gamit na ngayon ang "getLoanFeeStructure()". ──────────
+  const fees        = getLoanFeeStructure(loan.loan_type, amount);
+  const monthlyRate = fees.interestRate;
 
   const interest    = monthlyRate * amount * term;
-  const serviceFee  = amount * 0.03;
-  const filingFee   = amount <= 50000 ? 50 : 100;
-  const insurance   = amount * 0.0125;
-  const sd          = amount * 0.01;
-  const sc          = amount * 0.03;
+  const serviceFee  = amount * fees.serviceFeeRate;
+  const filingFee   = fees.filingFee;
+  const insurance   = amount * fees.insuranceRate;
+  const sd          = amount * fees.sdRate;
+  const sc          = amount * fees.cbuRate;
   const totalDeductions = interest + serviceFee + filingFee + insurance + sd + sc;
   const netProceeds = amount - totalDeductions;
 
@@ -80,7 +108,7 @@ function ProcessModal({ loan, onClose, onApprove, onDecline, onRelease }) {
           <div><div className="la-modal-title">Loan Approval Processing</div><div className="la-modal-sub">{loan.loan_id}</div></div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <span className={`la-badge ${STATUS_COLOR[loan.status]}`}>{loan.status}</span>
-            <button className="la-modal-close" onClick={onClose}>✕</button>
+            <button className="la-modal-close" onClick={onClose}><XCircle size={16}/></button>
           </div>
         </div>
         <div className="la-modal-body">
@@ -132,12 +160,27 @@ function ProcessModal({ loan, onClose, onApprove, onDecline, onRelease }) {
             <div className="la-deduction-box">
               <div className="la-deduct-row"><span className="la-deduct-label">Loan Amount</span><span className="la-deduct-val">₱{amount.toLocaleString()}</span></div>
               <div className="la-deduct-divider"/>
-              <div className="la-deduct-row"><span className="la-deduct-label">Interest <span className="la-deduct-rate">({(monthlyRate*100)}% × {term} months)</span></span><span className="la-deduct-val red">− ₱{interest.toFixed(2)}</span></div>
-              <div className="la-deduct-row"><span className="la-deduct-label">Service Fee <span className="la-deduct-rate">(3%)</span></span><span className="la-deduct-val red">− ₱{serviceFee.toFixed(2)}</span></div>
-              <div className="la-deduct-row"><span className="la-deduct-label">Filing Fee <span className="la-deduct-rate">(fixed)</span></span><span className="la-deduct-val red">− ₱{filingFee.toFixed(2)}</span></div>
-              <div className="la-deduct-row"><span className="la-deduct-label">Insurance <span className="la-deduct-rate">(1.25%)</span></span><span className="la-deduct-val red">− ₱{insurance.toFixed(2)}</span></div>
-              <div className="la-deduct-row"><span className="la-deduct-label">Savings Deposit <span className="la-deduct-rate">(1%)</span></span><span className="la-deduct-val red">− ₱{sd.toFixed(2)}</span></div>
-              <div className="la-deduct-row"><span className="la-deduct-label">Share Capital CBU Retention <span className="la-deduct-rate">(3%)</span></span><span className="la-deduct-val red">− ₱{sc.toFixed(2)}</span></div>
+              {/* ── BAGO: dynamic na ngayon ang mga rate label (dating
+                  hardcoded "(3%)"/"(1.25%)"/"(1%)" kahit ibang loan type),
+                  at itinatago na ang mga row na 0 ang rate para sa
+                  napiling loan type (walang CBU/SD ang Appliance Loan,
+                  halos lahat 0 ang Petty Cash Loan). ────────────────────── */}
+              {monthlyRate > 0 && (
+                <div className="la-deduct-row"><span className="la-deduct-label">Interest <span className="la-deduct-rate">({(monthlyRate*100)}% × {term} months)</span></span><span className="la-deduct-val red">− ₱{interest.toFixed(2)}</span></div>
+              )}
+              <div className="la-deduct-row"><span className="la-deduct-label">Service Fee <span className="la-deduct-rate">({(fees.serviceFeeRate*100).toFixed(2)}%)</span></span><span className="la-deduct-val red">− ₱{serviceFee.toFixed(2)}</span></div>
+              {filingFee > 0 && (
+                <div className="la-deduct-row"><span className="la-deduct-label">Filing Fee <span className="la-deduct-rate">(fixed)</span></span><span className="la-deduct-val red">− ₱{filingFee.toFixed(2)}</span></div>
+              )}
+              {fees.insuranceRate > 0 && (
+                <div className="la-deduct-row"><span className="la-deduct-label">Insurance <span className="la-deduct-rate">({(fees.insuranceRate*100).toFixed(2)}%)</span></span><span className="la-deduct-val red">− ₱{insurance.toFixed(2)}</span></div>
+              )}
+              {fees.sdRate > 0 && (
+                <div className="la-deduct-row"><span className="la-deduct-label">Savings Deposit <span className="la-deduct-rate">({(fees.sdRate*100).toFixed(2)}%)</span></span><span className="la-deduct-val red">− ₱{sd.toFixed(2)}</span></div>
+              )}
+              {fees.cbuRate > 0 && (
+                <div className="la-deduct-row"><span className="la-deduct-label">Share Capital CBU Retention <span className="la-deduct-rate">({(fees.cbuRate*100).toFixed(2)}%)</span></span><span className="la-deduct-val red">− ₱{sc.toFixed(2)}</span></div>
+              )}
               <div className="la-deduct-divider"/>
               <div className="la-deduct-row la-net-row">
                 <span className="la-deduct-label">Total Deductions</span>
@@ -332,7 +375,7 @@ export default function LoanApproval() {
           <div className="la-search-wrap">
             <span className="la-search-icon"><Search size={13} color="#aaa"/></span>
             <input className="la-search-input" placeholder="Search by Loan ID, Name, Member ID..." value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}}/>
-            {search && <button className="la-clear-btn" onClick={()=>{setSearch("");setPage(1);}}>✕</button>}
+            {search && <button className="la-clear-btn" onClick={()=>{setSearch("");setPage(1);}}><XCircle size={13}/></button>}
           </div>
           <div className="la-filters">
             <select className="la-select" value={filterType} onChange={e=>{setFilterType(e.target.value);setPage(1);}}>

@@ -212,8 +212,19 @@ def convert_to_member_view(request, pk):
         user.set_password(plain_pw)
         user.save()
 
+    # ── FIX: dating "paid_amount * 2" — ito ang "matching" bonus na
+    # dating tinuring na intensyonal, pero NAGDUDULOT ito ng
+    # compounding na problema kasama ng Loan Multiplier system (1x/2x/
+    # 3x): kung doble na agad ang Share Capital sa registration, tapos
+    # dumagdag pa ang multiplier sa 2x/3x pagkatapos ng matagumpay na
+    # loan, sobrang laki na ng magiging Max Loanable (doble ng doble).
+    # Ang multiplier system MISMO ang dapat bahalang mag-scale ng Max
+    # Loanable sa paglipas ng panahon (1x muna, tapos 2x/3x pagkatapos
+    # ng successful na loan) — hindi dapat doble na agad ang Share
+    # Capital mismo sa simula pa lang. Ngayon, 1:1 na lang — kung
+    # magbayad ng ₱4,000, ₱4,000 din ang naitalang Share Capital. ──────
     paid_amount   = float(request.data.get('share_capital', 0) or 0)
-    share_capital = paid_amount * 2
+    share_capital = paid_amount
 
     try:
         member = Member.objects.create(
@@ -311,8 +322,11 @@ def member_list_view(request):
         user.delete()
         return Response({'error': f'Failed to create info: {str(e)}'}, status=500)
 
+    # ── FIX: parehong ayos gaya ng sa online registration sa itaas —
+    # 1:1 na lang, hindi na doble, para hindi mag-compound kasama ng
+    # Loan Multiplier system. ──────────────────────────────────────────
     paid_amount   = float(data.get('share_capital', 0) or 0)
-    share_capital = paid_amount * 2
+    share_capital = paid_amount
 
     try:
         member = Member.objects.create(
@@ -558,7 +572,10 @@ def member_financial_summary_view(request, pk):
     )['t'] or 0
 
     share_capital = float(member.share_capital or 0)
-    amount_paid   = share_capital / 2
+    # ── FIX: dating "share_capital / 2" — dahil hindi na doble ang
+    # Share Capital sa registration, ang binayaran ay katumbas na
+    # mismo ng Share Capital (1:1), hindi na kailangang hatiin pa. ──────
+    amount_paid   = share_capital
 
     return Response({
         'share_capital':     share_capital,
@@ -992,9 +1009,12 @@ def convert_online_application_view(request, pk):
         is_f2f                 = False,
     )
 
-    # ── Fixed: ₱4,000 paid → ₱8,000 share capital ──
+    # ── FIX: dating "paid_amount * 2" (₱4,000 paid → ₱8,000 share
+    # capital) — 1:1 na lang ngayon, para hindi mag-compound kasama ng
+    # Loan Multiplier system. Ang default kapag walang ipinasang halaga
+    # ay ₱4,000 pa rin. ─────────────────────────────────────────────────
     paid_amount   = float(request.data.get('share_capital', 4000) or 4000)
-    share_capital = paid_amount * 2  # default ₱4,000 × 2 = ₱8,000
+    share_capital = paid_amount
 
     member = Member.objects.create(
         user              = user,
@@ -1177,7 +1197,11 @@ def deactivate_member_view(request, pk):
     for loan in active_loans:
         loan.balance     = Decimal('0')
         loan.status      = 'Completed'
-        loan.save()
+        # ── BAGO: "skip_multiplier_check=True" dahil administrative
+        # na pagsara ito ng loan (member deactivation), HINDI tunay na
+        # matagumpay na pagbabayad — hindi dapat bigyan ng 3x
+        # multiplier reward. ────────────────────────────────────────────
+        loan.save(skip_multiplier_check=True)
         loan_ids.append(loan.loan_id)
 
     # ── Deactivate the member ──

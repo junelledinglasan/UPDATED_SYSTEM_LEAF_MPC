@@ -60,22 +60,34 @@ def loan_list_view(request):
             loan.approved_by   = request.user.username
             loan.next_due_date = datetime.date.today() + relativedelta(months=1)
 
-            # Add 3% share capital CBU
-            share_capital_addition = loan.amount * Decimal('0.03')
-            loan.member.share_capital += share_capital_addition
-            loan.member.save()
+            # ── FIX: dating "loan.amount * Decimal('0.03')" (CBU) at
+            # "loan.amount * Decimal('0.01')" (SD) na naka-hardcode para
+            # sa LAHAT ng loan types — mali, dahil WALANG CBU/SD ang
+            # Appliance Loan at Petty Cash Loan. Ngayon, BINABASA na
+            # ang ACTUAL na naka-store na rates sa loan mismo (hindi na
+            # kino-compute ulit) — ito ang nagpapagana sa "Edit Rates"
+            # feature ng admin: kung ni-customize ng admin ang CBU/SD
+            # bago i-submit, ITO na ang gagamitin dito, hindi na ang
+            # default. ──────────────────────────────────────────────────
+            cbu_rate = loan.cbu_rate
+            sd_rate  = loan.sd_rate
 
-            # Add 1% savings deposit
-            savings_deposit = loan.amount * Decimal('0.01')
-            total_dep = Savings.objects.filter(member=loan.member, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-            total_wdr = Savings.objects.filter(member=loan.member, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-            new_balance = (total_dep - total_wdr) + savings_deposit
-            Savings.objects.create(
-                member=loan.member, transaction_type='Deposit', amount=savings_deposit,
-                balance_after=new_balance,
-                note=f'Auto-deposit from F2F loan {loan.loan_id} (1% savings deposit)',
-                recorded_by=request.user.username,
-            )
+            if cbu_rate > 0:
+                share_capital_addition = loan.amount * cbu_rate
+                loan.member.share_capital += share_capital_addition
+                loan.member.save()
+
+            if sd_rate > 0:
+                savings_deposit = loan.amount * sd_rate
+                total_dep = Savings.objects.filter(member=loan.member, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+                total_wdr = Savings.objects.filter(member=loan.member, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+                new_balance = (total_dep - total_wdr) + savings_deposit
+                Savings.objects.create(
+                    member=loan.member, transaction_type='Deposit', amount=savings_deposit,
+                    balance_after=new_balance,
+                    note=f'Auto-deposit from F2F loan {loan.loan_id} ({int(sd_rate*100)}% savings deposit)',
+                    recorded_by=request.user.username,
+                )
             loan.save()
             log_activity('loan', f'F2F Loan created & activated: {loan.loan_id} — {loan.member.fullname}', request.user)
 
@@ -257,22 +269,35 @@ def loan_detail_view(request, pk):
             loan.released_by   = request.user.username
             loan.next_due_date = datetime.date.today() + relativedelta(months=1)
 
-            share_capital_addition = loan.amount * Decimal('0.03')
-            loan.member.share_capital += share_capital_addition
-            loan.member.save()
+            # ── FIX: parehong ayos gaya ng sa F2F flow sa itaas —
+            # binabasa na ang ACTUAL na naka-store na rates sa loan
+            # mismo (hindi na kino-compute ulit), para gumana ang
+            # "Edit Rates" feature ng admin. ────────────────────────────
+            cbu_rate = loan.cbu_rate
+            sd_rate  = loan.sd_rate
 
-            savings_deposit = loan.amount * Decimal('0.01')
-            total_dep = Savings.objects.filter(member=loan.member, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-            total_wdr = Savings.objects.filter(member=loan.member, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-            current_balance = total_dep - total_wdr
-            new_balance     = current_balance + savings_deposit
+            if cbu_rate > 0:
+                share_capital_addition = loan.amount * cbu_rate
+                loan.member.share_capital += share_capital_addition
+                loan.member.save()
+            else:
+                share_capital_addition = Decimal('0')
 
-            Savings.objects.create(
-                member=loan.member, transaction_type='Deposit', amount=savings_deposit,
-                balance_after=new_balance,
-                note=f'Auto-deposit from loan {loan.loan_id} (1% savings deposit)',
-                recorded_by=request.user.username,
-            )
+            if sd_rate > 0:
+                savings_deposit = loan.amount * sd_rate
+                total_dep = Savings.objects.filter(member=loan.member, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+                total_wdr = Savings.objects.filter(member=loan.member, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+                current_balance = total_dep - total_wdr
+                new_balance     = current_balance + savings_deposit
+
+                Savings.objects.create(
+                    member=loan.member, transaction_type='Deposit', amount=savings_deposit,
+                    balance_after=new_balance,
+                    note=f'Auto-deposit from loan {loan.loan_id} ({int(sd_rate*100)}% savings deposit)',
+                    recorded_by=request.user.username,
+                )
+            else:
+                savings_deposit = Decimal('0')
 
             log_activity('loan',
                 f'Loan money released & activated: {loan.loan_id} — {loan.member.fullname} — ₱{loan.amount:,.2f} | Share Capital +₱{share_capital_addition:,.2f} | Savings Deposit +₱{savings_deposit:,.2f}',

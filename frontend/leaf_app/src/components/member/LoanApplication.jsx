@@ -32,6 +32,38 @@ const LOAN_TYPES = [
   { type:"ATM Loan",         icon:<CreditCard  size={26} color="#6a1b9a"/>, color:"#f3e5f5", border:"#ce93d8", descKey:"la_loan_type_atm_desc"       },
 ];
 
+// ══════════════════════════════════════════════════════════════════
+//  BAGO: magkakaiba ang interest/fees PER LOAN TYPE (at para sa
+//  Regular Loan, magkaiba pa base sa AMOUNT BRACKET). Ito ang JS
+//  katumbas ng backend's "get_loan_fee_structure()" (loans_models.py)
+//  — dapat parehong-pareho ang logic dito at doon, dahil dito lang
+//  nagpe-preview ang member bago isumite, pero ang BACKEND pa rin
+//  ang huling nagko-compute ng totoong halaga. Dating naka-hardcode
+//  na "Regular Loan" tiering LANG ang ginagamit kahit anong loan type
+//  — mali, dahil FIXED dapat ang rate ng ATM/Appliance/Petty Cash. ────
+function getLoanFeeStructure(loanType, amount) {
+  if (loanType === "Regular Loan") {
+    if (amount <= 50000)  return { interestRate:0.0125,  serviceFeeRate:0.03, filingFee:50,  cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+    if (amount <= 150000) return { interestRate:0.01125, serviceFeeRate:0.03, filingFee:100, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+    // ₱150,001–₱500,000 — "w/ Collateral" ay informational note lang,
+    // HINDI required field.
+    return { interestRate:0.01, serviceFeeRate:0.03, filingFee:100, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+  }
+  if (loanType === "Appliance Loan") {
+    // Walang CBU, walang Savings Deposit.
+    return { interestRate:0.0125, serviceFeeRate:0.03, filingFee:50, cbuRate:0, insuranceRate:0.0125, sdRate:0 };
+  }
+  if (loanType === "ATM Loan") {
+    return { interestRate:0.02, serviceFeeRate:0.03, filingFee:100, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+  }
+  if (loanType === "Petty Cash Loan") {
+    // 3% Service Fee LANG — walang interest, Filing Fee, Insurance, CBU, SD.
+    return { interestRate:0, serviceFeeRate:0.03, filingFee:0, cbuRate:0, insuranceRate:0, sdRate:0 };
+  }
+  // Fallback — panatilihin ang lumang default.
+  return { interestRate:0.0125, serviceFeeRate:0.03, filingFee:50, cbuRate:0.03, insuranceRate:0.0125, sdRate:0.01 };
+}
+
 // ── BAGO: "key" imbes na "label" — parehong dahilan, resolve sa
 // render time via getStatusMeta(status, t). ─────────────────────────
 const STATUS_META = {
@@ -161,7 +193,13 @@ function getLoanRecommendation(shareCapital, loanMultiplier, classification, mon
   let recAmount  = Math.floor(maxLoanable * recAmtPct / 1000) * 1000;
   recAmount      = Math.max(3000, Math.min(recAmount, maxLoanable));
 
-  const rate       = recAmount <= 50000 ? 0.0125 : recAmount <= 150000 ? 0.01125 : 0.01;
+  // ── FIX: dating "recAmount <= 50000 ? 0.0125 : ..." — Regular Loan
+  // tiering lang ang ginagamit kahit anong "recType" (hal. kung
+  // restricted sa ATM Loan ang member, dapat FIXED 2% ang rate,
+  // hindi ang tiered Regular Loan rate). Gamit na ngayon ang
+  // "getLoanFeeStructure()" na isinasaalang-alang ang tamang type. ────
+  const recFees    = getLoanFeeStructure(recType, recAmount);
+  const rate       = recFees.interestRate;
   const maxMonthly = monthlyIncome * 0.30;
 
   let recTerm = 12;
@@ -283,17 +321,56 @@ export default function LoanApplication() {
     }
   }, [eligibility.restrictedType, editingId]);
 
+  // ── BAGO: kapag Petty Cash Loan ang napili, i-force ang aktwal na
+  // "form.term" state papuntang 1 — hindi sapat na i-disable/ipakita
+  // lang na "1" sa dropdown, dahil hindi nito binabago ang totoong
+  // laman ng "form.term" na isusumite. ─────────────────────────────────
+  useEffect(() => {
+    if (selType === "Petty Cash Loan" && form.term !== 1) {
+      setForm(p => ({ ...p, term: 1 }));
+    }
+  }, [selType]);
+
+  // ── BAGO: dating "clamp" lang kapag Petty Cash Loan ang bagong
+  // type — ngayon, PALAGING kino-clear ang amount tuwing magpapalit ng
+  // loan type (kahit hindi papuntang Petty Cash), dahil magkaiba ang
+  // min/max range ng bawat type — para hindi na-i-stay ang nilagay na
+  // halaga mula sa ibang type. ─────────────────────────────────────────
+  const prevSelType = useRef(selType);
+  useEffect(() => {
+    // ── FIX: dating "hindi ginagalaw ang amount sa UNANG beses na
+    // pagpili ng type" ang lohika dito — pero para sa Petty Cash Loan,
+    // kailangan PALAGING naka-sync sa "2000" ang aktwal na form.amount
+    // state (hindi lang ang display), kahit UNANG beses pa itong
+    // napili, dahil kung hindi, magpapakita ng "2000" sa field pero
+    // magbibigay pa rin ng "required" error sa validate() kapag
+    // sinubmit — nakakalito para sa user. ────────────────────────────
+    if (selType === "Petty Cash Loan" && form.amount !== "2000") {
+      setForm(p => ({ ...p, amount: "2000" }));
+    } else if (prevSelType.current !== null && prevSelType.current !== selType) {
+      setForm(p => ({ ...p, amount: "" }));
+    }
+    prevSelType.current = selType;
+  }, [selType]);
+
   const amount       = parseFloat(form.amount) || 0;
   const term         = parseInt(form.term) || 12;
   const selectedType = LOAN_TYPES.find(l => l.type === selType);
 
-  const monthlyRate  = amount <= 50000 ? 0.0125 : amount <= 150000 ? 0.01125 : 0.01;
+  // ── FIX: dating "amount <= 50000 ? 0.0125 : ..." (Regular Loan
+  // tiering) ang ginagamit KAHIT ANONG loan type ang napili — kaya
+  // mali ang preview kapag Appliance/ATM/Petty Cash Loan ang pinili
+  // (dapat FIXED ang rate nila, hindi tiered; at walang CBU/SD ang
+  // Appliance/Petty Cash). Gamit na ngayon ang "getLoanFeeStructure()"
+  // na isinasaalang-alang ang tamang "selType". ────────────────────────
+  const fees         = getLoanFeeStructure(selType, amount);
+  const monthlyRate  = fees.interestRate;
   const interest     = monthlyRate * amount * term;
-  const serviceFee   = amount * 0.03;
-  const filingFee    = amount <= 50000 ? 50 : 100;
-  const insurance    = amount * 0.0125;
-  const sd           = amount * 0.01;
-  const sc           = amount * 0.03;
+  const serviceFee   = amount * fees.serviceFeeRate;
+  const filingFee    = fees.filingFee;
+  const insurance    = amount * fees.insuranceRate;
+  const sd           = amount * fees.sdRate;
+  const sc           = amount * fees.cbuRate;
   const totalDed     = interest + serviceFee + filingFee + insurance + sd + sc;
   const netProceeds  = amount - totalDed;
   // ── FIX: dating "(amount + interest) / term" — DITO ang aktwal na
@@ -310,7 +387,13 @@ export default function LoanApplication() {
   // "remaining room" na logic. Gamit na ngayon ang totoong hangganan
   // (eligibility.loanableCap) sa lahat ng lugar sa form. ─────────────
   const maxLoanable     = eligibility.loanableCap;
-  const showComputation = amount >= 3000 && amount <= maxLoanable && selType && step === 2;
+  // ── FIX: dating "amount >= 3000" lang ang check para lumabas ang
+  // computation — pero ₱2,000 lang ang max ng Petty Cash Loan (mas
+  // mababa sa ₱3,000), kaya HINDI KAILANMAN lumalabas ang preview
+  // para dito (parehong bug na na-fix na sa mobile). ────────────────
+  const showComputation = selType === "Petty Cash Loan"
+    ? amount > 0 && amount <= maxLoanable && step === 2
+    : (amount >= 3000 && amount <= maxLoanable && selType && step === 2);
 
   const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
 
@@ -320,6 +403,9 @@ export default function LoanApplication() {
     const parsed = parseInt(digitsOnly, 10);
     if (isNaN(parsed)) return;
     if (maxLoanable > 0 && parsed > maxLoanable) return; // tanggihan, huwag baguhin
+    // ── BAGO: Petty Cash Loan — max ₱2,000 lang, hiwalay sa
+    // Max Loanable limit. ─────────────────────────────────────────────
+    if (selType === "Petty Cash Loan" && parsed > 2000) return;
     setForm(p => ({ ...p, amount: digitsOnly }));
     setErrors(p => ({...p, amount:""}));
   };
@@ -413,10 +499,19 @@ export default function LoanApplication() {
 
   const validate = () => {
     const e = {};
-    if (!form.amount || parseFloat(form.amount) < 3000)
-      e.amount = t("la_min_amount");
-    if (parseFloat(form.amount) > maxLoanable)
-      e.amount = t("la_exceeds_max", { amt: `₱${maxLoanable.toLocaleString()}` });
+    // ── FIX: dating "amount < 3000" ang check kahit anong loan type —
+    // pero FIXED na ₱2,000 LANG talaga ang Petty Cash Loan (hindi
+    // variable na halaga) — dating nakakapasa kahit ₱2 lang, malaking
+    // bug (walang minimum amount check kahit kailan). ──────────────────
+    if (selType === "Petty Cash Loan") {
+      if (!form.amount || parseFloat(form.amount) !== 2000)
+        e.amount = "Petty Cash Loan is a fixed amount of ₱2,000.";
+    } else {
+      if (!form.amount || parseFloat(form.amount) < 3000)
+        e.amount = t("la_min_amount");
+      if (parseFloat(form.amount) > maxLoanable)
+        e.amount = t("la_exceeds_max", { amt: `₱${maxLoanable.toLocaleString()}` });
+    }
     if (!form.purpose.trim())
       e.purpose = t("la_purpose_required");
     return e;
@@ -931,24 +1026,34 @@ export default function LoanApplication() {
                 <label className="la-label">{t("la_loan_amount")} <span className="la-req">*</span></label>
                 <div className="la-amount-wrap">
                   <span className="la-peso">₱</span>
+                  {/* ── FIX: dating "max ₱2,000" ang paguugali (parang
+                      range, 1 hanggang 2000) — pero FIXED na ₱2,000
+                      LANG talaga ang Petty Cash Loan, hindi variable.
+                      Kaya dating nakakapasa kahit ₱2 lang (walang
+                      minimum check). Ngayon, naka-lock ang field sa
+                      eksaktong ₱2,000, kagaya ng ginawa sa Term. ────── */}
                   <input ref={amountRef} className={`la-amount-input ${errors.amount?"la-err":""}`} type="text" inputMode="numeric" pattern="[0-9]*" name="amount"
-                    value={form.amount} onChange={handleAmountChange}
-                    placeholder={t("la_amount_placeholder", { amt: `₱${maxLoanable.toLocaleString()}` })}/>
+                    value={selType==="Petty Cash Loan" ? "2000" : form.amount} onChange={handleAmountChange}
+                    disabled={selType==="Petty Cash Loan"}
+                    placeholder={`Min ₱3,000 — Max ₱${maxLoanable.toLocaleString()}`}/>
                 </div>
                 {errors.amount && <div className="la-field-err">{errors.amount}</div>}
-                <div style={{fontSize:10,color:"#888",marginTop:4}}>{t("la_max_loanable_share", { amt: `₱${maxLoanable.toLocaleString()}`, mult: loanMultiplier })}</div>
+                <div style={{fontSize:10,color:"#888",marginTop:4}}>{selType==="Petty Cash Loan" ? "Petty Cash Loan is a fixed amount of ₱2,000." : t("la_max_loanable_share", { amt: `₱${maxLoanable.toLocaleString()}`, mult: loanMultiplier })}</div>
               </div>
               <div className="la-field">
                 <label className="la-label">{t("la_loan_term")}</label>
                 {/* ── BAGO: dating "jump" na options (3,6,9,12,18,24,
                     36,48) na may hiwalay na limitasyon per loan type —
                     ngayon sunod-sunod na 1-12 buwan, tugma na sa admin
-                    F2F application. ────────────────────────────────── */}
-                <select className="la-select" name="term" value={form.term} onChange={handle}>
-                  {Array.from({length:12}, (_,i) => i+1).map(t2 => (
+                    F2F application. Kung Petty Cash Loan ang napili,
+                    1 buwan LANG ang pinapayagan (payable within a
+                    month only), kaya naka-disable at naka-lock sa 1. ── */}
+                <select className="la-select" name="term" value={selType==="Petty Cash Loan" ? 1 : form.term} onChange={handle} disabled={selType==="Petty Cash Loan"}>
+                  {(selType==="Petty Cash Loan" ? [1] : Array.from({length:12}, (_,i) => i+1)).map(t2 => (
                     <option key={t2} value={t2}>{t("la_months_option", { n: t2 })}</option>
                   ))}
                 </select>
+                {selType==="Petty Cash Loan" && <div style={{fontSize:10,color:"#888",marginTop:4}}>Petty Cash Loan is payable within 1 month only.</div>}
               </div>
               <div className="la-field la-full">
                 <label className="la-label">{t("la_purpose")} <span className="la-req">*</span></label>
@@ -983,12 +1088,28 @@ export default function LoanApplication() {
                   <div className="la-comp-ded-title">{t("la_upfront_deductions")}</div>
                   <div className="la-ded-row"><span>{t("la_loan_amount_row")}</span><span>₱{amount.toLocaleString()}</span></div>
                   <div className="la-ded-divider"/>
-                  <div className="la-ded-row"><span>{t("la_interest_row")} <span className="la-ded-rate">({(monthlyRate*100)}% × {term} mos)</span></span><span className="red">− ₱{interest.toFixed(2)}</span></div>
+                  {/* ── BAGO: itinatago na ngayon ang mga row na 0 ang
+                      rate para sa napiling loan type (hal. walang
+                      CBU/SD ang Appliance Loan, halos lahat 0 ang
+                      Petty Cash Loan maliban sa Service Fee) — dating
+                      palaging nagpapakita ng "₱0.00" kahit hindi
+                      applicable. ─────────────────────────────────────── */}
+                  {monthlyRate > 0 && (
+                    <div className="la-ded-row"><span>{t("la_interest_row")} <span className="la-ded-rate">({(monthlyRate*100)}% × {term} mos)</span></span><span className="red">− ₱{interest.toFixed(2)}</span></div>
+                  )}
                   <div className="la-ded-row"><span>{t("la_service_fee")}</span><span className="red">− ₱{serviceFee.toFixed(2)}</span></div>
-                  <div className="la-ded-row"><span>{t("la_filing_fee")}</span><span className="red">− ₱{filingFee.toFixed(2)}</span></div>
-                  <div className="la-ded-row"><span>{t("la_insurance")}</span><span className="red">− ₱{insurance.toFixed(2)}</span></div>
-                  <div className="la-ded-row"><span>{t("la_savings_deposit")}</span><span className="red">− ₱{sd.toFixed(2)}</span></div>
-                  <div className="la-ded-row"><span>{t("la_sc_cbu")}</span><span className="red">− ₱{sc.toFixed(2)}</span></div>
+                  {filingFee > 0 && (
+                    <div className="la-ded-row"><span>{t("la_filing_fee")}</span><span className="red">− ₱{filingFee.toFixed(2)}</span></div>
+                  )}
+                  {fees.insuranceRate > 0 && (
+                    <div className="la-ded-row"><span>{t("la_insurance")}</span><span className="red">− ₱{insurance.toFixed(2)}</span></div>
+                  )}
+                  {fees.sdRate > 0 && (
+                    <div className="la-ded-row"><span>{t("la_savings_deposit")}</span><span className="red">− ₱{sd.toFixed(2)}</span></div>
+                  )}
+                  {fees.cbuRate > 0 && (
+                    <div className="la-ded-row"><span>{t("la_sc_cbu")}</span><span className="red">− ₱{sc.toFixed(2)}</span></div>
+                  )}
                   <div className="la-ded-divider"/>
                   <div className="la-ded-row la-ded-total"><span>{t("la_total_deductions")}</span><span className="red fw">− ₱{totalDed.toFixed(2)}</span></div>
                   <div className="la-ded-row la-ded-net"><span>{t("la_net_proceeds")}</span><span className="green fw">₱{netProceeds.toFixed(2)}</span></div>
