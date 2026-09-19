@@ -69,13 +69,22 @@ def loan_list_view(request):
             # feature ng admin: kung ni-customize ng admin ang CBU/SD
             # bago i-submit, ITO na ang gagamitin dito, hindi na ang
             # default. ──────────────────────────────────────────────────
-            cbu_rate = loan.cbu_rate
-            sd_rate  = loan.sd_rate
+            # ── FIX: "loan.cbu_rate"/"loan.sd_rate" ay naka-store bilang
+            # "float" sa modelo, pero "Decimal" naman ang "loan.amount" —
+            # bawal i-multiply nang direkta ang Decimal at float sa
+            # Python ("TypeError: unsupported operand type(s) for *:
+            # 'decimal.Decimal' and 'float'"). Kaya kino-convert muna dito
+            # papuntang Decimal (via str() para walang floating-point
+            # rounding artifacts, hal. 0.03 na naging 0.029999999999999999). ──
+            cbu_rate = Decimal(str(loan.cbu_rate))
+            sd_rate  = Decimal(str(loan.sd_rate))
 
             if cbu_rate > 0:
                 share_capital_addition = loan.amount * cbu_rate
                 loan.member.share_capital += share_capital_addition
                 loan.member.save()
+            else:
+                share_capital_addition = Decimal('0')
 
             if sd_rate > 0:
                 savings_deposit = loan.amount * sd_rate
@@ -88,13 +97,114 @@ def loan_list_view(request):
                     note=f'Auto-deposit from F2F loan {loan.loan_id} ({int(sd_rate*100)}% savings deposit)',
                     recorded_by=request.user.username,
                 )
+            else:
+                savings_deposit = Decimal('0')
+
             loan.save()
             log_activity('loan', f'F2F Loan created & activated: {loan.loan_id} — {loan.member.fullname}', request.user)
+
+            # ── BAGO: irecord din sa blockchain ang Loan Release (hindi
+            # lang ang mga sunod-sunod na payment) — tingnan ang
+            # "_record_loan_release_blockchain()" helper sa ibaba ng file
+            # na 'to, ginagamit din sa "Confirm Release" (Active) flow ng
+            # online-submitted loans. ─────────────────────────────────────
+            _record_loan_release_blockchain(loan, share_capital_addition, savings_deposit, request.user.username)
 
         return Response(LoanSerializer(loan).data, status=201)
 
     print(f"[LOAN CREATE ERROR] {s.errors}")
     return Response(s.errors, status=400)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BAGO: irecord sa Polygon blockchain ang BUONG deduction breakdown ng isang
+# Loan Release (hindi lang ang mga payment/hulog pagkatapos). REUSES ang
+# parehong "recordPayment" contract function (walang bagong Solidity function
+# o redeploy na kailangan) — tingnan ang "record_loan_release_on_blockchain()"
+# sa payments/blockchain.py para sa detalye kung paano ito nagiging
+# comprehensive/tamper-proof kahit parehong function lang ang tinatawag.
+#
+# Ginagamit ang mga ACTUAL na naka-store na rates sa loan mismo (loan.
+# service_fee_rate, loan.filing_fee_amt, loan.insurance_rate, loan.cbu_rate,
+# loan.sd_rate) — parehong pattern gaya ng ibang bahagi ng file na 'to, para
+# tumugma ito sa "Edit Rates" feature ng admin (kung na-customize niya ang
+# mga rate bago i-release, ITO ang gagamitin, hindi na ang default).
+# ══════════════════════════════════════════════════════════════════════════════
+def _record_loan_release_blockchain(loan, share_capital_addition, savings_deposit, recorded_by):
+    from payments.models import LoanRelease
+    from payments.blockchain import record_loan_release_on_blockchain
+
+    try:
+        amount       = loan.amount
+        term         = loan.term_months
+        # ── FIX: "loan.interest_rate" ay "float" rin pala sa modelo
+        # (gaya ng cbu_rate/sd_rate/service_fee_rate/insurance_rate) —
+        # dapat Decimal muna bago i-divide/i-multiply sa Decimal na
+        # "amount". loan.interest_rate ay naka-store bilang ANNUAL
+        # percentage (monthly_rate × 12 × 100) — ibinabalik dito pabalik
+        # sa monthly decimal rate para makuha ang tamang "Interest"
+        # deduction. ─────────────────────────────────────────────────────
+        interest_rate = Decimal(str(loan.interest_rate)) if loan.interest_rate else Decimal('0')
+        monthly_rate  = interest_rate / Decimal('1200') if interest_rate else Decimal('0')
+
+        # ── FIX: parehong Decimal/float multiplication bug — sinisiguro
+        # dito na Decimal muna ang mga rate bago i-multiply sa Decimal na
+        # "amount" (safe ito kahit Decimal na talaga ang laman, dahil
+        # idempotent ang Decimal(str(...))). ─────────────────────────────
+        service_fee_rate = Decimal(str(loan.service_fee_rate))
+        insurance_rate    = Decimal(str(loan.insurance_rate))
+
+        interest    = (monthly_rate * amount * term).quantize(Decimal('0.01'))
+        service_fee = (amount * service_fee_rate).quantize(Decimal('0.01'))
+        # ── FIX: "loan.filing_fee_amt" ay posibleng "float" din — kung
+        # gagamitin ang ".quantize()" nito nang direkta at float pala
+        # ito, "AttributeError: 'float' object has no attribute
+        # 'quantize'". I-convert muna papuntang Decimal para ligtas kahit
+        # anong klase (float o Decimal na talaga) ang laman. ────────────
+        filing_fee  = Decimal(str(loan.filing_fee_amt)).quantize(Decimal('0.01'))
+        insurance   = (amount * insurance_rate).quantize(Decimal('0.01'))
+
+        total_deductions = (interest + service_fee + filing_fee + insurance
+                             + savings_deposit + share_capital_addition).quantize(Decimal('0.01'))
+        net_proceeds     = (amount - total_deductions).quantize(Decimal('0.01'))
+
+        release = LoanRelease.objects.create(
+            loan              = loan,
+            member            = loan.member,
+            principal         = amount,
+            interest          = interest,
+            service_fee       = service_fee,
+            filing_fee        = filing_fee,
+            insurance         = insurance,
+            savings_deposit   = savings_deposit,
+            share_capital_cbu = share_capital_addition,
+            total_deductions  = total_deductions,
+            net_proceeds      = net_proceeds,
+            recorded_by       = recorded_by,
+        )
+
+        bc = record_loan_release_on_blockchain(
+            tx_id     = release.tx_id,
+            member_id = loan.member.member_id,
+            loan_id   = loan.loan_id,
+            breakdown = {
+                'principal':         str(amount),
+                'interest':          str(interest),
+                'service_fee':       str(service_fee),
+                'filing_fee':        str(filing_fee),
+                'insurance':         str(insurance),
+                'savings_deposit':   str(savings_deposit),
+                'share_capital_cbu': str(share_capital_addition),
+                'net_proceeds':      str(net_proceeds),
+            },
+        )
+        release.hash         = bc.get('hash', release.hash)
+        release.polygon_tx   = bc.get('tx_hash')
+        release.block_number = bc.get('block')
+        release.network      = bc.get('network', 'local')
+        release.save()
+    except Exception as e:
+        print(f"[BLOCKCHAIN ERROR] Loan release blockchain record failed for {loan.loan_id}: {e}")
 
 
 @api_view(['GET', 'PATCH'])
@@ -273,8 +383,15 @@ def loan_detail_view(request, pk):
             # binabasa na ang ACTUAL na naka-store na rates sa loan
             # mismo (hindi na kino-compute ulit), para gumana ang
             # "Edit Rates" feature ng admin. ────────────────────────────
-            cbu_rate = loan.cbu_rate
-            sd_rate  = loan.sd_rate
+            # ── FIX: "loan.cbu_rate"/"loan.sd_rate" ay naka-store bilang
+            # "float" sa modelo, pero "Decimal" naman ang "loan.amount" —
+            # bawal i-multiply nang direkta ang Decimal at float sa
+            # Python ("TypeError: unsupported operand type(s) for *:
+            # 'decimal.Decimal' and 'float'"). Kaya kino-convert muna dito
+            # papuntang Decimal (via str() para walang floating-point
+            # rounding artifacts, hal. 0.03 na naging 0.029999999999999999). ──
+            cbu_rate = Decimal(str(loan.cbu_rate))
+            sd_rate  = Decimal(str(loan.sd_rate))
 
             if cbu_rate > 0:
                 share_capital_addition = loan.amount * cbu_rate
@@ -302,6 +419,12 @@ def loan_detail_view(request, pk):
             log_activity('loan',
                 f'Loan money released & activated: {loan.loan_id} — {loan.member.fullname} — ₱{loan.amount:,.2f} | Share Capital +₱{share_capital_addition:,.2f} | Savings Deposit +₱{savings_deposit:,.2f}',
                 request.user)
+
+            # ── BAGO: irecord sa blockchain ang BUONG deduction
+            # breakdown ng Loan Release na 'to (hindi lang ang mga
+            # sunod-sunod na payment). Tingnan ang helper function sa
+            # itaas ng file na 'to. ──────────────────────────────────
+            _record_loan_release_blockchain(loan, share_capital_addition, savings_deposit, request.user.username)
 
             try:
                 pm = getattr(loan.member, 'pre_member', None)

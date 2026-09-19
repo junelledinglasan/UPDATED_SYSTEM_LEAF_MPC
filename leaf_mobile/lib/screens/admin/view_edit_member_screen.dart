@@ -1,6 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/members_service.dart';
 import '../../widgets/admin/financial_summary_tab.dart';
+
+// ── BAGO: required share capital para maging Official Member — ₱4,000.
+// Ito ang MAX CAP ng "Amount Paid"/Share Capital dito — kapag naabot
+// na ito nang buo, naka-LOCK na ang share_capital (hindi na puwedeng
+// baguhin), gaya ng ginawa na sa web (ManageMember.jsx). ────────────
+const double kRequiredShareCapital = 4000;
+
+// ── BAGO: habang nagta-type, kapag ang resultang numero ay lalampas
+// sa max, awtomatikong hinaharang ang bagong digit. ──────────────────
+class _MaxCapFormatter extends TextInputFormatter {
+  final double max;
+  _MaxCapFormatter(this.max);
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) return newValue;
+    final parsed = double.tryParse(newValue.text);
+    if (parsed == null) return oldValue;
+    if (parsed > max) return oldValue;
+    return newValue;
+  }
+}
 
 class _VEColors {
   static const green  = Color(0xFF2E7D32);
@@ -267,7 +290,11 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
     final memberId = _detail?['member_id'] ?? widget.member['member_id'] ?? '—';
     final username = _detail?['user_username'] ?? '—';
     final status = (_form['status'] ?? widget.member['status'] ?? '').toString();
-    final shareCapital = double.tryParse('${_form['share_capital'] ?? 0}') ?? 0;
+    // ── BAGO: kapag naka-edit mode, ang LIVE na text ng controller ang
+    // basehan (hindi lang ang "_form['share_capital']" na huling
+    // na-sync) — para agad mag-react ang "FULLY PAID · LOCKED" badge
+    // at ang Max Loanable habang nagta-type pa lang ang admin. ───────
+    final shareCapital = double.tryParse(_editMode ? (_controllers['share_capital']?.text ?? '${_form['share_capital'] ?? 0}') : '${_form['share_capital'] ?? 0}') ?? 0;
     final classification = _form['classification'] ?? 'Employed';
 
     return Scaffold(
@@ -364,11 +391,56 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                     // ── Share capital bar ──────────────────────────────
+                    // ── BAGO: puwede nang i-edit ang "Amount Paid"
+                    // (Share Capital) dito sa Edit mode — pero naka-LOCK
+                    // na (read-only) kapag naabot na ang buong ₱4,000
+                    // (bayad na nang buo, wala nang dapat baguhin pa).
+                    // Kapag partial pa (< ₱4,000), puwede pa itong
+                    // i-update ni admin sa susunod na pagpunta ng member
+                    // sa opisina. Dating basta read-only display lang
+                    // ito, walang paraan para talagang i-edit. ─────────
                     Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFF1F8E9), Color(0xFFE8F5E9)]), border: Border.all(color: const Color(0xFFC8E6C9)), borderRadius: BorderRadius.circular(10)),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(child: _CapitalBox(label: 'Share Capital', value: '₱${shareCapital.toStringAsFixed(0)}', color: const Color(0xFF222222))),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(children: [
+                                  const Text('SHARE CAPITAL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: _VEColors.label, letterSpacing: 0.4)),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                                    decoration: BoxDecoration(color: shareCapital >= kRequiredShareCapital ? _VEColors.green : const Color(0xFFFFE0B2), borderRadius: BorderRadius.circular(20)),
+                                    child: Text(shareCapital >= kRequiredShareCapital ? 'FULLY PAID · LOCKED' : 'PARTIAL', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: shareCapital >= kRequiredShareCapital ? Colors.white : const Color(0xFFE65100))),
+                                  ),
+                                ]),
+                                const SizedBox(height: 3),
+                                if (_editMode && shareCapital < kRequiredShareCapital) ...[
+                                  Row(children: [
+                                    const Text('₱', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF222222))),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _controllers['share_capital'],
+                                        keyboardType: TextInputType.number,
+                                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF222222)),
+                                        inputFormatters: [FilteringTextInputFormatter.digitsOnly, _MaxCapFormatter(kRequiredShareCapital)],
+                                        onChanged: (_) => setState(() {}),
+                                        decoration: const InputDecoration(isDense: true, isCollapsed: true, border: UnderlineInputBorder()),
+                                      ),
+                                    ),
+                                  ]),
+                                  const SizedBox(height: 2),
+                                  Text('Max ₱${kRequiredShareCapital.toStringAsFixed(0)}. Auto-locks once fully paid.', style: const TextStyle(fontSize: 9, color: _VEColors.sub)),
+                                ] else
+                                  Text('₱${shareCapital.toStringAsFixed(0)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF222222))),
+                              ],
+                            ),
+                          ),
                           Container(width: 1, height: 44, color: const Color(0xFFC8E6C9)),
                           Expanded(child: _CapitalBox(label: 'Max Loanable', value: '₱${(shareCapital * _loanMultiplier).toStringAsFixed(0)}', color: _VEColors.green)),
                         ],

@@ -17,6 +17,37 @@ class _AMColors {
   static const red    = Color(0xFFE53935);
 }
 
+// ── BAGO: minimum age requirement para makapag-apply ng membership ──
+const int _kMinAge = 18;
+
+// ── BAGO: edad kung kailan itinuturing na "Senior" (para sa auto-
+// classification sa baba) — 60 taon pataas ayon sa RA 9994 (Expanded
+// Senior Citizens Act). ─────────────────────────────────────────────
+const int _kSeniorAge = 60;
+
+// ── BAGO: kinukwenta ang tamang edad base sa buong petsa (araw at
+// buwan isinasaalang-alang, hindi lang taon) — para hindi ma-mali ang
+// edad kung hindi pa dumarating ang birthday nila ngayong taon. ────
+int? _calculateAge(String birthDateStr) {
+  if (birthDateStr.trim().isEmpty) return null;
+  final bd = DateTime.tryParse(birthDateStr);
+  if (bd == null) return null;
+  final today = DateTime.now();
+  int age = today.year - bd.year;
+  final monthDiff = today.month - bd.month;
+  if (monthDiff < 0 || (monthDiff == 0 && today.day < bd.day)) age--;
+  return age;
+}
+
+// ── BAGO: pinaka-latest na petsa ng kapanganakan na tinatanggap (ibig
+// sabihin, eksaktong 18 taon na ang edad ngayong araw) — ginagamit
+// bilang "lastDate" ng date picker, para hindi na rin makapili ng
+// petsang mas bata sa 18 taon sa mismong date picker. ────────────────
+DateTime _latestAllowedBirthDate() {
+  final now = DateTime.now();
+  return DateTime(now.year - _kMinAge, now.month, now.day);
+}
+
 class ApplyMembershipScreen extends StatefulWidget {
   const ApplyMembershipScreen({super.key});
 
@@ -100,7 +131,12 @@ class _ApplyMembershipScreenState extends State<ApplyMembershipScreen> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(context: context, initialDate: DateTime(2000, 1, 1), firstDate: DateTime(1930), lastDate: DateTime.now());
+    // ── BAGO: naka-cap na ang "lastDate" sa eksaktong 18 taon na ang
+    // edad ngayong araw — hindi na rin makakapili ng petsang mas bata
+    // sa 18 taon sa mismong date picker (dagdag na proteksyon bukod sa
+    // real-time validation sa _validate()). ───────────────────────────
+    final maxDate = _latestAllowedBirthDate();
+    final picked = await showDatePicker(context: context, initialDate: DateTime(2000, 1, 1), firstDate: DateTime(1930), lastDate: maxDate);
     if (picked != null) {
       final formatted = '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
       setState(() {
@@ -108,6 +144,33 @@ class _ApplyMembershipScreenState extends State<ApplyMembershipScreen> {
         _ctrl('birth_date').text = formatted;
         _errors.remove('birth_date');
       });
+      _autoClassify();
+    }
+  }
+
+  // ── BAGO: awtomatikong pinipili ang Classification (Student/Senior/
+  // Employed) base sa Date of Birth at Occupation/Income na nasa
+  // Personal Info tab — hindi na kailangang mano-manong pumili pa sa
+  // Classification tab. Priority: Senior (60+) muna, tapos Student
+  // (kung may salitang "student"/"estudyante"/"iskolar" sa occupation),
+  // tapos Employed bilang default kapag may laman na ang occupation o
+  // income. Puwede pa ring i-override nang mano-mano sa Classification
+  // tab, pero mababawi ito sa susunod na pagbabago sa Personal Info
+  // (sinasadya, para laging naaayon sa totoong nilagay doon). ─────────
+  void _autoClassify() {
+    final age = _calculateAge('${_form['birth_date']}');
+    final occupation = '${_form['occupation']}';
+    final income = '${_form['income']}';
+    String? autoClass;
+    if (age != null && age >= _kSeniorAge) {
+      autoClass = 'Senior';
+    } else if (RegExp(r'student|estudyante|iskolar', caseSensitive: false).hasMatch(occupation)) {
+      autoClass = 'Student';
+    } else if (occupation.trim().isNotEmpty || (double.tryParse(income) ?? 0) > 0) {
+      autoClass = 'Employed';
+    }
+    if (autoClass != null && autoClass != _form['classification']) {
+      setState(() => _form['classification'] = autoClass);
     }
   }
 
@@ -121,7 +184,19 @@ class _ApplyMembershipScreenState extends State<ApplyMembershipScreen> {
     final e = <String, String>{};
     if ('${_form['first_name']}'.trim().isEmpty) e['first_name'] = 'Required';
     if ('${_form['last_name']}'.trim().isEmpty) e['last_name'] = 'Required';
-    if ('${_form['birth_date']}'.trim().isEmpty) e['birth_date'] = 'Required';
+    // ── BAGO: minimum age validation — dating wala talagang age check
+    // dito (kahit menor de edad, puwede pa ring maka-apply). Kailangan
+    // 18 pataas para maka-apply ng membership. ─────────────────────
+    if ('${_form['birth_date']}'.trim().isEmpty) {
+      e['birth_date'] = 'Required';
+    } else {
+      final age = _calculateAge('${_form['birth_date']}');
+      if (age == null) {
+        e['birth_date'] = 'Please enter a valid date.';
+      } else if (age < _kMinAge) {
+        e['birth_date'] = 'You must be at least $_kMinAge years old to apply for membership.';
+      }
+    }
     if ('${_form['place_of_birth']}'.trim().isEmpty) e['place_of_birth'] = 'Required';
     if ('${_form['sex']}'.trim().isEmpty) e['sex'] = 'Required';
     if ('${_form['contact_number']}'.trim().isEmpty) e['contact_number'] = 'Required';
@@ -183,7 +258,13 @@ class _ApplyMembershipScreenState extends State<ApplyMembershipScreen> {
         'allowance': _form['allowance'].toString().isEmpty ? 0 : _form['allowance'],
         'pension_income': _form['pension_income'].toString().isEmpty ? 0 : _form['pension_income'],
         'job_type': _form['job_type'],
-        'monthly_income': _form['monthly_income'].toString().isEmpty ? 0 : _form['monthly_income'],
+        // ── FIX: dating hiwalay na "monthly_income" field ito (ibang
+        // state key sa "income"), kaya kailangan pang i-retype ng
+        // applicant ang parehong halaga ng kita nang dalawang beses.
+        // Ngayon, "income" na lang (Personal Info tab) ang single
+        // source of truth — tugma sa read-only auto-fill display sa
+        // Classification tab. ─────────────────────────────────────
+        'monthly_income': _form['income'].toString().isEmpty ? 0 : _form['income'],
         // ── PAALALA: dating "id_front_url"/"id_back_url" ang dalawang
         // field na 'to (Valid ID front+back). Ngayon isa na lang na
         // Birth Certificate ang ipinapasa — inilagay ko pa rin sa
@@ -216,10 +297,25 @@ class _ApplyMembershipScreenState extends State<ApplyMembershipScreen> {
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _AMColors.green, width: 1.5)),
       );
 
-  Widget _textField(String key, String label, {bool required = false, TextInputType? type, bool full = false}) {
+  Widget _textField(String key, String label, {bool required = false, TextInputType? type, bool full = false, VoidCallback? onExtra}) {
     return _FieldBox(
       label: label, required: required, full: full,
-      child: TextField(controller: _ctrl(key), keyboardType: type, style: const TextStyle(fontSize: 12.5), onChanged: (_) => _errors.remove(key), decoration: _dec(error: _errors[key])),
+      child: TextField(
+        controller: _ctrl(key),
+        keyboardType: type,
+        style: const TextStyle(fontSize: 12.5),
+        // ── FIX: dating hindi agad na-uupdate ang "_form[key]" habang
+        // nagta-type (naghihintay lang sa "_syncControllers()" na
+        // tumatakbo pag-Next) — kaya kung basta babasahin ang
+        // "_form['occupation']"/"_form['income']" agad-agad (gaya ng
+        // classification auto-fill sa ibaba), laging isang keystroke
+        // ang huli ito. I-a-update na agad dito ang "_form[key]". ─────
+        // ── BAGO: opsyonal na "onExtra" callback — ginagamit ito ng
+        // Occupation/Monthly Income fields para awtomatikong i-trigger
+        // ang classification auto-fill habang nagta-type. ────────────
+        onChanged: (v) { _form[key] = v; _errors.remove(key); onExtra?.call(); },
+        decoration: _dec(error: _errors[key]),
+      ),
     );
   }
 
@@ -463,8 +559,8 @@ class _ApplyMembershipScreenState extends State<ApplyMembershipScreen> {
         _selectField('civil_status', 'Civil Status', const ['Single', 'Married', 'Widowed', 'Separated']),
         _textField('tin_no', 'TIN No.'),
         _textField('sss_gsis_no', 'SSS/GSIS No.'),
-        _textField('occupation', 'Occupation', required: true),
-        _textField('income', 'Monthly Income (₱)', type: TextInputType.number),
+        _textField('occupation', 'Occupation', required: true, onExtra: _autoClassify),
+        _textField('income', 'Monthly Income (₱)', type: TextInputType.number, onExtra: _autoClassify),
         _textField('contact_number', 'Tel. No. / CP No.', required: true, type: TextInputType.phone),
         _textField('email', 'Email Address', required: true, type: TextInputType.emailAddress),
         _selectField('educational_attainment', 'Educational Attainment', const ['Elementary', 'High School', 'Vocational', 'College', 'Post Graduate']),
@@ -515,6 +611,11 @@ class _ApplyMembershipScreenState extends State<ApplyMembershipScreen> {
             const SizedBox(width: 8),
             Expanded(child: _ClassCard(label: 'Employed', icon: Icons.work_outline, active: classification == 'Employed', onTap: () => setState(() => _form['classification'] = 'Employed'))),
           ]),
+          const SizedBox(height: 8),
+          // ── BAGO: paalala na awtomatiko itong napipili base sa Date
+          // of Birth/Occupation na nasa Personal Info tab — puwede pa
+          // ring i-override nang mano-mano dito. ─────────────────────
+          const Text('Automatically selected based on the Date of Birth and Occupation entered in the Personal Info tab. You can still tap a different card above if you need to change it.', style: TextStyle(fontSize: 10.5, color: _AMColors.sub, fontStyle: FontStyle.italic)),
           const SizedBox(height: 14),
           LayoutBuilder(builder: (context, constraints) => _FieldWidth(
                 maxWidth: constraints.maxWidth,
@@ -529,9 +630,15 @@ class _ApplyMembershipScreenState extends State<ApplyMembershipScreen> {
                     _textField('pension_income', 'Monthly Pension Income (₱)', type: TextInputType.number),
                   ],
                   if (classification == 'Employed') ...[
-                    _textField('occupation', 'Occupation/Job Title'),
+                    // ── FIX: dating hiwalay na manual input ang
+                    // "Occupation/Job Title" (gamit ang parehong
+                    // "occupation" key ng Personal Info — doblehang
+                    // pinapasok) at "Monthly Income" (gamit ang HIWALAY
+                    // na "monthly_income" key — doble ring pinapasok ang
+                    // income). Ngayon, READ-ONLY auto-fill na lang mula
+                    // sa Personal Info — hindi na kailangang i-type ulit. ──
+                    _AutoFillNotice(occupation: '${_form['occupation']}', income: '${_form['income']}'),
                     _selectField('job_type', 'Employment Type', const ['Employed', 'Self-Employed', 'Business', 'Freelance', 'Other']),
-                    _textField('monthly_income', 'Monthly Income (₱)', type: TextInputType.number),
                   ],
                 ]),
               )),
@@ -665,6 +772,57 @@ class _TabButton extends StatelessWidget {
           ),
         ),
       );
+}
+
+// ── BAGO: read-only display ng "occupation"/"income" na galing sa
+// Personal Info tab — ipinapakita sa loob ng Classification tab kapag
+// "Employed" nang hindi na kailangang i-type ulit ng applicant. ─────
+class _AutoFillNotice extends StatelessWidget {
+  final String occupation;
+  final String income;
+  const _AutoFillNotice({required this.occupation, required this.income});
+
+  @override
+  Widget build(BuildContext context) {
+    final incomeNum = double.tryParse(income) ?? 0;
+    return _FieldBox(
+      label: 'Auto-filled from Personal Info', full: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: const Color(0xFFF9FEF9), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE8F5E9))),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('OCCUPATION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: _AMColors.sub)),
+                    const SizedBox(height: 2),
+                    Text(occupation.trim().isEmpty ? '—' : occupation, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _AMColors.dark)),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('MONTHLY INCOME', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: _AMColors.sub)),
+                    const SizedBox(height: 2),
+                    Text('₱${incomeNum.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _AMColors.dark)),
+                  ],
+                ),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            const Text('Uses the Occupation and Monthly Income entered in the Personal Info tab. Go to the Personal Info tab if you need to change these.', style: TextStyle(fontSize: 10.5, color: _AMColors.sub, height: 1.4)),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ClassCard extends StatelessWidget {

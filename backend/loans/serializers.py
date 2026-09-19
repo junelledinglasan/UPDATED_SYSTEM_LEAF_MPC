@@ -1,5 +1,4 @@
 from rest_framework import serializers
-from decimal import Decimal
 from .models import Loan, get_loan_fee_structure
 
 
@@ -89,15 +88,18 @@ class CreateLoanSerializer(serializers.ModelSerializer):
                       'custom_cbu_rate', 'custom_insurance_rate', 'custom_sd_rate'):
                 data.pop(k, None)
 
-        # ── FIX: dating "amount > 2000" lang ang check (parang may
-        # RANGE na kayang gamitin, ₱1 hanggang ₱2,000) — pero FIXED na
-        # ₱2,000 LANG talaga ang Petty Cash Loan, hindi variable na
-        # halaga. Dating pumasa kahit ₱2 lang, na malaking bug (walang
-        # minimum amount check kahit kailan). ────────────────────────────
+        # ── FIX: hindi pala FIXED (at hindi rin MINIMUM) ang ₱2,000 sa
+        # Petty Cash Loan — ito ay ang MAXIMUM. Puwede ang anumang
+        # halaga basta hindi lalagpas dito (walang sariling minimum,
+        # kahit ₱1 lang, basta positibo). ─────────────────────────────
         if loan_type == 'Petty Cash Loan':
-            if amount != 2000:
+            if amount <= 0:
                 raise serializers.ValidationError(
-                    {'amount': 'Petty Cash Loan is a fixed amount of ₱2,000.'}
+                    {'amount': 'Enter a valid amount.'}
+                )
+            if amount > 2000:
+                raise serializers.ValidationError(
+                    {'amount': 'Petty Cash Loan has a maximum amount of ₱2,000.'}
                 )
             if int(data.get('term_months', 0)) != 1:
                 raise serializers.ValidationError(
@@ -188,19 +190,12 @@ class CreateLoanSerializer(serializers.ModelSerializer):
         custom_insurance = validated_data.pop('custom_insurance_rate', None)
         custom_sd        = validated_data.pop('custom_sd_rate', None)
 
-        # ── FIX: ang mga "custom_*" value ay galing sa FloatField (plain
-        # Python float), kaya kahit Decimal na ang "fees" (mula sa
-        # get_loan_fee_structure() na na-fix na), kapag GINAMIT ang
-        # custom override, float pa rin ito — parehong bug pa rin
-        # (Decimal * float TypeError) sa oras ng pag-release. I-wrap
-        # sa Decimal(str(...)) ang custom values para SIGURADONG
-        # Decimal palagi, kahit anong pinagmulan (default o custom). ────
-        monthly_rate      = Decimal(str(custom_interest))  if custom_interest  is not None else fees['interest_rate']
-        service_fee_rate  = Decimal(str(custom_svc_fee))   if custom_svc_fee   is not None else fees['service_fee_rate']
-        filing_fee_amt    = Decimal(str(custom_filing))    if custom_filing    is not None else fees['filing_fee']
-        cbu_rate          = Decimal(str(custom_cbu))       if custom_cbu       is not None else fees['cbu_rate']
-        insurance_rate    = Decimal(str(custom_insurance)) if custom_insurance is not None else fees['insurance_rate']
-        sd_rate           = Decimal(str(custom_sd))        if custom_sd        is not None else fees['sd_rate']
+        monthly_rate      = custom_interest  if custom_interest  is not None else fees['interest_rate']
+        service_fee_rate  = custom_svc_fee   if custom_svc_fee   is not None else fees['service_fee_rate']
+        filing_fee_amt    = custom_filing    if custom_filing    is not None else fees['filing_fee']
+        cbu_rate          = custom_cbu       if custom_cbu       is not None else fees['cbu_rate']
+        insurance_rate    = custom_insurance if custom_insurance is not None else fees['insurance_rate']
+        sd_rate           = custom_sd        if custom_sd        is not None else fees['sd_rate']
 
         # ── FIX: dating "(amount + interest) / term" — dito
         # NA-DODOBLE ang interest, dahil ISANG BESES na nakukuha ang
@@ -213,12 +208,8 @@ class CreateLoanSerializer(serializers.ModelSerializer):
         # deduction, tapos ulit sa bawat buwanang hulog. Base na lang
         # ngayon sa PRINCIPAL LANG hinati sa term (hindi na kailangan
         # ang "interest" variable dito). ─────────────────────────────
-        # ── BAGO: Decimal na rin dito (dating plain float, dahil
-        # "amount" ay pinilit na naging float sa itaas) — parehong
-        # depensang ayos, para hindi na maulit ang Decimal/float
-        # mismatch kahit saan pa gamitin ang mga field na 'to. ────────
-        monthly_due   = Decimal(str(amount)) / term
-        balance       = Decimal(str(amount))
+        monthly_due   = amount / term
+        balance       = amount
         interest_rate = monthly_rate * 12 * 100
 
         is_f2f = validated_data.pop('is_f2f', False)

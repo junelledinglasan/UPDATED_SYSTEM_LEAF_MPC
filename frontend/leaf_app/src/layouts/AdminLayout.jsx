@@ -23,6 +23,37 @@ const CLASS_OPTIONS = [
   { key: "Employed", icon: <BriefcaseBusiness size={32} strokeWidth={1.5} color="#2e7d32"/>, label: "Employed" },
 ];
 
+// ── BAGO: parehong age/classification auto-fill logic gaya ng member-side
+// ApplyMembership.jsx — dapat magkatugma ang dalawang forms (Member self-
+// apply vs Admin F2F "Register New Member"), tugma sa hiling na "gawin mong
+// parehas". ───────────────────────────────────────────────────────────────
+const MIN_AGE    = 18;   // minimum age para maka-register bilang member
+const SENIOR_AGE = 60;   // RA 9994 (Expanded Senior Citizens Act)
+// ── BAGO: required share capital para maging Official Member — ₱4,000.
+// Ito ang MAX CAP ng "Amount Paid" sa Register New Member (F2F) form —
+// dating walang anumang clamp dito, kaya kahit ₱34,554,334 (o anumang
+// halaga) ay nakakapasa. ─────────────────────────────────────────────
+const REQUIRED_SHARE_CAPITAL = 4000;
+
+function calculateAge(birthDateStr) {
+  if (!birthDateStr) return null;
+  const today = new Date();
+  const bd = new Date(birthDateStr);
+  if (Number.isNaN(bd.getTime())) return null;
+  let age = today.getFullYear() - bd.getFullYear();
+  const monthDiff = today.getMonth() - bd.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < bd.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+function latestAllowedBirthDate() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_AGE);
+  return d.toISOString().split("T")[0];
+}
+
 const NAV_ITEMS = [
   { to: "/admin/dashboard",    icon: <LayoutDashboard size={15} />, label: "Dashboard"          },
   { to: "/admin/members",      icon: <Users           size={15} />, label: "Manage Member"      },
@@ -324,7 +355,7 @@ function usePhAddress() {
 }
 
 // ─── FormField Component ──────────────────────────────────────────────────────
-function RegField({ name, label, type="text", options=null, required=false, optional=false, form, errors, handle, clearErr, full=false, placeholder="" }) {
+function RegField({ name, label, type="text", options=null, required=false, optional=false, form, errors, handle, clearErr, full=false, placeholder="", max, min, disabled=false }) {
   return (
     <div className={`al-field ${full ? "al-full" : ""}`}>
       <label className="al-label">
@@ -333,7 +364,7 @@ function RegField({ name, label, type="text", options=null, required=false, opti
         {optional && <span className="al-opt"> (optional)</span>}
       </label>
       {options ? (
-        <select className={`al-input ${errors[name] ? "al-input-err" : ""}`} name={name} value={form[name]||""} onChange={handle}>
+        <select className={`al-input ${errors[name] ? "al-input-err" : ""}`} name={name} value={form[name]||""} onChange={handle} disabled={disabled}>
           {options.map(o => typeof o === "object"
             ? <option key={o.value} value={o.value}>{o.label}</option>
             : <option key={o}>{o}</option>
@@ -343,7 +374,7 @@ function RegField({ name, label, type="text", options=null, required=false, opti
         <input
           className={`al-input ${errors[name] ? "al-input-err" : ""}`}
           type={type} name={name} value={form[name]||""}
-          placeholder={placeholder}
+          placeholder={placeholder} max={max} min={min} disabled={disabled}
           onChange={e => { handle(e); if(clearErr) clearErr(name); }}
         />
       )}
@@ -377,7 +408,11 @@ function RegisterModal({ onClose }) {
     no_of_dependants: "",
     beneficiary_name: "", beneficiary_relationship: "",
     credit_references: "",
-    classification: "Employed",
+    // ── BAGO: dating "Employed" na agad ang default — kaya kahit gumagana
+    // na ang auto-select, hindi visible ang "paggalaw" nito kung
+    // nagsisimula pa lang blangko. Blangko na muna, gaya ng ginawa sa
+    // member-side ApplyMembership.jsx. ─────────────────────────────────
+    classification: "",
     school_name: "", year_level: "", allowance: "",
     pension_income: "", job_type: "Employed", monthly_income: "",
   });
@@ -409,13 +444,61 @@ function RegisterModal({ onClose }) {
     setForm(p => ({ ...p, address: parts.join(", ") }));
   }, [form.street, form.barangay, form.city, form.province, form.region]);
 
+  // ── BAGO: awtomatikong pinipili ang Classification card (Student/
+  // Senior/Employed) base sa edad (mula sa Date of Birth) at sa laman ng
+  // Occupation — kaparehong logic ng member-side ApplyMembership.jsx,
+  // para magkatugma ang dalawang forms. ──────────────────────────────────
+  useEffect(() => {
+    const age = calculateAge(form.birth_date);
+    let autoClass = null;
+    if (age !== null && age >= SENIOR_AGE) {
+      autoClass = "Senior";
+    } else if (/student|estudyante|iskolar/i.test(form.occupation || "")) {
+      autoClass = "Student";
+    } else if ((form.occupation || "").trim() || Number(form.income) > 0) {
+      autoClass = "Employed";
+    }
+    if (autoClass && autoClass !== form.classification) {
+      setForm(p => ({ ...p, classification: autoClass }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.birth_date, form.occupation, form.income]);
+
+  // ── BAGO: REAL-TIME na minimum age check (18+) — lumalabas AGAD ang
+  // error sa ilalim ng "Date of Birth" habang pumipili pa lang ng petsa,
+  // hindi na kailangang punuin muna lahat ng tabs at i-click ang
+  // "Register Member" bago makita ang error. ─────────────────────────────
+  useEffect(() => {
+    if (!form.birth_date) return;
+    const age = calculateAge(form.birth_date);
+    if (age === null) return;
+    if (age < MIN_AGE) {
+      setErrors(p => ({ ...p, birth_date: `Member must be at least ${MIN_AGE} years old to register. (Current age: ${age})` }));
+    } else {
+      setErrors(p => (p.birth_date ? { ...p, birth_date: "" } : p));
+    }
+  }, [form.birth_date]);
+
   const SEX_OPTIONS = ["Male", "Female", "Non-binary", "Prefer not to say", "Other"];
 
   const validate = () => {
     const e = {};
     if (!form.first_name.trim())     e.first_name     = "Required";
     if (!form.last_name.trim())      e.last_name      = "Required";
-    if (!form.birth_date)            e.birth_date     = "Required";
+
+    // ── BAGO: minimum age validation (dating wala kahit anong petsa ng
+    // kapanganakan ang ilagay). ─────────────────────────────────────────
+    if (!form.birth_date) {
+      e.birth_date = "Required";
+    } else {
+      const age = calculateAge(form.birth_date);
+      if (age === null) {
+        e.birth_date = "Please enter a valid date.";
+      } else if (age < MIN_AGE) {
+        e.birth_date = `Member must be at least ${MIN_AGE} years old to register.`;
+      }
+    }
+
     if (!form.contact_number.trim()) e.contact_number = "Required";
     if (!form.address.trim())        e.address        = "Required";
     if (form.sex === "Other" && !form.sex_other.trim()) e.sex_other = "Please specify";
@@ -469,7 +552,12 @@ function RegisterModal({ onClose }) {
         allowance:                    form.allowance || 0,
         pension_income:               form.pension_income || 0,
         job_type:                     form.job_type,
-        monthly_income:               form.monthly_income || 0,
+        // ── BAGO: dating hiwalay na "monthly_income" state ito (kaya
+        // dobleng type ng income ang admin — isa sa Personal Info/
+        // Employment section, isa pa sa Classification > Employed).
+        // Ginamit na lang ang "form.income" bilang single source of
+        // truth. ─────────────────────────────────────────────────────
+        monthly_income:               form.income || 0,
         share_capital:                form.share_capital || 0,
       });
       setCreds({ memberId: result.member_id, username: result.username, password: result.plain_password });
@@ -537,7 +625,7 @@ function RegisterModal({ onClose }) {
               <div style={{gridColumn:"1/-1",marginTop:4}}>
                 <div className="al-section-header"><Calendar size={13}/> Birth Information</div>
               </div>
-              <RegField name="birth_date"     label="Date of Birth"  required type="date" form={form} errors={errors} handle={handle} clearErr={n=>setErrors(p=>({...p,[n]:""})) }/>
+              <RegField name="birth_date"     label="Date of Birth"  required type="date" form={form} errors={errors} handle={handle} clearErr={n=>setErrors(p=>({...p,[n]:""})) } max={latestAllowedBirthDate()}/>
               <RegField name="place_of_birth" label="Place of Birth"  required form={form} errors={errors} handle={handle} placeholder="e.g. Lucban, Quezon"/>
 
               {/* Section: Personal Details */}
@@ -669,16 +757,33 @@ function RegisterModal({ onClose }) {
                 <label className="al-label">Amount Paid (₱) <span className="al-req"> *</span></label>
                 <div className="al-amount-wrap">
                   <span className="al-peso">₱</span>
-                  <input className="al-amount-in" type="number" name="share_capital"
-                    value={form.share_capital||""} onChange={handle} placeholder="e.g. 4000"/>
+                  {/* ── FIX: dating "type=number" + generic "handle" lang
+                      — walang anumang clamp dito (HTML "max" attribute
+                      lang ang meron dati sa iba pang bahagi ng system, at
+                      hindi rin talaga pinipigilan nito ang direktang
+                      pag-type). Kaya nakakapasa kahit ₱34,554,334.
+                      Ngayon, tinatanggihan agad ang keystroke kapag
+                      lalagpas sa ₱4,000 (REQUIRED_SHARE_CAPITAL). ────── */}
+                  <input className="al-amount-in" type="number" min="0" max={REQUIRED_SHARE_CAPITAL} name="share_capital"
+                    value={form.share_capital||""}
+                    onChange={e=>{
+                      const raw = e.target.value;
+                      if (raw === "") { setForm(p=>({...p,share_capital:""})); return; }
+                      const parsed = Number(raw);
+                      if (Number.isNaN(parsed) || parsed < 0 || parsed > REQUIRED_SHARE_CAPITAL) return;
+                      setForm(p=>({...p,share_capital:raw}));
+                    }}
+                    placeholder="e.g. 4000"/>
                 </div>
+                <div style={{marginTop:4,fontSize:10,color:"#aaa"}}>Maximum: ₱{REQUIRED_SHARE_CAPITAL.toLocaleString()} — the full required share capital.</div>
                 {form.share_capital > 0 && (
-                  <div style={{marginTop:6,padding:"6px 10px",background:"#e8f5e9",borderRadius:8,fontSize:11,color:"#2e7d32",fontWeight:600}}>
+                  <div style={{marginTop:6,padding:"6px 10px",background:Number(form.share_capital)>=REQUIRED_SHARE_CAPITAL?"#e8f5e9":"#fff8e1",borderRadius:8,fontSize:11,color:Number(form.share_capital)>=REQUIRED_SHARE_CAPITAL?"#2e7d32":"#e65100",fontWeight:600}}>
                     {/* ── FIX: dating naka-hardcode na "× 2" — pero
                         default na 1× (unang loan) ang bagong
                         naka-register na member sa Loan Multiplier
                         system natin, hindi 2×. ──────────────────────── */}
                     Share Capital = ₱{(parseFloat(form.share_capital||0)).toLocaleString()} · Max Loanable = ₱{(parseFloat(form.share_capital||0)).toLocaleString()} (1× — first loan)
+                    {Number(form.share_capital)>=REQUIRED_SHARE_CAPITAL ? " — Fully paid, will be locked." : " — Partial payment; admin can still update this later."}
                   </div>
                 )}
               </div>
@@ -744,6 +849,11 @@ function RegisterModal({ onClose }) {
                     </div>
                   ))}
                 </div>
+                {/* ── BAGO: kaparehong paalala ng member-side ApplyMembership.jsx ── */}
+                <div style={{fontSize:11,color:"#7a9260",marginTop:10,lineHeight:1.5}}>
+                  Awtomatikong napipili ito batay sa Date of Birth at Occupation na inilagay sa Personal Info tab.
+                  Puwede pa ring i-click nang mano-mano kung kailangan mong baguhin.
+                </div>
               </div>
               {form.classification === "Student" && (<>
                 <RegField name="school_name" label="School Name"    required form={form} errors={errors} handle={handle} clearErr={n=>setErrors(p=>({...p,[n]:""})) }/>
@@ -758,11 +868,33 @@ function RegisterModal({ onClose }) {
                 <RegField name="pension_income" label="Monthly Pension Income (₱)" required type="number" form={form} errors={errors} handle={handle}/>
               </>)}
               {form.classification === "Employed" && (<>
-                <RegField name="occupation"     label="Occupation/Job Title" required form={form} errors={errors} handle={handle}/>
+                {/* ── BAGO: dating hiwalay na manual input ito (duplicate
+                ng "Occupation" sa Personal Info/Employment section, at
+                hiwalay na "monthly_income" state kaysa sa "income" —
+                kaya doble ang pinapasok ng admin). Ngayon, AUTO FILL-UP
+                na lang mula sa Personal Info/Employment section — read-
+                only display, kaparehong ayos ng member-side
+                ApplyMembership.jsx. ─────────────────────────────────── */}
+                <div className="al-field al-full" style={{background:"#f1f8e9",border:"1.5px solid #c8e6c9",borderRadius:10,padding:"14px 16px"}}>
+                  <label className="al-label">Auto-filled from Personal Info / Employment</label>
+                  <div style={{display:"flex",gap:24,marginTop:8,flexWrap:"wrap"}}>
+                    <div>
+                      <div style={{fontSize:10.5,fontWeight:700,color:"#7a9260",textTransform:"uppercase",letterSpacing:0.5}}>Occupation</div>
+                      <div style={{fontSize:15,fontWeight:700,color:"#1b5e20",marginTop:2}}>{form.occupation || "—"}</div>
+                    </div>
+                    <div>
+                      <div style={{fontSize:10.5,fontWeight:700,color:"#7a9260",textTransform:"uppercase",letterSpacing:0.5}}>Monthly Income</div>
+                      <div style={{fontSize:15,fontWeight:700,color:"#1b5e20",marginTop:2}}>₱{Number(form.income || 0).toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:11,color:"#558b2f",marginTop:10,lineHeight:1.5}}>
+                    Gamit na ang Occupation at Monthly Income na inilagay sa Personal Info tab.
+                    Pumunta sa <strong>Personal Info</strong> tab kung kailangan itong baguhin.
+                  </div>
+                </div>
                 <RegField name="job_type"       label="Employment Type"     required
                   options={["Employed","Self-Employed","Business","Freelance","Other"]}
                   form={form} errors={errors} handle={handle}/>
-                <RegField name="monthly_income" label="Monthly Income (₱)"  required type="number" form={form} errors={errors} handle={handle}/>
               </>)}
             </div>
           )}
@@ -955,6 +1087,11 @@ function NewLoanModal({ onClose }) {
   const validate = () => {
     const e = {};
     if (!form.amount || parseFloat(form.amount) <= 0) e.amount  = "Enter a valid amount.";
+    // ── FIX: Petty Cash Loan needs its own ₱2,000 MAXIMUM check — hindi
+    // ito fixed o minimum na halaga, ang ₱2,000 ay ang MAX na puwede. ──
+    else if (form.loanType === "Petty Cash Loan" && parseFloat(form.amount) > 2000) {
+      e.amount = "Petty Cash Loan has a maximum amount of ₱2,000.";
+    }
     // ── BAGO: tinanggal ang fixed na ₱3,000 minimum — desisyon na
     // lang ng admin/member kung magkano, basta hindi lalagpas sa max
     // loanable (na ino-enforce na rin habang nagta-type, hindi lang
@@ -1136,10 +1273,11 @@ function NewLoanModal({ onClose }) {
                     // computation (₱3,000 ÷ 12 = ₱250, mali dapat ₱3,000
                     // dahil 1 buwan lang). ─────────────────────────────
                     if (e.target.value === "Petty Cash Loan") {
-                      // ── FIX: FIXED na ₱2,000 talaga ang Petty Cash
-                      // Loan, kaya i-set diretso sa "2000" imbes na
-                      // basta i-clear (na siyang ginagawa sa ibang
-                      // types sa baba). ─────────────────────────────────
+                      // ── FIX: hindi pala FIXED ang Petty Cash Loan —
+                      // ₱2,000 lang ang MINIMUM (hindi eksaktong halaga).
+                      // "2000" na lang ang inilalagay dito bilang
+                      // suggested starting value, pero puwede pa itong
+                      // baguhin/dagdagan ng admin (hindi na naka-disable). ──
                       setForm(p => ({ ...p, term: "1", amount: "2000" }));
                     } else {
                       // ── BAGO: PALAGING kino-clear ang amount tuwing
@@ -1168,25 +1306,33 @@ function NewLoanModal({ onClose }) {
                         BAGO RIN: tinanggal ang ₱3,000 minimum — desisyon
                         na lang ng admin/member kung magkano, basta
                         hindi lalagpas sa max. ─────────────────────────── */}
-                    <input ref={amountRef} className="al-amount-in" type="text" inputMode="numeric" name="amount" placeholder={`Min ₱3,000 — Max ₱${maxLoanable.toLocaleString()}`}
-                      value={form.loanType==="Petty Cash Loan" ? "2000" : form.amount}
-                      disabled={form.loanType==="Petty Cash Loan"}
+                    {/* ── FIX: dating naka-disable ito at naka-lock sa
+                        eksaktong "2000" kapag Petty Cash Loan — pero
+                        ₱2,000 ay ang MAXIMUM lang (hindi minimum, hindi
+                        fixed) — anumang halaga basta hindi lalagpas
+                        dito ang puwede. Editable na ito gaya ng ibang
+                        loan types, at tinatanggihan agad ang keystroke
+                        kapag lalagpas sa ₱2,000 (o sa max loanable, alin
+                        man ang mas mababa). ───────────────────────────── */}
+                    <input ref={amountRef} className="al-amount-in" type="text" inputMode="numeric" name="amount"
+                      placeholder={form.loanType==="Petty Cash Loan" ? "Max ₱2,000" : `Min ₱3,000 — Max ₱${maxLoanable.toLocaleString()}`}
+                      value={form.amount}
                       onChange={e => {
                         const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
                         if (digitsOnly === "") { setForm(p => ({...p, amount: ""})); setErrors(p=>({...p,amount:""})); return; }
                         const parsed = parseInt(digitsOnly, 10);
-                        if (maxLoanable > 0 && parsed > maxLoanable) return; // tanggihan, huwag baguhin
+                        const effectiveMax = form.loanType === "Petty Cash Loan"
+                          ? Math.min(2000, maxLoanable > 0 ? maxLoanable : 2000)
+                          : maxLoanable;
+                        if (effectiveMax > 0 && parsed > effectiveMax) return; // tanggihan, huwag baguhin
                         setForm(p => ({...p, amount: digitsOnly}));
                         setErrors(p=>({...p,amount:""}));
                       }} />
                   </div>
-                  {/* ── FIX: dating "max ₱2,000" ang paguugali (parang
-                      range) — pero FIXED na ₱2,000 LANG talaga ang
-                      Petty Cash Loan, hindi variable na halaga. Dating
-                      nakakapasa kahit ₱2 lang (walang minimum check).
-                      Ngayon, naka-lock ang field sa eksaktong ₱2,000,
-                      kagaya ng ginawa sa Term. ─────────────────────── */}
-                  <div style={{fontSize:10,color:"#888",marginTop:4}}>{form.loanType==="Petty Cash Loan" ? "Petty Cash Loan is a fixed amount of ₱2,000." : `Max Loanable: ₱${maxLoanable.toLocaleString()}`}</div>
+                  {/* ── FIX: hindi pala fixed/minimum ang Petty Cash Loan
+                      — ₱2,000 MAXIMUM lang, kaya "Max ₱2,000" na ngayon
+                      ang paalala. ─────────────────────────────────────── */}
+                  <div style={{fontSize:10,color:"#888",marginTop:4}}>{form.loanType==="Petty Cash Loan" ? "Petty Cash Loan has a maximum amount of ₱2,000." : `Max Loanable: ₱${maxLoanable.toLocaleString()}`}</div>
                   {errors.amount && <div className="al-error" style={{marginTop:4}}>{errors.amount}</div>}
                 </div>
                 <div className="al-field">
@@ -1216,10 +1362,10 @@ function NewLoanModal({ onClose }) {
                 </div>
               </div>
 
-              {/* ── FIX: dating "amount >= 3000" lang ang check para
-                  lumabas ang computation — pero ₱2,000 lang ang max ng
-                  Petty Cash Loan (mas mababa sa ₱3,000), kaya HINDI
-                  KAILANMAN lumalabas ang preview para dito. ─────────── */}
+              {/* ── FIX: walang minimum ang Petty Cash Loan (₱2,000 ay
+                  MAXIMUM lang) — kaya "amount > 0" ulit ang gate dito,
+                  para lumabas agad ang preview sa anumang valid/positibong
+                  halaga hanggang ₱2,000. ─────────────────────────────── */}
               {(form.loanType === "Petty Cash Loan" ? amount > 0 : amount >= 3000) && (
                 <div style={{marginTop:12}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>

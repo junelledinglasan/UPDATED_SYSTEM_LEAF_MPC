@@ -27,6 +27,27 @@ def gen_password():
     return 'leaf' + ''.join(random.choices(string.digits, k=4))
 
 
+# ── BAGO: required share capital para maging Official Member — ₱4,000.
+# Ginagamit ito bilang MAX CAP sa lahat ng lugar na tumatanggap ng
+# "Amount Paid" (Register Member F2F, Convert Online Application, at
+# Edit Member) — hindi puwedeng lumagpas dito, at kapag naabot na ito
+# nang buo, naka-lock na ang share_capital (hindi na puwedeng baguhin). ──
+REQUIRED_SHARE_CAPITAL = 4000
+
+
+def clamp_share_capital(value, default=0):
+    """I-convert sa float at i-clamp sa [0, REQUIRED_SHARE_CAPITAL]."""
+    try:
+        amount = float(value if value not in (None, '') else default)
+    except (ValueError, TypeError):
+        amount = default
+    if amount < 0:
+        amount = 0
+    if amount > REQUIRED_SHARE_CAPITAL:
+        amount = REQUIRED_SHARE_CAPITAL
+    return amount
+
+
 def gen_username(first_name, last_name):
     base  = f'{first_name.lower().strip()}.{last_name.lower().strip()}'
     uname = base
@@ -223,7 +244,9 @@ def convert_to_member_view(request, pk):
     # ng successful na loan) — hindi dapat doble na agad ang Share
     # Capital mismo sa simula pa lang. Ngayon, 1:1 na lang — kung
     # magbayad ng ₱4,000, ₱4,000 din ang naitalang Share Capital. ──────
-    paid_amount   = float(request.data.get('share_capital', 0) or 0)
+    # ── FIX: naka-clamp na ngayon sa max na ₱4,000 (REQUIRED_SHARE_CAPITAL)
+    # — hindi na puwedeng maglagay ng halagang lumagpas dito. ──────────
+    paid_amount   = clamp_share_capital(request.data.get('share_capital', 0))
     share_capital = paid_amount
 
     try:
@@ -324,8 +347,8 @@ def member_list_view(request):
 
     # ── FIX: parehong ayos gaya ng sa online registration sa itaas —
     # 1:1 na lang, hindi na doble, para hindi mag-compound kasama ng
-    # Loan Multiplier system. ──────────────────────────────────────────
-    paid_amount   = float(data.get('share_capital', 0) or 0)
+    # Loan Multiplier system. Naka-clamp din sa max na ₱4,000. ──────────
+    paid_amount   = clamp_share_capital(data.get('share_capital', 0))
     share_capital = paid_amount
 
     try:
@@ -385,6 +408,21 @@ def member_detail_view(request, pk):
             return Response({'error': 'Unauthorized.'}, status=403)
         data = request.data
 
+        # ── BAGO: i-validate muna ang Amount Paid (Share Capital) bago
+        # gawin ang ibang updates. Kapag ang kasalukuyang share_capital
+        # ay ₱4,000 na (bayad na nang buo), naka-LOCK na ito — hindi na
+        # puwedeng baguhin pa. Kung partial pa (< ₱4,000), puwede pa
+        # itong i-update ni admin, pero naka-clamp pa rin sa max ₱4,000. ──
+        new_share_capital = None
+        if 'share_capital' in data and data.get('share_capital') not in ('', None):
+            current_sc = float(member.share_capital or 0)
+            if current_sc >= REQUIRED_SHARE_CAPITAL:
+                return Response(
+                    {'error': f'Share capital is already fully paid (₱{REQUIRED_SHARE_CAPITAL:,.0f}) and can no longer be edited.'},
+                    status=400
+                )
+            new_share_capital = clamp_share_capital(data.get('share_capital'), default=current_sc)
+
         if member.pre_member:
             info = member.pre_member
             # ── Numeric fields — kailangang i-convert nang maayos, dahil
@@ -393,12 +431,20 @@ def member_detail_view(request, pk):
             # (500 Internal Server Error). ─────────────────────────────
             numeric_fields = {'income', 'spouse_income', 'no_of_dependants'}
 
+            # ── FIX: nawawala dati ang "classification" sa listahan na
+            # ito — kaya kahit palitan ng admin ang Classification
+            # dropdown (Student/Senior/Employed) sa Edit mode, hindi ito
+            # na-se-save, at ang "save_sub_profile" pa sa ibaba ay
+            # gumagamit ng LUMANG classification (dahil hindi na-update
+            # ang "info" object bago ito tumakbo) — kaya mali ang
+            # napupuntahang sub-profile (hal. StudentProfile fields
+            # naitatago sa JobProfile pa rin). ─────────────────────────
             for field in [
                 'first_name', 'last_name', 'middle_name', 'birth_date',
                 'place_of_birth', 'sex', 'civil_status', 'tin_no', 'sss_gsis_no',
                 'educational_attainment', 'occupation',
                 'income', 'contact_number', 'email', 'address',
-                'religious_social_affiliation',
+                'religious_social_affiliation', 'classification',
                 'birth_certificate', 'marriage_certificate',
                 'spouse_name', 'spouse_occupation', 'spouse_income', 'no_of_dependants',
                 'beneficiary_name', 'beneficiary_relationship', 'credit_references',
@@ -426,8 +472,8 @@ def member_detail_view(request, pk):
 
         if ms := data.get('membership_status', data.get('status', '')):
             member.membership_status = ms
-        if sc := data.get('share_capital'):
-            member.share_capital = sc
+        if new_share_capital is not None:
+            member.share_capital = new_share_capital
         # ── FIX: nawawala dati ang "loan_multiplier" dito — kaya kahit
         # matagumpay ang response mula sa "Loan Multiplier" dropdown
         # (walang error), hindi talaga ito na-se-save sa database, dahil
@@ -785,6 +831,13 @@ def online_application_list_view(request):
                 'credit_references':         a.credit_references,
                 'id_front_url':           a.id_front_url or '',
                 'id_back_url':            a.id_back_url  or '',
+                # ── BAGO: OCR verification result — para makita ng admin
+                # sa PendingModal kung tugma ang OCR-extracted na text sa
+                # uploaded Birth Certificate laban sa binigay na
+                # Pangalan/Birthdate. Flag lang ito, hindi auto-reject. ──
+                'ocr_checked':            a.ocr_checked,
+                'ocr_name_match':         a.ocr_name_match,
+                'ocr_birthdate_match':    a.ocr_birthdate_match,
                 'application_status':     a.application_status,
                 'reviewed_at':            str(a.reviewed_at) if a.reviewed_at else '',
                 'reviewed_by':            a.reviewed_by,
@@ -839,6 +892,14 @@ def online_application_list_view(request):
             credit_references         = data.get('credit_references', ''),
             id_front_url           = data.get('id_front_url', ''),
             id_back_url            = data.get('id_back_url', ''),
+            # ── BAGO: OCR verification result mula sa frontend
+            # (Tesseract.js, client-side) — ipinapasa ito nang optional
+            # (default False/blank kung walang OCR na naganap, hal. kung
+            # nabigo ang OCR library sa browser ng applicant). ─────────
+            ocr_checked            = bool(data.get('ocr_checked', False)),
+            ocr_name_match         = bool(data.get('ocr_name_match', False)),
+            ocr_birthdate_match    = bool(data.get('ocr_birthdate_match', False)),
+            ocr_extracted_text     = (data.get('ocr_extracted_text', '') or '')[:5000],
         )
         log_activity('application', f'New online application: {app.fullname} ({app.app_id})', user)
         return Response({'app_id': app.app_id, 'message': 'Application submitted.'}, status=201)
@@ -897,6 +958,12 @@ def online_application_detail_view(request, pk):
             'credit_references':         app.credit_references,
             'id_front_url':           app.id_front_url or '',
             'id_back_url':            app.id_back_url  or '',
+            # ── BAGO: OCR verification result — tingnan ang komento sa
+            # itaas (online_application_list_view). ────────────────────
+            'ocr_checked':            app.ocr_checked,
+            'ocr_name_match':         app.ocr_name_match,
+            'ocr_birthdate_match':    app.ocr_birthdate_match,
+            'ocr_extracted_text':     app.ocr_extracted_text,
             'application_status':     app.application_status,
             'reviewed_at':            str(app.reviewed_at) if app.reviewed_at else '',
             'reviewed_by':            app.reviewed_by,
@@ -1012,8 +1079,10 @@ def convert_online_application_view(request, pk):
     # ── FIX: dating "paid_amount * 2" (₱4,000 paid → ₱8,000 share
     # capital) — 1:1 na lang ngayon, para hindi mag-compound kasama ng
     # Loan Multiplier system. Ang default kapag walang ipinasang halaga
-    # ay ₱4,000 pa rin. ─────────────────────────────────────────────────
-    paid_amount   = float(request.data.get('share_capital', 4000) or 4000)
+    # ay ₱4,000 pa rin. Naka-clamp din sa max na ₱4,000 (hindi puwedeng
+    # lumagpas) — ito ang binabayaran ng member kapag pumunta sa opisina
+    # para i-process ang kanilang membership. ───────────────────────────
+    paid_amount   = clamp_share_capital(request.data.get('share_capital', REQUIRED_SHARE_CAPITAL), default=REQUIRED_SHARE_CAPITAL)
     share_capital = paid_amount
 
     member = Member.objects.create(

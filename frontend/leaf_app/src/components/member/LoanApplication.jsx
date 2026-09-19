@@ -96,9 +96,29 @@ function checkEligibility(loans, shareCapital, loanMultiplier, t) {
   const approvedLoans = loans.filter(l => l.status === "Approved");
   const completedLoans= loans.filter(l => l.status === "Completed");
 
-  if (shareCapital >= 4000) {
+  // ── FIX: dating ha-hard block ang application kapag hindi pa
+  // umaabot sa ₱4,000 ang share capital ("Insufficient Share Capital
+  // ... Minimum ₱4,000 required"). Hindi pala ito tugma sa backend
+  // (loans/views.py) — walang share-capital-completeness gate doon,
+  // "amount > max_loanable" lang ang tinitignan, at ang max_loanable
+  // mismo ay "share_capital * loan_multiplier" kahit partial pa ang
+  // share capital. Kaya dito rin: kahit hindi pa kumpleto sa ₱4,000,
+  // puwede pa ring mag-apply ang miyembro — ang binayaran niya
+  // (partial) ang magiging basehan ng Max Loanable, hindi ito ang
+  // dahilan para hindi maka-apply. Ang tanging totoong "block" na
+  // natitira ay kapag ZERO pa talaga ang share capital (wala pang
+  // nababayarang capital kaya zero rin ang maloloan). ────────────────
+  if (shareCapital > 0) {
     passed.push(t("la_pass_share_capital", { sc: `₱${shareCapital.toLocaleString()}`, max: `₱${maxLoanable.toLocaleString()}` }));
   } else {
+    // ── NOTE: ginagamit pa rin ang parehong "la_issue_insufficient_sc"
+    // key (hindi gumawa ng bagong i18n key) para hindi na kailangang
+    // hawakan pa ang mga translation files — pero binago na ang MEANING
+    // nito: dati ay "below ₱4,000", ngayon ay talagang "zero/wala pang
+    // binayad". Kung gusto mong ma-precise ang text (hal. "You have not
+    // yet paid any share capital" imbes na "Insufficient..."), i-update
+    // na lang ang laman ng translation JSON para dito, hindi na
+    // kailangang galawin pa ang code na 'to. ────────────────────────
     issues.push(t("la_issue_insufficient_sc", { sc: `₱${shareCapital.toLocaleString()}` }));
   }
 

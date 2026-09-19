@@ -12,7 +12,10 @@ const getBaseURL = () => {
   return `http://${hostname}:8000/api`;
 };
 
-const BASE_URL = getBaseURL();
+// ── BAGO: "export" na ito — kailangan ito ng OfflineOverlay.jsx para
+// gamitin bilang target ng periodic "ping" check (tingnan ang
+// components/common/OfflineOverlay.jsx). ──────────────────────────────
+export const BASE_URL = getBaseURL();
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -22,7 +25,40 @@ const api = axios.create({
   // Hayaan na si axios mag-auto-set ng tamang Content-Type
 });
 
-// ─── Attach JWT token + Smart Content-Type ───────────────────────────────────
+// ─── BAGO: "Weak Signal" detection ────────────────────────────────────────────
+// Layunin: ipakita ang isang "Weak connection — please wait" banner kapag may
+// request na humigit-sa SLOW_THRESHOLD_MS (default 3s) bago pa man makatanggap
+// ng response. Hindi ito nag-a-abort o nag-re-retry ng kahit ano — pure UI
+// signal lang ito, dagdag sa ibabaw ng existing na token-refresh logic (hindi
+// ito ginalaw/binago). Gumagamit ng CustomEvent sa `window` para hindi na
+// kailangan mag-import ng React Context dito sa isang plain axios file —
+// makikinig na lang ang <WeakConnectionBanner /> sa event na ito kahit saan
+// man ito i-mount sa App.jsx. ──────────────────────────────────────────────────
+const SLOW_THRESHOLD_MS = 3000;
+export const WEAK_SIGNAL_EVENT = "leaf:weak-signal";
+
+// Bilang ng mga request na CURRENTLY "matagal na" (lumagpas na sa threshold)
+// — kailangan itong bilang (hindi lang true/false) dahil posibleng may
+// ilang request na sabay-sabay na tumatagal; dapat manatiling "true" ang
+// banner hangga't may kahit isa pang matagal, at "false" lang kapag
+// naubos na LAHAT. ─────────────────────────────────────────────────────────
+let slowRequestCount = 0;
+
+function setWeakSignal(active) {
+  window.dispatchEvent(new CustomEvent(WEAK_SIGNAL_EVENT, { detail: { active } }));
+}
+
+function markSlowStart() {
+  slowRequestCount += 1;
+  if (slowRequestCount === 1) setWeakSignal(true);
+}
+
+function markSlowEnd() {
+  slowRequestCount = Math.max(0, slowRequestCount - 1);
+  if (slowRequestCount === 0) setWeakSignal(false);
+}
+
+// ─── Attach JWT token + Smart Content-Type + Slow-request timer ──────────────
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("leaf_access_token");
@@ -34,16 +70,46 @@ api.interceptors.request.use(
       config.headers["Content-Type"] = "application/json";
     }
 
+    // ── BAGO: simulan ang "slow request" timer. Kung hindi pa nakakabalik
+    // ang response bago mag-3s, ituturing itong "mahina ang signal" at
+    // ipapakita ang banner. Naka-store ang timer id sa config mismo para
+    // ma-clear ito sa response/error interceptor. ──────────────────────
+    config._weakSignalFired = false;
+    config._weakSignalTimer = setTimeout(() => {
+      config._weakSignalFired = true;
+      markSlowStart();
+    }, SLOW_THRESHOLD_MS);
+
     return config;
   },
   (error) => Promise.reject(error)
 );
 
+// Tinatawag ito sa parehong success at error path — kailangan laging
+// i-clear ang timer at i-decrement ang counter kung na-trigger na ito,
+// kahit anong klaseng resulta ang natanggap. ────────────────────────────
+function clearWeakSignal(config) {
+  if (!config) return;
+  if (config._weakSignalTimer) {
+    clearTimeout(config._weakSignalTimer);
+    config._weakSignalTimer = null;
+  }
+  if (config._weakSignalFired) {
+    config._weakSignalFired = false;
+    markSlowEnd();
+  }
+}
+
 // ─── Auto refresh token kapag 401 ────────────────────────────────────────────
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    clearWeakSignal(response.config);
+    return response;
+  },
   async (error) => {
     const original = error.config;
+    clearWeakSignal(original);
+
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       try {

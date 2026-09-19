@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/members_service.dart';
 
 class _PAColors {
@@ -6,6 +7,27 @@ class _PAColors {
   static const dark   = Color(0xFF1B5E20);
   static const sub    = Color(0xFF888888);
   static const orange = Color(0xFFE65100);
+}
+
+// ── BAGO: required share capital para maging Official Member — ₱4,000.
+// Ito ang MAX CAP ng "Amount Paid" dito — dating walang anumang
+// clamp, kaya kahit anong halaga ay nakakapasa. ─────────────────────
+const double kRequiredShareCapital = 4000;
+
+// ── BAGO: habang nagta-type, kapag ang resultang numero ay lalampas
+// sa max, awtomatikong hinaharang ang bagong digit. ──────────────────
+class _MaxCapFormatter extends TextInputFormatter {
+  final double max;
+  _MaxCapFormatter(this.max);
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) return newValue;
+    final parsed = double.tryParse(newValue.text);
+    if (parsed == null) return oldValue;
+    if (parsed > max) return oldValue;
+    return newValue;
+  }
 }
 
 class PendingApplicationScreen extends StatefulWidget {
@@ -119,25 +141,44 @@ class _PendingApplicationScreenState extends State<PendingApplicationScreen> {
             TextField(
               controller: _shareCtrl,
               keyboardType: TextInputType.number,
+              // ── BAGO: naka-cap na sa max ₱4,000 (kRequiredShareCapital)
+              // — tinatanggihan agad ang keystroke kapag lalampas, gaya
+              // ng ginawa na sa web version (ManageMember.jsx's
+              // PendingModal) — dating walang anumang limitasyon dito. ──
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, _MaxCapFormatter(kRequiredShareCapital)],
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
                 prefixText: '₱ ',
                 isDense: true,
+                hintText: 'Enter amount paid (max ₱4,000)',
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFDDDDDD))),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('Maximum: ₱${kRequiredShareCapital.toStringAsFixed(0)} — the full required share capital.', style: const TextStyle(fontSize: 10, color: Color(0xFFAAAAAA))),
+            ),
             if (sharePaid > 0) ...[
               const SizedBox(height: 6),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(color: const Color(0xFFE8F5E9), borderRadius: BorderRadius.circular(8)),
-                child: Text(
-                  'Share Capital = ₱${(sharePaid * 2).toStringAsFixed(0)} · Max Loanable = ₱${(sharePaid * 2).toStringAsFixed(0)}',
-                  style: const TextStyle(fontSize: 10.5, color: _PAColors.green, fontWeight: FontWeight.w600),
-                ),
-              ),
+              Builder(builder: (context) {
+                final fullyPaid = sharePaid >= kRequiredShareCapital;
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(color: fullyPaid ? const Color(0xFFE8F5E9) : const Color(0xFFFFF8E1), borderRadius: BorderRadius.circular(8)),
+                  child: Text(
+                    // ── FIX: dating "(sharePaid × 2)" ang display — hindi
+                    // na doble ang Share Capital sa bagong member, 1:1
+                    // na lang (ang Loan Multiplier system mismo ang
+                    // bahalang mag-scale ng Max Loanable sa paglipas ng
+                    // panahon, hindi dapat doble na agad sa umpisa). ────
+                    'Share Capital = ₱${sharePaid.toStringAsFixed(0)} · Max Loanable = ₱${sharePaid.toStringAsFixed(0)} (×1, new member default)'
+                    '${fullyPaid ? " — Fully paid, will be locked after conversion." : " — Partial payment; admin can still update this later in the member's profile."}',
+                    style: TextStyle(fontSize: 10.5, color: fullyPaid ? _PAColors.green : const Color(0xFFE65100), fontWeight: FontWeight.w600),
+                  ),
+                );
+              }),
             ],
             const SizedBox(height: 16),
 

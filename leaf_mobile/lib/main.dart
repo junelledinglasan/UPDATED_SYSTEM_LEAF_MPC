@@ -29,6 +29,7 @@ import 'providers/member_provider.dart';
 import 'providers/language_provider.dart';
 import 'utils/constants.dart';
 import 'utils/nav_key.dart';
+import 'widgets/offline_overlay.dart';
 
 void main() {
   runApp(
@@ -93,6 +94,13 @@ class LeafMPCApp extends StatelessWidget {
           fillColor: Colors.white,
         ),
       ),
+      // ── BAGO: naka-mount ito ISANG BESES lang dito (sa "builder",
+      // sa labas ng buong Navigator), kaya gumagana ito sa LAHAT ng
+      // portal (Admin/Staff/Member) nang hindi na kailangang idagdag
+      // sa bawat screen nang hiwalay — kaparehong approach ng web
+      // version's <OfflineOverlay/> na naka-mount minsan lang sa
+      // App.jsx, sa labas ng <Routes>. ─────────────────────────────
+      builder: (context, child) => OfflineOverlay(child: child ?? const SizedBox.shrink()),
       home: const AuthWrapper(),
       routes: {
         // NOTE: '/login' ay dapat laging AuthWrapper, hindi diretsong

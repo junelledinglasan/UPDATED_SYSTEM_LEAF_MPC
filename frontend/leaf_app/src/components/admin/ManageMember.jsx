@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { getMembersAPI, getMemberStatsAPI, getMemberAPI, updateMemberAPI, deleteMemberAPI, getApplicationsAPI, updateApplicationStatusAPI, convertToMemberAPI, getOnlineApplicationsAPI, convertOnlineAppAPI, registerMemberAPI, getMemberSavingsAPI } from "../../api/members";
 import { Users, Clock, Eye, Pencil, Trash2, Search, ArrowUpDown, IdCard, X, PowerOff, UserCheck, UserX, ShieldAlert, CheckCircle2, XCircle, Info, ArrowLeft, User, Wallet, GraduationCap, Lock, TrendingUp, Check, EyeOff, PiggyBank, FileText, CreditCard, ArrowUpCircle, ArrowDownCircle, Sprout, Lightbulb, ClipboardList, PartyPopper, Briefcase } from "lucide-react";
@@ -366,6 +366,28 @@ function FinancialSummary({ memberId }) {
 }
 
 // ─── View / Edit Member Modal ─────────────────────────────────────────────────
+// ── FIX: dating naka-define ITO SA LOOB ng ViewEditModal (bawat
+// re-render, bagong function instance/identity ang nagiging
+// "SectionCard" — kaya kada keystroke sa isang input, tinuturing ito
+// ng React na "bagong component type", ni-remove/rine-remount nito
+// ang buong subtree sa ilalim (kasama ang mismong <input>), kaya
+// nawawalan ng focus ang field pagkatapos ng BAWAT titik — kailangan
+// pang i-click ulit para makapag-type pa. Inilipat na ito SA LABAS
+// (module-level) para stable/consistent ang component identity nito
+// sa bawat re-render, at hindi na nawawala ang focus. ─────────────────
+function SectionCard({ title, icon, children }) {
+  return (
+    <div style={{background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",padding:"18px 20px",marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+        <div style={{width:4,height:16,background:"#2e7d32",borderRadius:3}}/>
+        {icon}
+        <span style={{fontSize:12,fontWeight:800,color:"#1b5e20",textTransform:"uppercase",letterSpacing:0.5}}>{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function ViewEditModal({ member, onClose, onSave }) {
   const [mode,       setMode]      = useState("view");
   const [detail,     setDetail]    = useState(null);
@@ -394,54 +416,59 @@ function ViewEditModal({ member, onClose, onSave }) {
     pension_income:"",job_type:"",monthly_income:"",plain_password:"",
   });
 
+  // ── FIX: inilabas ang "load" mula sa loob ng useEffect papunta sa
+  // component scope (bilang "loadDetail") — para magamit din ito ulit
+  // pagkatapos mag-save (i-refresh ang datos), imbes na isara agad ang
+  // buong profile page. ─────────────────────────────────────────────
+  const loadDetail = async () => {
+    try {
+      const data = await getMemberAPI(member.id);
+      setDetail(data);
+      const pm=data.pre_member_info||{},sp=data.student_profile||{},sr=data.senior_profile||{},jp=data.job_profile||{};
+      setForm({
+        first_name: data.first_name||pm.first_name||"",
+        last_name:  data.last_name ||pm.last_name ||"",
+        middle_name: pm.middle_name||"",
+        status:      data.status||"Active",
+        birth_date:  pm.birth_date||"",
+        place_of_birth: pm.place_of_birth||"",
+        sex:         pm.sex||"",
+        civil_status: pm.civil_status||"Single",
+        tin_no:      pm.tin_no||"",
+        sss_gsis_no: pm.sss_gsis_no||"",
+        contact_number: pm.contact_number||data.contact||"",
+        email:       pm.email||data.email||"",
+        address:     pm.address||"",
+        occupation:  pm.occupation||"",
+        share_capital: data.share_capital||0,
+        classification: pm.classification||data.classification||"",
+        educational_attainment: pm.educational_attainment||"",
+        income:      pm.income||"",
+        religious_social_affiliation: pm.religious_social_affiliation||"",
+        birth_certificate:    pm.birth_certificate||false,
+        marriage_certificate: pm.marriage_certificate||false,
+        spouse_name:       pm.spouse_name||"",
+        spouse_occupation: pm.spouse_occupation||"",
+        spouse_income:     pm.spouse_income||"",
+        no_of_dependants:  pm.no_of_dependants||"",
+        beneficiary_name:         pm.beneficiary_name||"",
+        beneficiary_relationship: pm.beneficiary_relationship||"",
+        credit_references:        pm.credit_references||"",
+        school_name:  sp.school_name||"",
+        year_level:   sp.year_level||"",
+        allowance:    sp.allowance||"",
+        pension_income: sr.pension_income||"",
+        job_type:     jp.job_type||"",
+        monthly_income: jp.monthly_income||"",
+        plain_password: data.plain_password||"",
+      });
+      setLoanMultiplier(data.loan_multiplier || 1);
+    } catch(e) { console.error(e); }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await getMemberAPI(member.id);
-        setDetail(data);
-        const pm=data.pre_member_info||{},sp=data.student_profile||{},sr=data.senior_profile||{},jp=data.job_profile||{};
-        setForm({
-          first_name: data.first_name||pm.first_name||"",
-          last_name:  data.last_name ||pm.last_name ||"",
-          middle_name: pm.middle_name||"",
-          status:      data.status||"Active",
-          birth_date:  pm.birth_date||"",
-          place_of_birth: pm.place_of_birth||"",
-          sex:         pm.sex||"",
-          civil_status: pm.civil_status||"Single",
-          tin_no:      pm.tin_no||"",
-          sss_gsis_no: pm.sss_gsis_no||"",
-          contact_number: pm.contact_number||data.contact||"",
-          email:       pm.email||data.email||"",
-          address:     pm.address||"",
-          occupation:  pm.occupation||"",
-          share_capital: data.share_capital||0,
-          classification: pm.classification||data.classification||"",
-          educational_attainment: pm.educational_attainment||"",
-          income:      pm.income||"",
-          religious_social_affiliation: pm.religious_social_affiliation||"",
-          birth_certificate:    pm.birth_certificate||false,
-          marriage_certificate: pm.marriage_certificate||false,
-          spouse_name:       pm.spouse_name||"",
-          spouse_occupation: pm.spouse_occupation||"",
-          spouse_income:     pm.spouse_income||"",
-          no_of_dependants:  pm.no_of_dependants||"",
-          beneficiary_name:         pm.beneficiary_name||"",
-          beneficiary_relationship: pm.beneficiary_relationship||"",
-          credit_references:        pm.credit_references||"",
-          school_name:  sp.school_name||"",
-          year_level:   sp.year_level||"",
-          allowance:    sp.allowance||"",
-          pension_income: sr.pension_income||"",
-          job_type:     jp.job_type||"",
-          monthly_income: jp.monthly_income||"",
-          plain_password: data.plain_password||"",
-        });
-        setLoanMultiplier(data.loan_multiplier || 1);
-      } catch(e) { console.error(e); }
-      finally { setLoading(false); }
-    };
-    load();
+    setLoading(true);
+    loadDetail().finally(() => setLoading(false));
   }, [member.id]);
 
   const handle = e => {
@@ -470,28 +497,22 @@ function ViewEditModal({ member, onClose, onSave }) {
 
   const handleSave = async () => {
     setSaving(true);
-    try { await onSave(member.id, form); onClose(); }
+    try {
+      await onSave(member.id, form);
+      // ── FIX: dating "onClose()" pagkatapos mag-save — isinasara nito
+      // ang buong profile page, kaya parang "nawawala" agad ang
+      // na-save (bumabalik sa listahan ng members). Ngayon, nananatili
+      // sa profile (bumabalik sa View mode) at ni-re-refresh ang datos
+      // mula sa server para makita agad ang mga bagong na-save. ────────
+      await loadDetail();
+      setMode("view");
+    }
     catch(e) { console.error(e); }
     finally { setSaving(false); }
   };
 
   const username = detail?.user_username||"—";
   const memberId = detail?.member_id||member.member_id||"—";
-
-  // ── BAGO: puting "section card" wrapper — ginagamit sa bawat
-  // grupo ng fields (Personal Info, Spouse & Family, atbp.) para may
-  // separation/contrast sa page, imbes na direktang nakalatag lang
-  // ang mga field sa background. ──────────────────────────────────
-  const SectionCard = ({ title, icon, children }) => (
-    <div style={{background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",padding:"18px 20px",marginBottom:16}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-        <div style={{width:4,height:16,background:"#2e7d32",borderRadius:3}}/>
-        {icon}
-        <span style={{fontSize:12,fontWeight:800,color:"#1b5e20",textTransform:"uppercase",letterSpacing:0.5}}>{title}</span>
-      </div>
-      {children}
-    </div>
-  );
 
   return (
     // ── BAGO: dating floating modal (naka-center sa itaas ng backdrop),
@@ -567,8 +588,42 @@ function ViewEditModal({ member, onClose, onSave }) {
             <div style={{background:"linear-gradient(135deg,#f1f8e9,#e8f5e9)",border:"1px solid #c8e6c9",borderRadius:14,padding:"18px 20px",marginBottom:16}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:14}}>
                 <div>
-                  <div style={{fontSize:10.5,fontWeight:700,color:"#558b2f",textTransform:"uppercase",letterSpacing:0.4}}>Share Capital</div>
-                  <div style={{fontSize:22,fontWeight:800,color:"#222",marginTop:2}}>₱{Number(form.share_capital||0).toLocaleString()}</div>
+                  <div style={{fontSize:10.5,fontWeight:700,color:"#558b2f",textTransform:"uppercase",letterSpacing:0.4,display:"flex",alignItems:"center",gap:6}}>
+                    Amount Paid (Share Capital)
+                    {Number(form.share_capital||0) >= REQUIRED_SHARE_CAPITAL
+                      ? <span style={{background:"#2e7d32",color:"#fff",borderRadius:20,padding:"1px 8px",fontSize:9,letterSpacing:0.3}}>FULLY PAID · LOCKED</span>
+                      : <span style={{background:"#ffe0b2",color:"#e65100",borderRadius:20,padding:"1px 8px",fontSize:9,letterSpacing:0.3}}>PARTIAL</span>
+                    }
+                  </div>
+                  {/* ── BAGO: puwede nang i-edit ang Amount Paid dito
+                      (kapag mode==="edit") — pero naka-LOCK na kapag
+                      naabot na ang buong ₱4,000 (bayad na nang buo,
+                      wala nang dapat baguhin). Kapag partial pa
+                      (< ₱4,000), puwede pa itong i-update ni admin sa
+                      susunod na pagpunta ng member sa opisina. ────────── */}
+                  {mode==="edit" && Number(form.share_capital||0) < REQUIRED_SHARE_CAPITAL ? (
+                    <div style={{marginTop:4,display:"flex",alignItems:"center",gap:4}}>
+                      <span style={{fontSize:18,fontWeight:800,color:"#222"}}>₱</span>
+                      <input
+                        className="mm-capital-input"
+                        type="number" min="0" max={REQUIRED_SHARE_CAPITAL}
+                        value={form.share_capital||""}
+                        onChange={e=>{
+                          const raw = e.target.value;
+                          if (raw === "") { setForm(p=>({...p,share_capital:""})); return; }
+                          const parsed = Number(raw);
+                          if (Number.isNaN(parsed) || parsed < 0 || parsed > REQUIRED_SHARE_CAPITAL) return;
+                          setForm(p=>({...p,share_capital:raw}));
+                        }}
+                        style={{fontSize:20}}
+                      />
+                    </div>
+                  ) : (
+                    <div style={{fontSize:22,fontWeight:800,color:"#222",marginTop:2}}>₱{Number(form.share_capital||0).toLocaleString()}</div>
+                  )}
+                  {mode==="edit" && Number(form.share_capital||0) < REQUIRED_SHARE_CAPITAL && (
+                    <div style={{fontSize:9.5,color:"#7a8a6a",marginTop:3}}>Max ₱{REQUIRED_SHARE_CAPITAL.toLocaleString()}. Auto-locks once fully paid.</div>
+                  )}
                 </div>
                 <div>
                   <div style={{fontSize:10.5,fontWeight:700,color:"#558b2f",textTransform:"uppercase",letterSpacing:0.4}}>Max Loanable</div>
@@ -605,10 +660,24 @@ function ViewEditModal({ member, onClose, onSave }) {
                 <ModalField label="Last Name"      name="last_name"     mode={mode} form={form} handle={handle}/>
                 <ModalField label="First Name"     name="first_name"    mode={mode} form={form} handle={handle}/>
                 <ModalField label="Middle Name"    name="middle_name"   mode={mode} form={form} handle={handle}/>
-                <ModalField label="Status"         name="status"        options={form.status==="Deactivated"?["Deactivated"]:["Active"]} mode={mode} form={form} handle={handle}/>
+                {/* ── FIX: dating "Active" lang ang pipiliin dito (o
+                    "Deactivated" kapag deactivated na) — kaya hindi
+                    talaga mapipili ang "Inactive" sa Edit mode kahit
+                    ito ay isa sa mga valid na status. Ngayon, puwede
+                    nang pumili sa pagitan ng Active/Inactive dito.
+                    "Deactivated" ay sadyang hindi kasama dito (naka-
+                    lock pa rin kapag ganito na ang status) — dahil
+                    dedikadong "Deactivate Member" action pa rin ang
+                    dapat gamitin para dito, dahil may kasamang
+                    automatic na pag-complete ng active loans. ────────── */}
+                <ModalField label="Status"         name="status"        options={form.status==="Deactivated"?["Deactivated"]:["Active","Inactive"]} mode={mode} form={form} handle={handle}/>
                 <ModalField label="Birthdate"      name="birth_date"    type="date" mode={mode} form={form} handle={handle}/>
                 <ModalField label="Place of Birth" name="place_of_birth" mode={mode} form={form} handle={handle}/>
-                <ModalField label="Sex"            name="sex"           options={["Male","Female"]} mode={mode} form={form} handle={handle}/>
+                {/* ── FIX: "Male"/"Female" lang dating options dito sa
+                    Edit Member — hindi tugma sa expanded Sex options na
+                    ginagamit na sa Register New Member form
+                    ("Non-binary", "Prefer not to say", "Other"). ─────── */}
+                <ModalField label="Sex"            name="sex"           options={["Male","Female","Non-binary","Prefer not to say","Other"]} mode={mode} form={form} handle={handle}/>
                 <ModalField label="Civil Status"   name="civil_status"  options={["Single","Married","Widowed","Separated"]} mode={mode} form={form} handle={handle}/>
                 <ModalField label="TIN No."        name="tin_no"        mode={mode} form={form} handle={handle}/>
                 <ModalField label="SSS/GSIS No."   name="sss_gsis_no"   mode={mode} form={form} handle={handle}/>
@@ -841,9 +910,84 @@ function DeleteModal({ member, onClose, onConfirm }) {
   );
 }
 
+// ── BAGO: required share capital para maging Official Member — ₱4,000.
+// Ito ang MAX CAP ng "Amount Paid" input dito (Pending for Approval →
+// Convert) at sa Register Member (F2F) form. ─────────────────────────
+const REQUIRED_SHARE_CAPITAL = 4000;
+
 function PendingModal({ app, onClose, onConvert }) {
-  const [sharePaid, setSharePaid] = useState("4000");
+  // ── BAGO: blangko muna ang starting value (dati naka-preset na sa
+  // "4000") — para kapag nalimutang lagyan ng admin, makikita agad na
+  // kailangan pa itong i-input, imbes na aksidenteng ma-convert bilang
+  // fully paid (₱4,000) kahit walang aktwal na binayad. ────────────────
+  const [sharePaid, setSharePaid] = useState("");
+  const [converting, setConverting] = useState(false);
+  const [amountError, setAmountError] = useState("");
+  // ── BAGO: "touched" — nagiging true sa sandaling i-focus/i-click ng
+  // admin ang field (o subukang i-convert). Kailangan ito para hindi
+  // agad pumula/mag-error ang field bago pa man ito magalaw — pero
+  // pagkatapos noon, REAL-TIME na agad mag-tri-trigger ang validation
+  // (habang nagta-type, hindi na kailangang i-click pa ang Convert
+  // button) kapag naiwang blangko o invalid ang amount. ────────────────
+  const [touched, setTouched] = useState(false);
+  // ── BAGO: ref para dito i-focus/i-scroll ang pansin ng admin diretso
+  // sa "Amount Paid" input mismo kapag sinubukang mag-Convert nang wala
+  // pang nailagay na halaga — hindi na lang basta error text sa ilalim
+  // ang lalabas, kundi titigil at magpu-focus mismo ang cursor doon. ────
+  const amountInputRef = useRef(null);
   if (!app) return null;
+
+  // ── BAGO: hindi puwedeng mag-type nang lampas sa ₱4,000 — parehong
+  // pattern gaya ng ginagamit sa ibang amount inputs ng system (hal.
+  // NewLoanModal) — tinatanggihan agad ang keystroke imbes na hayaang
+  // ma-type muna bago i-validate sa submit. ───────────────────────────
+  const handleAmountChange = (e) => {
+    if (!touched) setTouched(true);
+    const raw = e.target.value;
+    if (raw === "") { setSharePaid(""); return; }
+    const parsed = Number(raw);
+    if (Number.isNaN(parsed)) return;
+    if (parsed > REQUIRED_SHARE_CAPITAL) return; // reject — lampas sa 4,000
+    if (parsed < 0) return;
+    setSharePaid(raw);
+  };
+
+  // ── BAGO: real-time validation — sa sandaling ma-"touch" ang field
+  // (nag-type na, o sinubukang i-convert), agad na ipapakita ang error
+  // kapag blangko o 0 pa rin ang amount — hindi na kailangang i-click
+  // pa muna ang "Convert" button bago lumabas ang paalala. ────────────
+  useEffect(() => {
+    if (!touched) return;
+    const amount = parseFloat(sharePaid || 0);
+    if (!sharePaid || Number.isNaN(amount) || amount <= 0) {
+      setAmountError("Please enter the amount paid (₱1 – ₱4,000).");
+    } else {
+      setAmountError("");
+    }
+  }, [sharePaid, touched]);
+
+  const handleConvertClick = async () => {
+    setTouched(true);
+    const amount = parseFloat(sharePaid || 0);
+    if (!sharePaid || Number.isNaN(amount) || amount <= 0) {
+      setAmountError("Please enter the amount paid (₱1 – ₱4,000).");
+      // ── BAGO: agad na i-focus at i-scroll papunta sa input mismo —
+      // hindi na kailangang hanapin pa ng admin kung saan lumabas ang
+      // error, direkta nang doon dadalhin ang pansin/cursor. ──────────
+      amountInputRef.current?.focus();
+      amountInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    setConverting(true);
+    try {
+      await onConvert(app, amount);
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  const isFullyPaid = parseFloat(sharePaid || 0) >= REQUIRED_SHARE_CAPITAL;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box mm-view-modal" onClick={e => e.stopPropagation()}>
@@ -859,32 +1003,83 @@ function PendingModal({ app, onClose, onConvert }) {
             <span className="mm-pending-badge" style={{display:"inline-flex",alignItems:"center",gap:4}}><Clock size={11}/> Pending</span>
           </div>
           <div className="mm-pending-notice" style={{display:"flex",alignItems:"center",gap:6}}><ClipboardList size={13}/> This applicant has been approved online. They need to visit the office to complete the process.</div>
+
+          {/* ── BAGO: OCR auto-verification result (mula sa applicant's
+              browser noong nag-apply sila) — flag lang ito para sa
+              admin, hindi ito auto-reject/auto-approve. Kung "hindi
+              nakumpirma" o walang OCR check na naganap, mas mahalagang
+              suriin pa rin nang manual ang Birth Certificate sa ibaba. ── */}
+          {app.ocr_checked ? (
+            app.ocr_name_match && app.ocr_birthdate_match ? (
+              <div style={{marginTop:8,padding:"8px 12px",background:"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:8,fontSize:11.5,color:"#2e7d32",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+                <CheckCircle2 size={13}/> OCR check: Name and Birthdate matched the uploaded Birth Certificate.
+              </div>
+            ) : (
+              <div style={{marginTop:8,padding:"8px 12px",background:"#fff8e1",border:"1px solid #ffe082",borderRadius:8,fontSize:11.5,color:"#e65100",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+                <ShieldAlert size={13}/> OCR check: could not confirm {!app.ocr_name_match && !app.ocr_birthdate_match ? "Name/Birthdate" : !app.ocr_name_match ? "Name" : "Birthdate"} on the uploaded document — please verify the Birth Certificate manually below.
+              </div>
+            )
+          ) : (
+            <div style={{marginTop:8,padding:"8px 12px",background:"#f5f5f5",border:"1px solid #e0e0e0",borderRadius:8,fontSize:11.5,color:"#888",display:"flex",alignItems:"center",gap:6}}>
+              <ShieldAlert size={13}/> No automatic document check was run for this application — please verify the Birth Certificate manually below.
+            </div>
+          )}
+
           <div className="modal-field" style={{marginTop:12}}>
             <div className="modal-field-label">Amount Paid for Membership (₱) <span style={{color:"#e53935"}}>*</span></div>
-            <div style={{border:"1px solid #ddd",borderRadius:8,overflow:"hidden",display:"flex"}}>
+            <div style={{border:`1px solid ${amountError?"#e53935":"#ddd"}`,borderRadius:8,overflow:"hidden",display:"flex"}}>
               <span style={{padding:"0 10px",color:"#aaa",fontSize:14,display:"flex",alignItems:"center"}}>₱</span>
-              <input style={{border:"none",outline:"none",padding:"9px 8px",fontSize:14,width:"100%"}} type="number" value={sharePaid} onChange={e=>setSharePaid(e.target.value)} placeholder="e.g. 4000"/>
+              <input ref={amountInputRef} autoFocus style={{border:"none",outline:"none",padding:"9px 8px",fontSize:14,width:"100%"}} type="number" min="0" max={REQUIRED_SHARE_CAPITAL} value={sharePaid} onChange={handleAmountChange} onBlur={()=>setTouched(true)} placeholder="Enter amount paid (max ₱4,000)"/>
             </div>
-            {sharePaid>0&&<div style={{marginTop:6,padding:"6px 10px",background:"#e8f5e9",borderRadius:8,fontSize:11,color:"#2e7d32",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+            <div style={{marginTop:4,fontSize:10.5,color:"#aaa"}}>Maximum: ₱{REQUIRED_SHARE_CAPITAL.toLocaleString()} — the full required share capital.</div>
+            {amountError && <div style={{marginTop:4,fontSize:11,color:"#e53935",fontWeight:600}}>{amountError}</div>}
+            {sharePaid>0&&<div style={{marginTop:6,padding:"6px 10px",background:isFullyPaid?"#e8f5e9":"#fff8e1",borderRadius:8,fontSize:11,color:isFullyPaid?"#2e7d32":"#e65100",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
               <Lightbulb size={12}/> Share Capital = ₱{parseFloat(sharePaid||0).toLocaleString()} · Max Loanable = ₱{parseFloat(sharePaid||0).toLocaleString()} (×1, new member default)
+              {isFullyPaid ? " — Fully paid, will be locked after conversion." : " — Partial payment; admin can still update this later in the member's profile."}
             </div>}
           </div>
+          {/* ── FIX: dating kulang ang dispay dito — wala pang Sex, Age,
+              Place of Birth, TIN, SSS/GSIS, Religious/Social Affiliation,
+              at ang buong Spouse & Family / Beneficiary section, kahit
+              nasubmit na ito ng applicant. Ngayon, kumpleto na ang
+              lahat ng nisubmit na info na makikita dito. ────────────── */}
           <div className="mm-view-section-title">Personal Information</div>
           <div className="modal-grid">
             {[
               ["Middle Name", app.middle_name],
               ["Birthdate", app.birth_date],
+              ["Age", (() => { const a = computeAge(app.birth_date); return a !== null ? `${a} years old` : ""; })()],
+              ["Place of Birth", app.place_of_birth],
+              ["Sex", app.sex],
               ["Civil Status", app.civil_status],
               ["Educational Attainment", app.educational_attainment],
+              ["TIN No.", app.tin_no],
+              ["SSS/GSIS No.", app.sss_gsis_no],
               ["Contact No.", app.contact_number],
               ["Email", app.email],
               ["Occupation", app.occupation],
               ["Monthly Income (₱)", app.income ? `₱${Number(app.income).toLocaleString()}` : ""],
+              ["Religious/Social Affiliation", app.religious_social_affiliation],
               ["Classification", app.classification],
             ].map(([k,v]) => (
               <div key={k} className="modal-field"><div className="modal-field-label">{k}</div><div className="modal-field-value">{v||"—"}</div></div>
             ))}
             <div className="modal-field full"><div className="modal-field-label">Address</div><div className="modal-field-value">{app.address||"—"}</div></div>
+          </div>
+
+          <div className="mm-view-section-title">Spouse & Family</div>
+          <div className="modal-grid">
+            {[
+              ["Spouse Name", app.spouse_name],
+              ["Spouse Occupation", app.spouse_occupation],
+              ["Spouse Income (₱)", app.spouse_income ? `₱${Number(app.spouse_income).toLocaleString()}` : ""],
+              ["No. of Dependants", app.no_of_dependants],
+              ["Beneficiary Name", app.beneficiary_name],
+              ["Beneficiary Relationship", app.beneficiary_relationship],
+            ].map(([k,v]) => (
+              <div key={k} className="modal-field"><div className="modal-field-label">{k}</div><div className="modal-field-value">{v||"—"}</div></div>
+            ))}
+            <div className="modal-field full"><div className="modal-field-label">Credit References</div><div className="modal-field-value">{app.credit_references||"—"}</div></div>
           </div>
 
           <div className="mm-view-section-title">Documents Submitted</div>
@@ -913,7 +1108,7 @@ function PendingModal({ app, onClose, onConvert }) {
         </div>
         <div className="modal-footer">
           <button className="btn-modal-close" onClick={onClose}>Close</button>
-          <button className="btn-modal-save" onClick={() => onConvert(app)} style={{display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}><Check size={14}/> Convert to Official Member</button>
+          <button className="btn-modal-save" onClick={handleConvertClick} disabled={converting} style={{display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}><Check size={14}/> {converting ? "Converting..." : "Convert to Official Member"}</button>
         </div>
       </div>
     </div>
@@ -993,15 +1188,25 @@ function RegisterMemberModal({ onClose, onSuccess }) {
               <div className="modal-field-label">Amount Paid for Membership (₱)</div>
               <div className="al-amount-wrap" style={{border:"1px solid #ddd",borderRadius:8,overflow:"hidden"}}>
                 <span style={{padding:"0 10px",color:"#aaa",fontSize:14}}>₱</span>
-                <input style={{border:"none",outline:"none",padding:"9px 8px",fontSize:14,width:"100%"}} type="number" name="share_capital" value={form.share_capital||""} onChange={handle} placeholder="e.g. 4000"/>
+                {/* ── BAGO: naka-cap na sa max ₱4,000 (REQUIRED_SHARE_CAPITAL)
+                    — tinatanggihan agad ang keystroke kapag lalampas. ──── */}
+                <input style={{border:"none",outline:"none",padding:"9px 8px",fontSize:14,width:"100%"}} type="number" min="0" max={REQUIRED_SHARE_CAPITAL} name="share_capital" value={form.share_capital||""} onChange={e=>{
+                  const raw = e.target.value;
+                  if (raw === "") { setForm(p=>({...p,share_capital:""})); return; }
+                  const parsed = Number(raw);
+                  if (Number.isNaN(parsed) || parsed < 0 || parsed > REQUIRED_SHARE_CAPITAL) return;
+                  setForm(p=>({...p,share_capital:raw}));
+                }} placeholder="e.g. 4000"/>
               </div>
-              {form.share_capital>0&&<div style={{marginTop:6,padding:"6px 10px",background:"#e8f5e9",borderRadius:8,fontSize:11,color:"#2e7d32",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+              <div style={{marginTop:4,fontSize:10.5,color:"#aaa"}}>Maximum: ₱{REQUIRED_SHARE_CAPITAL.toLocaleString()} — the full required share capital.</div>
+              {form.share_capital>0&&<div style={{marginTop:6,padding:"6px 10px",background:Number(form.share_capital)>=REQUIRED_SHARE_CAPITAL?"#e8f5e9":"#fff8e1",borderRadius:8,fontSize:11,color:Number(form.share_capital)>=REQUIRED_SHARE_CAPITAL?"#2e7d32":"#e65100",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
                 {/* ── FIX: dating "(paid × 2)" ang display — hindi na
                     doble ang Share Capital sa Bagong member, 1:1 na
                     lang (ang Loan Multiplier system mismo ang
                     bahalang mag-scale ng Max Loanable sa paglipas ng
                     panahon, hindi dapat doble na agad sa umpisa). ──── */}
                 <Lightbulb size={12}/> Share Capital = ₱{parseFloat(form.share_capital||0).toLocaleString()} · Max Loanable = ₱{parseFloat(form.share_capital||0).toLocaleString()} (×1, new member default)
+                {Number(form.share_capital)>=REQUIRED_SHARE_CAPITAL ? " — Fully paid, will be locked." : " — Partial payment; admin can still update this later."}
               </div>}
             </div>
             <RegisterField label="Complete Address" name="address" full form={form} handle={handle} errors={errors}/>
@@ -1328,8 +1533,13 @@ export default function ManageMember() {
                     <td>{p.contact_number}</td><td>{p.occupation}</td>
                     <td style={{fontSize:11,color:"#888"}}>{(p.created_at||"").slice(0,10)}</td>
                     <td><div className="action-btns" onClick={e=>e.stopPropagation()}>
-                      <button className="action-btn view-btn" onClick={()=>setViewPending(p)}><Eye size={13}/></button>
-                      <button className="mm-convert-btn" onClick={()=>handleConvert(p)}><Check size={13}/></button>
+                      {/* ── FIX: dating direktang "Convert" na button dito
+                          (mm-convert-btn) ay nagko-convert kaagad na
+                          ₱0 ang Amount Paid (default) — nali-lampasan
+                          ang pag-e-enter ng bayad. Ngayon, "View" na
+                          lang dito, at doon sa PendingModal mismo
+                          ipinapasok ang halaga bago mag-convert. ────── */}
+                      <button className="action-btn view-btn" onClick={()=>setViewPending(p)} title="View & Convert"><Eye size={13}/></button>
                     </div></td>
                   </tr>
                 ))}</tbody>

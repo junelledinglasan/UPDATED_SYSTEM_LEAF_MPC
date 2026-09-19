@@ -154,6 +154,15 @@ class OnlineApplication(models.Model):
     plain_password                = models.CharField(max_length=100, blank=True)
     id_front_url                  = models.URLField(max_length=500, blank=True)
     id_back_url                   = models.URLField(max_length=500, blank=True)
+    # ── BAGO: OCR-based document verification — hindi ito auto-reject,
+    # "flag lang para sa manual review ng admin" kung hindi tugma ang
+    # nabasa ng OCR (Tesseract.js, sa browser mismo, client-side) sa
+    # uploaded Birth Certificate laban sa First/Last Name at Birthdate
+    # na na-type ng applicant sa form. ─────────────────────────────────
+    ocr_checked                   = models.BooleanField(default=False)
+    ocr_name_match                = models.BooleanField(default=False)
+    ocr_birthdate_match           = models.BooleanField(default=False)
+    ocr_extracted_text            = models.TextField(blank=True)
     created_at                    = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -290,7 +299,38 @@ class Member(models.Model):
                 max_num += 1
                 candidate = f'LEAF-{str(max_num + 1).zfill(3)}'
             self.member_id = candidate
+
+        # ── BAGO: "reverse" na senaryo ng auto-upgrade sa Loan.save()
+        # (loans/models.py). Doon, kumpleto na ang share capital PERO
+        # kakatapos lang ma-"Completed" ang unang loan. Dito naman: may
+        # completed loan na ang miyembro (natigil dati sa 1x dahil hindi
+        # pa fully paid ang share capital noon), PERO kakatapos lang
+        # ma-completed/ma-abot ng share_capital niya ang ₱4,000
+        # (REQUIRED_SHARE_CAPITAL — kaparehong halaga na ginagamit sa
+        # sharecap/views.py). Kailangang i-detect dito ang LUMANG halaga
+        # ng share_capital BAGO mag-save (mula sa database), dahil
+        # pagkatapos ma-save, wala nang paraan para malaman kung
+        # tumawid ba talaga ito papuntang ₱4,000 sa save na ito o hindi
+        # na dati. ─────────────────────────────────────────────────────
+        just_completed_share_capital = False
+        if self.pk:
+            old_sc = Member.objects.filter(pk=self.pk).values_list('share_capital', flat=True).first()
+            if old_sc is not None and float(old_sc) < 4000 and float(self.share_capital) >= 4000:
+                just_completed_share_capital = True
+
         super().save(*args, **kwargs)
+
+        # ── Kapag kakatawid lang papuntang ₱4,000, 1x pa rin ang
+        # multiplier (hindi pa na-overwrite ng admin), AT may isa nang
+        # "Completed" na loan — saka pa lang ito itataas papuntang 3x.
+        # Ginagamit ang local import (kaparehong pattern sa ibang bahagi
+        # ng codebase, hal. loans/views.py) para maiwasan ang circular
+        # import sa pagitan ng members.models at loans.models. ─────────
+        if just_completed_share_capital and self.loan_multiplier == 1:
+            from loans.models import Loan
+            if Loan.objects.filter(member=self, status='Completed').exists():
+                self.loan_multiplier = 3
+                super().save(update_fields=['loan_multiplier'])
 
 
 # ══════════════════════════════════════════════════════════════════

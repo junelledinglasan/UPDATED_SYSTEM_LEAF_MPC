@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/loans_service.dart';
 import '../../services/payments_service.dart';
 import '../../widgets/member_scaffold_helpers.dart';
@@ -121,6 +122,179 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
   void _payViaGcash(dynamic loan) async {
     final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => GcashPaymentScreen(loan: loan)));
     if (result != null) _fetchAll(); // i-refresh para makita yung bagong "Pending" badge
+  }
+
+  Future<void> _openExplorer(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // BAGO: "Loan Release Record" dialog — ipinapakita ang BUONG deduction
+  // breakdown (interest, service fee, filing fee, insurance, savings deposit,
+  // share capital CBU, net proceeds) na na-record sa Polygon blockchain sa
+  // oras na na-release ang loan — HIWALAY ito sa mga payment/hulog
+  // (ReceiptScreen). Mobile parity ng web's "LoanReleaseModal" (nasa admin's
+  // LoanPayment.jsx) — pero dito, ang MEMBER MISMO ang tumitingin ng SARILI
+  // niyang record (pinapayagan na ito ng backend: `loan_release_detail_view`
+  // ay may ownership check na, hindi lang admin/staff-only). On-demand lang
+  // ang pagkuha (isang API call bawat click, hindi pre-fetched). ─────────────
+  Future<void> _showLoanReleaseDialog(dynamic loan) async {
+    dynamic release;
+    bool loading = true;
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(builder: (context, setSt) {
+        if (loading) {
+          PaymentsService.getLoanRelease(loan['id']).then((data) {
+            release = data;
+            loading = false;
+            setSt(() {});
+          }).catchError((_) {
+            release = null;
+            loading = false;
+            setSt(() {});
+          });
+        }
+        final isOnBlockchain = release != null && release['polygon_tx'] != null && release['network'] == 'polygon';
+        final deductionRows = release != null
+            ? <List<dynamic>>[
+                ['Interest', release['interest']],
+                ['Service Fee', release['service_fee']],
+                ['Filing Fee', release['filing_fee']],
+                ['Insurance', release['insurance']],
+                ['Savings Deposit', release['savings_deposit']],
+                ['Share Capital CBU Retention', release['share_capital_cbu']],
+              ].where((r) => (double.tryParse('${r[1] ?? 0}') ?? 0) > 0).toList()
+            : <List<dynamic>>[];
+
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 560, maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(children: [
+                    const Icon(Icons.account_balance, size: 18, color: _MLColors.dark),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('Loan Release Record', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _MLColors.dark)),
+                        Text('${loan['loan_id'] ?? ''}', style: const TextStyle(fontSize: 10.5, color: _MLColors.sub, fontFamily: 'monospace')),
+                      ]),
+                    ),
+                    IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(context)),
+                  ]),
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: loading
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 40),
+                            child: Center(child: CircularProgressIndicator(color: _MLColors.green)),
+                          )
+                        : release == null
+                            ? const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 30),
+                                child: Column(children: [
+                                  Icon(Icons.warning_amber_rounded, size: 24, color: Color(0xFFFFB74D)),
+                                  SizedBox(height: 8),
+                                  Text('No blockchain release record found for this loan.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: _MLColors.sub)),
+                                  SizedBox(height: 4),
+                                  Text('(Likely created before this feature was added.)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: _MLColors.sub)),
+                                ]),
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(children: [
+                                    Expanded(child: _ReleaseMini('Released At', '${release['released_at'] ?? '—'}')),
+                                    Expanded(child: _ReleaseMini('Recorded By', '${release['recorded_by'] ?? '—'}')),
+                                  ]),
+                                  const SizedBox(height: 14),
+                                  const Text('DEDUCTION BREAKDOWN', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _MLColors.green, letterSpacing: 1)),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    decoration: BoxDecoration(color: const Color(0xFFF9FEF9), border: Border.all(color: const Color(0xFFE8F5E9)), borderRadius: BorderRadius.circular(10)),
+                                    child: Column(children: [
+                                      _ReleaseRow('Loan Amount (Principal)', _peso(double.tryParse('${release['principal'] ?? 0}') ?? 0), bold: true),
+                                      const Divider(height: 12, color: Color(0xFFE8F5E9)),
+                                      ...deductionRows.map((r) => _ReleaseRow('${r[0]}', '− ${_peso(double.tryParse('${r[1] ?? 0}') ?? 0)}', valueColor: _MLColors.red)),
+                                      const Divider(height: 12, color: Color(0xFFE8F5E9)),
+                                      _ReleaseRow('Total Deductions', '− ${_peso(double.tryParse('${release['total_deductions'] ?? 0}') ?? 0)}', bold: true, valueColor: _MLColors.red),
+                                      const SizedBox(height: 4),
+                                      Container(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFA5D6A7), width: 1.5))),
+                                        child: _ReleaseRow('Net Proceeds (actual release)', _peso(double.tryParse('${release['net_proceeds'] ?? 0}') ?? 0), bold: true, big: true, valueColor: _MLColors.dark),
+                                      ),
+                                    ]),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  const Text('VERIFICATION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _MLColors.green, letterSpacing: 1)),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: isOnBlockchain ? const Color(0xFFE8F5E9) : const Color(0xFFFFF8E1),
+                                      border: Border.all(color: isOnBlockchain ? const Color(0xFFA5D6A7) : const Color(0xFFFFE082)),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(children: [
+                                      Icon(Icons.verified_user, size: 16, color: isOnBlockchain ? _MLColors.green : _MLColors.orange),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          isOnBlockchain ? 'This record is locked on the Polygon blockchain.' : 'Recorded locally only (blockchain not yet confirmed).',
+                                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: isOnBlockchain ? _MLColors.green : _MLColors.orange),
+                                        ),
+                                      ),
+                                    ]),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text.rich(
+                                    TextSpan(children: [
+                                      const TextSpan(text: 'SHA-256: ', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: _MLColors.sub)),
+                                      TextSpan(text: '${release['hash'] ?? '—'}', style: const TextStyle(fontSize: 10.5, fontFamily: 'monospace', color: Color(0xFF555555))),
+                                    ]),
+                                  ),
+                                  if (release['polygon_tx'] != null) ...[
+                                    const SizedBox(height: 10),
+                                    InkWell(
+                                      onTap: () {
+                                        final explorerUrl = release['explorer_url'] as String? ?? 'https://polygonscan.com/tx/${release['polygon_tx']}';
+                                        _openExplorer(explorerUrl);
+                                      },
+                                      child: Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                        decoration: BoxDecoration(color: const Color(0xFFF3E5F5), borderRadius: BorderRadius.circular(8)),
+                                        child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                          Icon(Icons.open_in_new, size: 13, color: Color(0xFF7C3AED)),
+                                          SizedBox(width: 6),
+                                          Text('View on Polygonscan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF7C3AED))),
+                                        ]),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
   }
 
   @override
@@ -410,6 +584,19 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
           Text(lang.t('myloans_pct_paid', {'pct': paidPct}), style: const TextStyle(fontSize: 11, color: _MLColors.sub)),
           Text('${_peso(balance)} ${lang.t('myloans_remaining_label')}', style: const TextStyle(fontSize: 11, color: _MLColors.sub)),
         ]),
+        // ── BAGO: "View Loan Release Record" — blockchain deduction
+        // breakdown ng RELEASE ng loan na 'to (hiwalay sa mga
+        // payment/hulog na nasa "Payments" tab). ────────────────────
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _showLoanReleaseDialog(loan),
+            icon: const Icon(Icons.account_balance, size: 15),
+            label: const Text('View Loan Release Record', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            style: OutlinedButton.styleFrom(foregroundColor: _MLColors.dark, side: const BorderSide(color: _MLColors.border), padding: const EdgeInsets.symmetric(vertical: 10)),
+          ),
+        ),
       ],
     );
   }
@@ -586,7 +773,18 @@ class _MyLoansScreenState extends State<MyLoansScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(lang.t('myloans_payment_history_label') + ' ' + lang.t('myloans_payments_count', {'n': loanPayments.length}), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _MLColors.green)),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Expanded(child: Text(lang.t('myloans_payment_history_label') + ' ' + lang.t('myloans_payments_count', {'n': loanPayments.length}), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _MLColors.green))),
+                      // ── BAGO: "Loan Release" button — kaparehong lugar
+                      // ng web's "View Loan Release Record" (nasa loob ng
+                      // expanded na "Loan History" row). ─────────────────
+                      TextButton.icon(
+                        onPressed: () => _showLoanReleaseDialog(loan),
+                        icon: const Icon(Icons.account_balance, size: 13),
+                        label: const Text('Loan Release', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                        style: TextButton.styleFrom(foregroundColor: _MLColors.dark, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      ),
+                    ]),
                     const SizedBox(height: 8),
                     if (loanPayments.isEmpty)
                       Text(lang.t('myloans_no_payments_recorded'), style: const TextStyle(fontSize: 11.5, color: _MLColors.sub))
@@ -737,6 +935,45 @@ class _HistMini extends StatelessWidget {
         Text(label.toUpperCase(), style: const TextStyle(fontSize: 8.5, color: Color(0xFFBBBBBB), fontWeight: FontWeight.w600)),
         Text(value, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: color ?? const Color(0xFF1A1A1A))),
       ],
+    );
+  }
+}
+
+// ── BAGO: helper widgets para sa Loan Release dialog ─────────────────────────
+class _ReleaseMini extends StatelessWidget {
+  final String label;
+  final String value;
+  const _ReleaseMini(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label.toUpperCase(), style: const TextStyle(fontSize: 9, color: _MLColors.sub, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A))),
+      ],
+    );
+  }
+}
+
+class _ReleaseRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool bold;
+  final bool big;
+  final Color? valueColor;
+  const _ReleaseRow(this.label, this.value, {this.bold = false, this.big = false, this.valueColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(label, style: TextStyle(fontSize: big ? 13 : 12, fontWeight: bold ? FontWeight.w800 : FontWeight.w400, color: bold && !big ? const Color(0xFF333333) : const Color(0xFF888888))),
+        Text(value, style: TextStyle(fontSize: big ? 14 : 12, fontWeight: bold ? FontWeight.w800 : FontWeight.w600, color: valueColor ?? const Color(0xFF333333))),
+      ]),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/member_provider.dart';
+import '../providers/language_provider.dart';
 import 'member_drawer.dart';
 
 // Colors matched sa .ml-topbar CSS — parehong palette ng MemberDrawer,
@@ -80,6 +81,11 @@ class _MemberScreenScaffoldState extends State<MemberScreenScaffold> {
   @override
   Widget build(BuildContext context) {
     final memberProv = context.watch<MemberProvider>();
+    // ── BAGO: language toggle — dynamic/API-based na ngayon ang salin
+    // (tingnan ang LanguageProvider/translate_api.dart/translation_
+    // cache.dart), pero wala pang button para ma-switch ito, kaya
+    // idinagdag dito sa topbar, katabi ng avatar. ────────────────────
+    final languageProv = context.watch<LanguageProvider>();
 
     return Scaffold(
       backgroundColor: const Color(0xFFD8E8CC), // .ml-content
@@ -109,6 +115,34 @@ class _MemberScreenScaffoldState extends State<MemberScreenScaffold> {
           // "Profile" nav item sa drawer, at "Sign Out" ay meron nang
           // dedikadong button sa ilalim ng drawer (kaparehong pattern
           // ng web, kung saan doon lang din nakalagay ang Sign Out). ──
+
+          // ── BAGO: Language toggle button (🌐 EN / FIL) — pinipindot
+          // para lumipat ng wika; ang salin mismo ay dynamic/API-based
+          // na (LanguageProvider.t()), pero dito lang ito ma-a-access. ──
+          Tooltip(
+            message: languageProv.language == 'en' ? 'Switch to Filipino' : 'Lumipat sa Ingles',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => context.read<LanguageProvider>().toggleLanguage(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _MSColors.green.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _MSColors.border),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.language, size: 15, color: _MSColors.green),
+                  const SizedBox(width: 4),
+                  Text(
+                    languageProv.language == 'en' ? 'EN' : 'FIL',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _MSColors.green, letterSpacing: 0.4),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
           CircleAvatar(radius: 14, backgroundColor: _MSColors.greenLt, child: Text(memberProv.initials, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700))),
           const SizedBox(width: 12),
         ],

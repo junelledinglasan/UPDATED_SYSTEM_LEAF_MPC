@@ -1,6 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider }    from "./context/AuthContext";
 import ProtectedRoute      from "./components/ProtectedRoute";
+// ── BAGO: global banner para sa "weak internet signal" indicator —
+// tingnan ang components/common/WeakConnectionBanner.jsx at
+// api/axiosInstance.js para sa detection logic. ───────────────────────
+import WeakConnectionBanner from "./components/common/WeakConnectionBanner";
+// ── BAGO: full-screen overlay na lumalabas kapag TALAGANG walang
+// internet connection (hindi lang mabagal) — tingnan ang
+// components/common/OfflineOverlay.jsx. ───────────────────────────────
+import OfflineOverlay from "./components/common/OfflineOverlay";
 
 // Layouts
 import AdminLayout         from "./layouts/AdminLayout";
@@ -43,6 +51,12 @@ import ApplyMembership     from "./components/member/ApplyMembership";
 export default function App() {
   return (
     <AuthProvider>
+      {/* ── BAGO: naka-mount ISANG BESES lang dito, sa LABAS ng
+      <Routes> — kaya gumagana ito kahit anong portal/route ang
+      kasalukuyang bukas (Admin, Staff, o Member), nang hindi na
+      kailangang idagdag ito nang paulit-ulit sa bawat Layout. ────── */}
+      <WeakConnectionBanner />
+      <OfflineOverlay />
       <BrowserRouter>
         <Routes>
 

@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { getLoansAPI, getGCashRequestsAPI } from "../../api/loans";
-import { getPaymentsAPI } from "../../api/payments";
+import { getPaymentsAPI, getLoanReleaseAPI } from "../../api/payments";
 import { useOutletContext } from "react-router-dom";
 import {
   Eye, X, Smartphone, CreditCard, ClipboardList,
   Receipt, ChevronDown, ChevronUp, CheckCircle2,
-  AlertTriangle, Clock, FileText,
+  AlertTriangle, Clock, FileText, Landmark, ShieldCheck,
 } from "lucide-react";
 import GCashPayment from "./GCashPayment";
 import { useLanguage } from "../../context/LanguageContext";
@@ -88,6 +88,123 @@ function ReceiptModal({ payment, onClose }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// BAGO: Loan Release Modal — ipinapakita ang BUONG deduction breakdown na
+// na-record sa Polygon blockchain sa oras na na-release ang loan (hindi lang
+// ang mga sunod-sunod na payment/hulog). Sinadya itong gawing "human-readable"
+// (may labels ang bawat linya, may pesos sign, hiwalay na seksyon ang
+// Verification) — para hindi na kailangang buksan pa ang raw Polygonscan/
+// Remix interface para lang malaman kung ano ang laman ng record. ───────────
+function LoanReleaseModal({ release, onClose }) {
+  const { t } = useLanguage();
+  if (!release) return null;
+  const isOnBlockchain = release.polygon_tx && release.network === "polygon";
+
+  const deductionRows = [
+    ["Interest",                    release.interest],
+    ["Service Fee",                 release.service_fee],
+    ["Filing Fee",                  release.filing_fee],
+    ["Insurance",                   release.insurance],
+    ["Savings Deposit",             release.savings_deposit],
+    ["Share Capital CBU Retention", release.share_capital_cbu],
+  ].filter(([, v]) => Number(v) > 0);
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
+      <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{padding:"18px 24px",borderBottom:"1px solid #e8f5e9",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
+          <div>
+            <div style={{fontWeight:800,fontSize:15,color:"#1b5e20",display:"flex",alignItems:"center",gap:8}}>
+              <Landmark size={16} color="#1b5e20"/> Loan Release Record
+            </div>
+            <div style={{fontSize:11,color:"#aaa",fontFamily:"monospace",marginTop:2}}>{release.tx_id}</div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"#888",padding:4}}><X size={18}/></button>
+        </div>
+
+        <div style={{padding:"16px 24px",display:"flex",flexDirection:"column",gap:0}}>
+          {/* Basic info */}
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#2e7d32",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Release Info</div>
+            {[
+              ["Loan ID",     release.loan_id],
+              ["Released At", release.released_at],
+              ["Recorded By", release.recorded_by || "—"],
+            ].map(([k,v]) => (
+              <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f5f5f5"}}>
+                <span style={{fontSize:12,color:"#888",fontWeight:600}}>{k}</span>
+                <span style={{fontSize:12,color:"#333",fontFamily:k==="Loan ID"?"monospace":"inherit"}}>{v}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Deduction breakdown — madaling basahin, labeled, may pesos */}
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#2e7d32",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Deduction Breakdown</div>
+            <div style={{background:"#f9fef9",border:"1px solid #e8f5e9",borderRadius:10,padding:"10px 14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0"}}>
+                <span style={{fontSize:12,color:"#555"}}>Loan Amount (Principal)</span>
+                <span style={{fontSize:12,fontWeight:700}}>₱{Number(release.principal||0).toLocaleString()}</span>
+              </div>
+              <div style={{height:1,background:"#e8f5e9",margin:"4px 0"}}/>
+              {deductionRows.map(([label, val]) => (
+                <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"5px 0"}}>
+                  <span style={{fontSize:12,color:"#888"}}>{label}</span>
+                  <span style={{fontSize:12,color:"#c62828"}}>− ₱{Number(val||0).toLocaleString()}</span>
+                </div>
+              ))}
+              <div style={{height:1,background:"#e8f5e9",margin:"4px 0"}}/>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0"}}>
+                <span style={{fontSize:12,fontWeight:700,color:"#333"}}>Total Deductions</span>
+                <span style={{fontSize:12,fontWeight:700,color:"#c62828"}}>− ₱{Number(release.total_deductions||0).toLocaleString()}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0 2px",borderTop:"1.5px solid #a5d6a7",marginTop:4}}>
+                <span style={{fontSize:13,fontWeight:800,color:"#1b5e20"}}>Net Proceeds (actual release)</span>
+                <span style={{fontSize:14,fontWeight:800,color:"#2e7d32"}}>₱{Number(release.net_proceeds||0).toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Verification — madaling maintindihan (hindi raw hash lang) */}
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:"#2e7d32",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Verification</div>
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:isOnBlockchain?"#e8f5e9":"#fff8e1",border:`1px solid ${isOnBlockchain?"#a5d6a7":"#ffe082"}`,borderRadius:8,marginBottom:8}}>
+              <ShieldCheck size={16} color={isOnBlockchain?"#2e7d32":"#f57c00"}/>
+              <span style={{fontSize:12,fontWeight:700,color:isOnBlockchain?"#2e7d32":"#f57c00"}}>
+                {isOnBlockchain
+                  ? "This record is locked on the Polygon blockchain — the breakdown above cannot be altered without detection."
+                  : "This record is stored locally only (blockchain not yet confirmed)."}
+              </span>
+            </div>
+            {[
+              ["SHA-256 Hash", release.hash || "—"],
+              ["Polygon TX",   release.polygon_tx || "—"],
+            ].map(([k,v]) => (
+              <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,padding:"7px 0",borderBottom:"1px solid #f5f5f5"}}>
+                <span style={{fontSize:12,color:"#888",fontWeight:600,flexShrink:0}}>{k}</span>
+                <span style={{fontSize:11,color:"#555",fontFamily:"monospace",wordBreak:"break-all",textAlign:"right"}}>{v}</span>
+              </div>
+            ))}
+            {release.polygon_tx && (
+              <a href={release.explorer_url || `https://polygonscan.com/tx/${release.polygon_tx}`} target="_blank" rel="noopener noreferrer"
+                style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,color:"#7c3aed",fontWeight:600,fontSize:12,marginTop:10,padding:"8px",background:"#f3e5f5",borderRadius:8,textDecoration:"none"}}>
+                View on Polygonscan
+              </a>
+            )}
+          </div>
+        </div>
+
+        <div style={{padding:"14px 24px",borderTop:"1px solid #f0f0f0",display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button onClick={onClose} style={{padding:"9px 20px",background:"#f5f5f5",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit"}}>{t("myloans_close")}</button>
+          <button onClick={()=>window.print()} style={{padding:"9px 20px",background:"#2e7d32",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
+            {t("myloans_print")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MyLoans() {
   const { t } = useLanguage();
   const { user } = useAuth();
@@ -114,6 +231,12 @@ export default function MyLoans() {
   const [expandedLoan,  setExpanded]   = useState(null);
   const [gcashLoan,     setGcashLoan]  = useState(null);
   const [gcashRequests, setGcashReqs]  = useState(cached?.gcashRequests || []);
+  // ── BAGO: Loan Release blockchain record ng kasalukuyang napiling loan
+  // (My Loans → Loan Details). "undefined" = hindi pa na-fetch, "null" =
+  // na-fetch na pero walang record (hal. lumang F2F loan bago pa itong
+  // feature), object = meron. ─────────────────────────────────────────
+  const [releaseRecord, setReleaseRecord] = useState(undefined);
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
 
   useEffect(() => {
     Promise.allSettled([
@@ -136,6 +259,16 @@ export default function MyLoans() {
       savePageCache("myloans", scopeKey, { loans: activeFiltered, allLoans: newAllLoans, payments: newPayments, gcashRequests: newGcash });
     }).finally(() => setLoading(false));
   }, [scopeKey]);
+
+  // ── BAGO: kunin ang Loan Release record ng napiling loan tuwing
+  // magbago ang selection (o pagbukas ng page). ──────────────────────────
+  useEffect(() => {
+    if (!selectedLoan?.id) { setReleaseRecord(undefined); return; }
+    setReleaseRecord(undefined);
+    getLoanReleaseAPI(selectedLoan.id)
+      .then(res => setReleaseRecord(res || null))
+      .catch(() => setReleaseRecord(null));
+  }, [selectedLoan?.id]);
 
   const hasPendingGCash = (loanId) =>
     gcashRequests.some(r => r.loan_id === loanId && r.status === "Pending");
@@ -173,6 +306,7 @@ export default function MyLoans() {
   return (
     <div className="ml-wrapper">
       <ReceiptModal payment={receipt} onClose={() => setReceipt(null)}/>
+      {showReleaseModal && <LoanReleaseModal release={releaseRecord} onClose={() => setShowReleaseModal(false)}/>}
 
       {gcashLoan && (
         <GCashPayment
@@ -301,6 +435,27 @@ export default function MyLoans() {
                   <span>You have a <strong>₱{Number(selectedLoan.total_penalty).toLocaleString()} penalty</strong> for {selectedLoan.months_overdue_penalized} month{selectedLoan.months_overdue_penalized!==1?"s":""} of late payment (2% of your Monthly Due per month). This is already included in your Remaining Balance. Pay as soon as possible to avoid further penalties.</span>
                 </div>
               )}
+
+              {/* ── BAGO: Loan Release blockchain record button — ipinapakita
+                  lang kung may record na (dating F2F/online loans bago itong
+                  feature ay hindi magkakaroon nito, at wala namang isyu doon). ── */}
+              {releaseRecord && (
+                <div style={{margin:"0 24px 14px",padding:"12px 16px",background:"#f1f8e9",border:"1px solid #c5e1a5",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <Landmark size={18} color="#33691e"/>
+                    <div>
+                      <div style={{fontSize:12.5,fontWeight:700,color:"#33691e"}}>Loan Release — Blockchain Verified</div>
+                      <div style={{fontSize:11,color:"#7cb342"}}>
+                        Net Proceeds: ₱{Number(releaseRecord.net_proceeds||0).toLocaleString()} · {releaseRecord.network==="polygon"?"Confirmed on Polygon":"Recorded locally"}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowReleaseModal(true)} style={{background:"#33691e",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
+                    <Eye size={13}/> View Record
+                  </button>
+                </div>
+              )}
+
               <div style={{padding:"20px 24px"}}>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:0,borderRadius:10,overflow:"hidden",border:"1px solid #e8f5e9"}}>
                   {[

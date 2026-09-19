@@ -4,6 +4,7 @@ from .views import (
     payment_stats_view,
     verify_payment_view,
     blockchain_status_view,
+    loan_release_detail_view,
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     path('stats/',                   payment_stats_view,     name='payment-stats'),
     path('verify/<str:tx_hash>/',    verify_payment_view,    name='verify-payment'),
     path('blockchain-status/',       blockchain_status_view, name='blockchain-status'),
+    path('loan-release/<int:loan_pk>/', loan_release_detail_view, name='loan-release-detail'),
 ]

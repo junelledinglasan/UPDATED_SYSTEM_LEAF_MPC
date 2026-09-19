@@ -194,10 +194,22 @@ class Loan(models.Model):
         # ONLY kung 1x pa rin sila (para hindi ma-overwrite ang
         # mano-manong pagbabago ng admin, kung sakaling may ibang
         # dahilan kung bakit iba na ang multiplier nila bago pa man
-        # ma-Completed ang unang loan). ────────────────────────────────
+        # ma-Completed ang unang loan).
+        # ── FIX: dating hindi isinasaalang-alang ang PAGKAKUMPLETO ng
+        # Share Capital (₱4,000) dito — kaya kahit partial pa lang
+        # (hal. ₱2,000) ang share capital ng miyembro, awtomatiko pa
+        # rin siyang naitataas sa 3x sa sandaling na-completed niya ang
+        # unang loan. Hindi ito tama: dapat DALAWA ang kondisyon bago
+        # mag-3x — (1) na-completed na ang unang loan, AT (2) fully
+        # paid na rin ang share capital (₱4,000 — kaparehong REQUIRED_
+        # SHARE_CAPITAL na ginagamit sa sharecap/views.py). Kung hindi
+        # pa kumpleto ang share capital, manatili munang 1x ang
+        # multiplier — kahit na-completed na ang loan — hanggang sa
+        # ma-completed ng miyembro ang ₱4,000 share capital niya. ──────
         if just_completed:
             completed_count = Loan.objects.filter(member=self.member, status='Completed').count()
-            if completed_count == 1 and self.member.loan_multiplier == 1:
+            share_capital_complete = float(self.member.share_capital) >= 4000
+            if completed_count == 1 and self.member.loan_multiplier == 1 and share_capital_complete:
                 self.member.loan_multiplier = 3
                 self.member.save(update_fields=['loan_multiplier'])
 

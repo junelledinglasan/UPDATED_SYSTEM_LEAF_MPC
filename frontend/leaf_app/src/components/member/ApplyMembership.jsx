@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { submitApplicationAPI, getMyOnlineAppAPI } from "../../api/members";
-import { GraduationCap, UserRound, BriefcaseBusiness, Upload, X, CheckCircle } from "lucide-react";
+import {
+  GraduationCap, UserRound, BriefcaseBusiness, Upload, X, CheckCircle,
+  // ── BAGO: para sa section headers (User/Calendar/ClipboardList/MapPin/
+  // Phone) — kaparehong grouping ng Admin's RegisterModal form. ──────────
+  User, Calendar as CalendarIcon, ClipboardList, MapPin, Phone,
+} from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import "./ApplyMembership.css";
 
@@ -10,12 +15,109 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://vmicqkrguocaw
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 const supabase = SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-function FormField({ name, label, type="text", options=null, required=false, full=false, value, onChange, error }) {
+// ── BAGO: minimum age requirement para makapag-apply ng membership ──
+const MIN_AGE = 18;
+
+// ══════════════════════════════════════════════════════════════════
+// OCR-BASED DOCUMENT VERIFICATION (Birth Certificate)
+// ══════════════════════════════════════════════════════════════════
+// ── BAGO: hindi ito nagpapatunay na "ikaw talaga ang tao sa ID"
+// (kailangan ng face-match/liveness check para doon, ibang malaking
+// feature na) — ang ginagawa lang nito ay OCR (Tesseract.js, tumatakbo
+// sa BROWSER ng applicant mismo, libre, walang backend cost) sa
+// na-upload na Birth Certificate, tapos tinitignan kung natagpuan ang
+// First/Last Name at Birthdate na na-type sa form KAHIT SAAN sa loob
+// ng na-basang text. FLAG LANG ITO PARA SA ADMIN REVIEW — hindi
+// ito nag-a-auto-reject/nag-a-auto-approve, dahil hindi 100% tumpak
+// ang OCR lalo na sa maputik/hilaw na scan. ─────────────────────────
+function normalizeOcrText(s) {
+  return (s || "")
+    .toUpperCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "") // alisin ang accents
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function ocrCheckNameMatch(extractedText, firstName, lastName) {
+  const t  = normalizeOcrText(extractedText);
+  const fn = normalizeOcrText(firstName);
+  const ln = normalizeOcrText(lastName);
+  if (!fn || !ln || !t) return false;
+  return t.includes(fn) && t.includes(ln);
+}
+
+const OCR_MONTH_NAMES = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+
+function ocrCheckBirthdateMatch(extractedText, birthDateStr) {
+  if (!birthDateStr) return false;
+  const parts = birthDateStr.split("-"); // "YYYY-MM-DD"
+  if (parts.length !== 3) return false;
+  const [yy, mmRaw, ddRaw] = parts;
+  const mmNum = parseInt(mmRaw, 10);
+  const monthName = OCR_MONTH_NAMES[mmNum - 1];
+  const mmPad = mmRaw.padStart(2, "0");
+  const ddPad = ddRaw.padStart(2, "0");
+
+  const upper  = normalizeOcrText(extractedText);
+  const digits = (extractedText || "").replace(/[^0-9]/g, "");
+
+  // Case A: naka-spell out ang buwan (hal. "JANUARY 1 2000")
+  const hasMonthName = monthName && upper.includes(monthName);
+  const hasYear      = upper.includes(yy);
+  if (hasMonthName && hasYear) return true;
+
+  // Case B: purong numero, kahit anong karaniwang pagkakasunod-sunod
+  if (digits.includes(`${yy}${mmPad}${ddPad}`)) return true; // YYYYMMDD
+  if (digits.includes(`${mmPad}${ddPad}${yy}`)) return true; // MMDDYYYY
+  if (digits.includes(`${ddPad}${mmPad}${yy}`)) return true; // DDMMYYYY
+
+  return false;
+}
+
+// ── "idle" (wala pa) → "scanning" (kasalukuyang OCR) → "done" (may
+// resulta na, tingnan ang ocrResult para sa match booleans) → "error"
+// (nabigo ang OCR mismo, hal. hindi ma-load ang library — hindi ito
+// pumipigil sa pag-submit, babala/paalala lang). ───────────────────────
+const OCR_IDLE = "idle", OCR_SCANNING = "scanning", OCR_DONE = "done", OCR_ERROR = "error";
+
+// ── BAGO: edad kung kailan itinuturing na "Senior" (para sa auto-
+// classification sa baba) — 60 taon pataas ayon sa RA 9994 (Expanded
+// Senior Citizens Act). ─────────────────────────────────────────────
+const SENIOR_AGE = 60;
+
+// ── BAGO: kinukwenta ang tamang edad base sa buong petsa (araw at buwan
+// isinasaalang-alang, hindi lang taon) — para hindi ma-mali ang edad kung
+// hindi pa dumarating ang birthday nila ngayong taon. ────────────────────
+function calculateAge(birthDateStr) {
+  if (!birthDateStr) return null;
+  const today = new Date();
+  const bd = new Date(birthDateStr);
+  if (Number.isNaN(bd.getTime())) return null;
+  let age = today.getFullYear() - bd.getFullYear();
+  const monthDiff = today.getMonth() - bd.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < bd.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+// ── BAGO: pinaka-latest na petsa ng kapanganakan na tinatanggap (ibig
+// sabihin, eksaktong 18 taon na ang edad ngayong araw) — ginagamit bilang
+// "max" attribute ng date input, para hindi na rin makapili ng petsang
+// mas bata sa 18 taon sa mismong date picker. ────────────────────────────
+function latestAllowedBirthDate() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_AGE);
+  return d.toISOString().split("T")[0];
+}
+
+function FormField({ name, label, type="text", options=null, required=false, full=false, value, onChange, error, max, min, disabled=false }) {
   return (
     <div className={`am-field ${full ? "am-full" : ""}`}>
       <label className="am-label">{label}{required && <span className="am-req"> *</span>}</label>
       {options ? (
-        <select className={`am-input ${error ? "am-input-err" : ""}`} name={name} value={value} onChange={onChange}>
+        <select className={`am-input ${error ? "am-input-err" : ""}`} name={name} value={value} onChange={onChange} disabled={disabled}>
           {options.map(o => typeof o === "object"
             ? <option key={o.value} value={o.value}>{o.label}</option>
             : <option key={o}>{o}</option>
@@ -23,13 +125,13 @@ function FormField({ name, label, type="text", options=null, required=false, ful
         </select>
       ) : type === "checkbox" ? (
         <label className="am-checkbox-label">
-          <input type="checkbox" name={name} checked={!!value} onChange={onChange}/>
+          <input type="checkbox" name={name} checked={!!value} onChange={onChange} disabled={disabled}/>
           <span>Yes</span>
         </label>
       ) : type === "textarea" ? (
-        <textarea className={`am-input ${error ? "am-input-err" : ""}`} name={name} value={value} onChange={onChange} rows={3} style={{resize:"none"}}/>
+        <textarea className={`am-input ${error ? "am-input-err" : ""}`} name={name} value={value} onChange={onChange} rows={3} style={{resize:"none"}} disabled={disabled}/>
       ) : (
-        <input className={`am-input ${error ? "am-input-err" : ""}`} type={type} name={name} value={value} onChange={onChange}/>
+        <input className={`am-input ${error ? "am-input-err" : ""}`} type={type} name={name} value={value} onChange={onChange} max={max} min={min} disabled={disabled}/>
       )}
       {error && <div className="am-field-err">{error}</div>}
     </div>
@@ -213,6 +315,10 @@ export default function ApplyMembership() {
   // "Birth Certificate" na lang (1 upload, dahil isang pahina lang
   // karaniwan ang birth certificate, hindi tulad ng ID na may 2 side). ──
   const [birthCertFile,    setBirthCertFile]    = useState(null);
+  // ── BAGO: OCR verification state ng Birth Certificate — tingnan
+  // ang "OCR-BASED DOCUMENT VERIFICATION" block sa itaas ng file. ─────
+  const [ocrStatus, setOcrStatus] = useState(OCR_IDLE);
+  const [ocrResult, setOcrResult] = useState({ nameMatch: false, birthdateMatch: false, extractedText: "" });
   const [birthCertPreview, setBirthCertPreview] = useState(null);
 
   const [form, setForm] = useState({
@@ -245,13 +351,18 @@ export default function ApplyMembership() {
     beneficiary_relationship:     "",
     credit_references:            "",
     // Classification
-    classification:               "Employed",
+    // ── BAGO: dating "Employed" na agad ang default, kaya kahit gumagana
+    // na yung auto-select, hindi kita ito nakikitang "gumagalaw" pag
+    // nag-type ka lang ng occupation na hindi "student" — dahil doon na
+    // pala sa Employed card mismo mula pa sa umpisa. Blangko na muna ito
+    // ("wala pang classification"), para makita mong TALAGANG umaandar
+    // ang auto-select card kapag may nailagay ka na sa Personal Info. ──
+    classification:               "",
     school_name:                  "",
     year_level:                   "",
     allowance:                    "",
     pension_income:               "",
     job_type:                     "Employed",
-    monthly_income:               "",
   });
 
   useEffect(() => {
@@ -260,6 +371,49 @@ export default function ApplyMembership() {
       .catch(() => setExistingApp(null))
       .finally(() => setCheckingApp(false));
   }, []);
+
+  // ── BAGO: awtomatikong pinipili ang Classification card (Student/
+  // Senior/Employed) base sa edad (mula sa Date of Birth) at sa laman
+  // ng Occupation — hindi na kailangang mano-manong i-click sa
+  // Classification tab. Priority: Senior citizen (60+) muna, tapos
+  // Student (kung may salitang "student"/"estudyante"/"iskolar" sa
+  // occupation), tapos Employed bilang default kapag may laman na ang
+  // occupation o monthly income. Puwede pa ring i-override manually sa
+  // Classification tab, pero mababawi ito sa susunod na pagbabago sa
+  // Personal Info (sinasadya, para laging naaayon sa totoong nilagay
+  // doon — ito mismo ang hiniling: "auto-piliin din yung classification
+  // card mismo"). ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const age = calculateAge(form.birth_date);
+    let autoClass = null;
+    if (age !== null && age >= SENIOR_AGE) {
+      autoClass = "Senior";
+    } else if (/student|estudyante|iskolar/i.test(form.occupation || "")) {
+      autoClass = "Student";
+    } else if ((form.occupation || "").trim() || Number(form.income) > 0) {
+      autoClass = "Employed";
+    }
+    if (autoClass && autoClass !== form.classification) {
+      setForm(p => ({ ...p, classification: autoClass }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.birth_date, form.occupation, form.income]);
+
+  // ── BAGO: REAL-TIME na age check — dating lumalabas lang ito pagka-
+  // click ng huling "Submit Application" button (kailangan pang punuin
+  // lahat ng ibang tabs bago pa man makita ang error). Ngayon, agad na
+  // itong lumalabas sa ilalim ng "Date of Birth" habang nagta-type/
+  // pumipili pa lang ng petsa, kahit hindi pa na-submit ang buong form. ──
+  useEffect(() => {
+    if (!form.birth_date) return;
+    const age = calculateAge(form.birth_date);
+    if (age === null) return;
+    if (age < MIN_AGE) {
+      setErrors(p => ({ ...p, birth_date: `You must be at least ${MIN_AGE} years old to apply for membership. (Current age: ${age})` }));
+    } else {
+      setErrors(p => (p.birth_date ? { ...p, birth_date: "" } : p));
+    }
+  }, [form.birth_date]);
 
   const handle = e => {
     const val = e.target.type === "checkbox" ? e.target.checked : e.target.value;
@@ -276,11 +430,41 @@ export default function ApplyMembership() {
     setBirthCertFile(file);
     setBirthCertPreview(preview);
     setErrors(p => ({ ...p, birth_cert: "" }));
+    runOcrCheck(file);
   };
 
   const handleBirthCertClear = () => {
     setBirthCertFile(null);
     setBirthCertPreview(null);
+    // ── BAGO: i-reset ang OCR result kapag pinalitan/tinanggal ang file
+    // — hindi na dapat maiwan ang lumang resulta mula sa dating file. ──
+    setOcrStatus(OCR_IDLE);
+    setOcrResult({ nameMatch: false, birthdateMatch: false, extractedText: "" });
+  };
+
+  // ── BAGO: dynamic import ng "tesseract.js" — malaking library ito
+  // (ilang MB, kasama ang OCR engine), kaya sa sandaling kailanganin
+  // lang (pagka-upload ng Birth Certificate) ito nilo-load, hindi kasama
+  // sa unang bundle na dine-download ng lahat ng pumupunta sa page. ──────
+  const runOcrCheck = async (file) => {
+    if (!form.first_name.trim() || !form.last_name.trim() || !form.birth_date) {
+      // Wala pang sapat na impormasyon (Personal Info) para ikumpara —
+      // huwag na lang mag-OCR, gawin na lang ito ng admin nang manual.
+      return;
+    }
+    setOcrStatus(OCR_SCANNING);
+    try {
+      const { default: Tesseract } = await import("tesseract.js");
+      const { data } = await Tesseract.recognize(file, "eng");
+      const extractedText = (data?.text || "").slice(0, 5000);
+      const nameMatch      = ocrCheckNameMatch(extractedText, form.first_name, form.last_name);
+      const birthdateMatch = ocrCheckBirthdateMatch(extractedText, form.birth_date);
+      setOcrResult({ nameMatch, birthdateMatch, extractedText });
+      setOcrStatus(OCR_DONE);
+    } catch (err) {
+      console.error("OCR check failed:", err);
+      setOcrStatus(OCR_ERROR);
+    }
   };
 
   const uploadToSupabase = async (file, path) => {
@@ -295,7 +479,22 @@ export default function ApplyMembership() {
     const e = {};
     if (!form.first_name.trim())     e.first_name     = "Required";
     if (!form.last_name.trim())      e.last_name      = "Required";
-    if (!form.birth_date)            e.birth_date     = "Required";
+
+    // ── BAGO: minimum age validation — dating wala talagang age check
+    // kahit anong petsa ng kapanganakan ang ilagay (pwedeng mag-apply
+    // kahit menor de edad). Kailangan 18 pataas para maka-apply ng
+    // official membership. ─────────────────────────────────────────
+    if (!form.birth_date) {
+      e.birth_date = "Required";
+    } else {
+      const age = calculateAge(form.birth_date);
+      if (age === null) {
+        e.birth_date = "Please enter a valid date.";
+      } else if (age < MIN_AGE) {
+        e.birth_date = `You must be at least ${MIN_AGE} years old to apply for membership.`;
+      }
+    }
+
     if (!form.place_of_birth.trim()) e.place_of_birth = "Required";
     if (!form.sex || !form.sex.trim()) e.sex          = "Required";
     if (!form.contact_number.trim()) e.contact_number = "Required";
@@ -304,6 +503,18 @@ export default function ApplyMembership() {
     if (!form.address.trim())        e.address        = "Please complete the address dropdowns above.";
     if (form.sex === "Other" && !(form.sex_other||"").trim()) e.sex_other = "Please specify";
     if (!form.occupation.trim())     e.occupation     = "Required";
+
+    // ── BAGO: dating optional lang ang tatlong field na ito dito, pero
+    // "Required" na sila sa Admin's F2F "Register New Member" form
+    // (RegisterModal sa AdminLayout.jsx) — parehong application form
+    // dapat ito, kaya kailangang magtugma ang required fields ng
+    // dalawa. ────────────────────────────────────────────────────────
+    if (form.income === "" || form.income === null || Number(form.income) <= 0) {
+      e.income = "Required";
+    }
+    if (!form.educational_attainment.trim())       e.educational_attainment       = "Required";
+    if (!form.religious_social_affiliation.trim()) e.religious_social_affiliation = "Required";
+
     if (form.classification === "Student") {
       if (!form.school_name.trim()) e.school_name = "Required";
       if (!form.year_level.trim())  e.year_level  = "Required";
@@ -316,7 +527,7 @@ export default function ApplyMembership() {
     const e = validate();
     if (Object.keys(e).length) {
       setErrors(e);
-      const personalFields = ["first_name","last_name","birth_date","place_of_birth","sex","sex_other","contact_number","email","address","occupation"];
+      const personalFields = ["first_name","last_name","birth_date","place_of_birth","sex","sex_other","contact_number","email","address","occupation","income","educational_attainment","religious_social_affiliation"];
       const classFields    = ["school_name","year_level"];
       const idFields       = ["birth_cert"];
       if (personalFields.some(f => e[f])) { setTab("personal");       return; }
@@ -368,7 +579,14 @@ export default function ApplyMembership() {
         allowance:                    form.allowance || 0,
         pension_income:               form.pension_income || 0,
         job_type:                     form.job_type,
-        monthly_income:               form.monthly_income || 0,
+        // ── BAGO: dati hiwalay na "monthly_income" field ito (ibang
+        // state key sa form.income), kaya kailangan pang i-retype ng
+        // applicant ang parehong halaga ng kita nang dalawang beses
+        // (isa sa Personal Info, isa pa sa Classification > Employed).
+        // Ginamit na lang ngayon ang "form.income" (Personal Info)
+        // bilang single source of truth — tingnan din ang
+        // "am-autofill-notice" sa Classification tab sa baba. ──────────
+        monthly_income:               form.income || 0,
         // ── PAALALA: dating "id_front_url"/"id_back_url" ang dalawang
         // field na 'to (Valid ID front+back). Ngayon isa na lang na
         // Birth Certificate ang ipinapasa — ipinasok ko pa rin sa
@@ -379,6 +597,14 @@ export default function ApplyMembership() {
         // tama ang key name. ─────────────────────────────────────────
         id_front_url:                 birthCertUrl,
         id_back_url:                  null,
+        // ── BAGO: OCR verification result — ipinapasa para makita ng
+        // admin sa Pending Application review (flag lang, hindi
+        // auto-reject/auto-approve). "ocr_checked" ay totoo kahit
+        // hindi tugma ang resulta — ang mahalaga, sinubukan ito. ────────
+        ocr_checked:                  ocrStatus === OCR_DONE || ocrStatus === OCR_ERROR,
+        ocr_name_match:               ocrResult.nameMatch,
+        ocr_birthdate_match:          ocrResult.birthdateMatch,
+        ocr_extracted_text:           ocrResult.extractedText,
       });
       setDone(true);
     } catch(err) {
@@ -495,35 +721,70 @@ export default function ApplyMembership() {
         <div className="am-form-body">
 
           {/* ── TAB 1: Personal Info ── */}
+          {/* ── BAGO: dating magkaibang pagkakasunod-sunod ng fields ito
+          kumpara sa Admin's "Register New Member" form (RegisterModal sa
+          AdminLayout.jsx) — halimbawa, nauna ang Address kaysa Birth Info
+          dito dati, at nauna ang Employment kaysa Contact Info. Ngayon,
+          SINUNDAN na ang EKSAKTONG parehong pagkakasunod-sunod/section
+          grouping ng Admin form (Full Name → Birth Information → Personal
+          Details → Address → Contact Information → Employment →
+          Documents), dahil "pareho lang naman yun application form". ──── */}
           {tab === "personal" && (
             <div className="am-form-grid">
+
+              {/* Section: Full Name */}
+              <div className="am-full" style={{gridColumn:"1/-1"}}>
+                <div className="am-section-header"><User size={13}/> Full Name</div>
+              </div>
               <FormField name="last_name"   label="Surname"    required value={form.last_name}   onChange={handle} error={errors.last_name}/>
               <FormField name="first_name"  label="First Name" required value={form.first_name}  onChange={handle} error={errors.first_name}/>
               <FormField name="middle_name" label="Middle Name"          value={form.middle_name} onChange={handle}/>
 
-              <PhAddressPicker onAddressChange={addr => setForm(p => ({ ...p, address: addr }))} error={errors.address}/>
-
-              <FormField name="birth_date"     label="Date of Birth"  required type="date" value={form.birth_date}     onChange={handle} error={errors.birth_date}/>
+              {/* Section: Birth Information */}
+              <div style={{gridColumn:"1/-1",marginTop:4}}>
+                <div className="am-section-header"><CalendarIcon size={13}/> Birth Information</div>
+              </div>
+              {/* ── BAGO: "max" attribute — hindi na makapipili sa date
+              picker mismo ng petsang mas bata sa 18 taon, dagdag na
+              proteksyon bukod sa validate() check sa baba. ─────────── */}
+              <FormField name="birth_date"     label="Date of Birth"  required type="date" value={form.birth_date}     onChange={handle} error={errors.birth_date} max={latestAllowedBirthDate()}/>
               <FormField name="place_of_birth" label="Place of Birth" required value={form.place_of_birth} onChange={handle} error={errors.place_of_birth}/>
 
+              {/* Section: Personal Details */}
+              <div style={{gridColumn:"1/-1",marginTop:4}}>
+                <div className="am-section-header"><ClipboardList size={13}/> Personal Details</div>
+              </div>
               <FormField name="sex"          label="Sex"          required options={["Male","Female","Non-binary","Prefer not to say","Other"]}                     value={form.sex}          onChange={handle} error={errors.sex}/>
               {form.sex === "Other" && (
                 <FormField name="sex_other" label="Please specify" required value={form.sex_other||""} onChange={handle} error={errors.sex_other}/>
               )}
               <FormField name="civil_status" label="Civil Status" options={["Single","Married","Widowed","Separated"]}                    value={form.civil_status} onChange={handle}/>
-
+              <FormField name="educational_attainment"       label="Educational Attainment"      required options={["","Elementary","High School","Vocational","College","Post Graduate"]} value={form.educational_attainment}       onChange={handle} error={errors.educational_attainment}/>
+              <FormField name="religious_social_affiliation" label="Religious/Social Affiliation" required value={form.religious_social_affiliation} onChange={handle} error={errors.religious_social_affiliation}/>
               <FormField name="tin_no"      label="TIN No."      value={form.tin_no}      onChange={handle}/>
               <FormField name="sss_gsis_no" label="SSS/GSIS No." value={form.sss_gsis_no} onChange={handle}/>
 
-              <FormField name="occupation" label="Occupation"        required value={form.occupation} onChange={handle} error={errors.occupation}/>
-              <FormField name="income"     label="Monthly Income (₱)" type="number" value={form.income} onChange={handle}/>
+              {/* Section: Address */}
+              <div style={{gridColumn:"1/-1",marginTop:4}}>
+                <div className="am-section-header"><MapPin size={13}/> Address</div>
+              </div>
+              <PhAddressPicker onAddressChange={addr => setForm(p => ({ ...p, address: addr }))} error={errors.address}/>
 
+              {/* Section: Contact Information */}
+              <div style={{gridColumn:"1/-1",marginTop:4}}>
+                <div className="am-section-header"><Phone size={13}/> Contact Information</div>
+              </div>
               <FormField name="contact_number" label="Tel. No. / CP No." required value={form.contact_number} onChange={handle} error={errors.contact_number}/>
               <FormField name="email"          label="Email Address"    type="email" required value={form.email} onChange={handle} error={errors.email}/>
 
-              <FormField name="educational_attainment"       label="Educational Attainment"      options={["Elementary","High School","Vocational","College","Post Graduate"]} value={form.educational_attainment}       onChange={handle}/>
-              <FormField name="religious_social_affiliation" label="Religious/Social Affiliation" value={form.religious_social_affiliation} onChange={handle}/>
+              {/* Section: Employment */}
+              <div style={{gridColumn:"1/-1",marginTop:4}}>
+                <div className="am-section-header"><BriefcaseBusiness size={13}/> Employment</div>
+              </div>
+              <FormField name="occupation" label="Occupation"        required value={form.occupation} onChange={handle} error={errors.occupation}/>
+              <FormField name="income"     label="Monthly Income (₱)" required type="number" value={form.income} onChange={handle} error={errors.income}/>
 
+              {/* Documents (walang header sa Admin form din dito) */}
               <div className="am-field">
                 <label className="am-label">Birth Certificate Submitted</label>
                 <label className="am-checkbox-label"><input type="checkbox" name="birth_certificate" checked={form.birth_certificate} onChange={handle}/><span>Yes</span></label>
@@ -574,6 +835,10 @@ export default function ApplyMembership() {
                     </div>
                   ))}
                 </div>
+                <div className="am-classification-auto-hint">
+                  Awtomatikong napipili ito batay sa Date of Birth at Occupation na inilagay sa Personal Info tab.
+                  Puwede mo pa ring i-click nang mano-mano kung kailangan mong baguhin.
+                </div>
               </div>
               {form.classification === "Student" && (<>
                 <FormField name="school_name" label="School Name" required value={form.school_name} onChange={handle} error={errors.school_name}/>
@@ -588,11 +853,34 @@ export default function ApplyMembership() {
                 <FormField name="pension_income" label="Monthly Pension Income (₱)" type="number" value={form.pension_income} onChange={handle}/>
               </>)}
               {form.classification === "Employed" && (<>
-                <FormField name="occupation"     label="Occupation/Job Title" value={form.occupation}     onChange={handle}/>
+                {/* ── BAGO: dating hiwalay na manual input ito ("Occupation/Job
+                Title" gamit ang "occupation" state — pareho na pala ito sa
+                "Occupation" field sa Personal Info, kaya doble ang pinapasok
+                ng applicant; "Monthly Income" gamit naman ang HIWALAY na
+                "monthly_income" state, kaya doble rin ang pinapasok ng
+                income). Ngayon, AUTO FILL-UP na lang mula sa Personal Info —
+                read-only display na sumasalamin sa "occupation"/"income" na
+                ilinagay na doon, para hindi na kailangang i-type ulit. ────── */}
+                <div className="am-field am-full am-autofill-notice">
+                  <label className="am-label">Auto-filled from Personal Info</label>
+                  <div className="am-autofill-row">
+                    <div>
+                      <div className="am-autofill-label">Occupation</div>
+                      <div className="am-autofill-val">{form.occupation || "—"}</div>
+                    </div>
+                    <div>
+                      <div className="am-autofill-label">Monthly Income</div>
+                      <div className="am-autofill-val">₱{Number(form.income || 0).toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div className="am-autofill-hint">
+                    Gamit na ang Occupation at Monthly Income na inilagay sa Personal Info tab.
+                    Pumunta sa <strong>Personal Info</strong> tab kung kailangan itong baguhin.
+                  </div>
+                </div>
                 <FormField name="job_type"       label="Employment Type"
                   options={["Employed","Self-Employed","Business","Freelance","Other"]}
                   value={form.job_type} onChange={handle}/>
-                <FormField name="monthly_income" label="Monthly Income (₱)" type="number" value={form.monthly_income} onChange={handle}/>
               </>)}
             </div>
           )}
@@ -614,6 +902,33 @@ export default function ApplyMembership() {
               )}
 
               <IDUploadField label="Birth Certificate" required file={birthCertFile} preview={birthCertPreview} onSelect={handleBirthCertSelect} onClear={handleBirthCertClear} error={errors.birth_cert}/>
+
+              {/* ── BAGO: OCR auto-verification result — hindi ito
+                  pumipigil sa pag-submit kahit anong resulta, "flag lang"
+                  ito para malaman ng admin sa office kung kailangan ng
+                  mas masusing pagsusuri ng dokumento. ─────────────────── */}
+              {ocrStatus === OCR_SCANNING && (
+                <div className="am-field am-full" style={{background:"#e3f2fd",borderRadius:8,padding:"10px 14px",border:"1px solid #90caf9",fontSize:11.5,color:"#0d47a1",display:"flex",alignItems:"center",gap:8}}>
+                  <span className="am-spinner" style={{borderTopColor:"#0d47a1",borderColor:"rgba(13,71,161,0.25)"}}/>
+                  Scanning document for automatic verification...
+                </div>
+              )}
+              {ocrStatus === OCR_DONE && (
+                ocrResult.nameMatch && ocrResult.birthdateMatch ? (
+                  <div className="am-field am-full" style={{background:"#e8f5e9",borderRadius:8,padding:"10px 14px",border:"1px solid #a5d6a7",fontSize:11.5,color:"#2e7d32",fontWeight:600}}>
+                    ✓ Automated check: Your Name and Birthdate were found on the uploaded document.
+                  </div>
+                ) : (
+                  <div className="am-field am-full" style={{background:"#fff8e1",borderRadius:8,padding:"10px 14px",border:"1px solid #ffe082",fontSize:11.5,color:"#e65100",fontWeight:600}}>
+                    ⚠ Automated check could not confirm your {!ocrResult.nameMatch && !ocrResult.birthdateMatch ? "Name and Birthdate" : !ocrResult.nameMatch ? "Name" : "Birthdate"} on the document. This won't stop your submission — our staff will verify it manually. Please make sure the photo is clear and fully readable.
+                  </div>
+                )
+              )}
+              {ocrStatus === OCR_ERROR && (
+                <div className="am-field am-full" style={{background:"#f5f5f5",borderRadius:8,padding:"10px 14px",border:"1px solid #e0e0e0",fontSize:11.5,color:"#888"}}>
+                  Automatic document check is unavailable right now — no problem, our staff will verify your document manually.
+                </div>
+              )}
 
               <div className="am-field am-full" style={{background:"#fff8e1",borderRadius:8,padding:"10px 14px",border:"1px solid #ffe082",fontSize:11,color:"#f57c00"}}>
                 Make sure the document photo is clear and fully readable. Blurry or incomplete images may cause rejection.

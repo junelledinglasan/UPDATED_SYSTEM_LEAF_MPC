@@ -99,8 +99,70 @@ class _NewLoanApplicationScreenState extends State<NewLoanApplicationScreen> {
   // basta share capital lang. ─────────────────────────────────────────
   double get _maxLoanable => double.tryParse('${_selMember?['max_loanable'] ?? _shareCapital}') ?? _shareCapital;
   double get _amount => double.tryParse(_amountCtrl.text) ?? 0;
-  double get _defaultRate => _amount <= 50000 ? 0.0125 : _amount <= 150000 ? 0.01125 : 0.01;
+
+  // ── FIX: dating iisang tiered formula (Regular Loan-style) lang ang
+  // ginagamit dito, kahit anong loan type ang napili — mali ito, dahil
+  // FIXED (hindi tiered) ang rate ng Appliance Loan (1.25%) at ATM Loan
+  // (2%), at 0% naman ang Petty Cash Loan. Kaparehong ayos ng backend's
+  // "get_loan_fee_structure()" at member-side's "_feeStructure()". ────
+  double get _defaultRate {
+    switch (_loanType) {
+      case 'Appliance Loan':
+        return 0.0125;
+      case 'ATM Loan':
+        return 0.02;
+      case 'Petty Cash Loan':
+        return 0;
+      default: // Regular Loan
+        return _amount <= 50000 ? 0.0125 : _amount <= 150000 ? 0.01125 : 0.01;
+    }
+  }
+
   double get _effectiveRate => _interestOverride > 0 ? _interestOverride / 100 : _defaultRate;
+
+  // ── BAGO: Petty Cash Loan ₱2,000 MAXIMUM cap (hindi minimum, hindi
+  // fixed) — kung mas mababa pa rito ang max loanable ng member (share
+  // capital × multiplier), iyon na ang mas mahigpit na limitasyon.
+  // Kaparehong logic ng member-side's "_effectiveMax" getter. ─────────
+  double get _effectiveMax {
+    if (_loanType == 'Petty Cash Loan') {
+      return _maxLoanable > 0 ? (_maxLoanable < 2000 ? _maxLoanable : 2000.0) : 2000.0;
+    }
+    return _maxLoanable;
+  }
+
+  // ── BAGO: pareho ring gagamitin ng computation preview ang tamang
+  // showComp condition — Petty Cash Loan ay walang ₱3,000 minimum
+  // (amount > 0 na lang ang kailangan) — kaya dati, kahit anong halaga
+  // ang i-type dito para sa Petty Cash Loan (max ₱2,000), HINDI kailanman
+  // lumalabas ang computation preview (na naka-gate sa "_amount >= 3000"). ──
+  bool get _showComp => _loanType == 'Petty Cash Loan' ? _amount > 0 : _amount >= 3000;
+
+  // ── BAGO: i-reset ang mga admin-editable na rate papuntang tamang
+  // DEFAULT ng napiling loan type — tinatawag ito kapag nagpalit ng
+  // Loan Type, at ng "Reset to defaults" button. Dati, "Reset to
+  // defaults" (at ang paunang state) ay laging Regular Loan's defaults
+  // kahit anong loan type — kaya mali ang unang nakikita ng admin na
+  // computation para sa Appliance/ATM/Petty Cash Loan hangga't hindi
+  // niya ito mano-manong ini-edit. ─────────────────────────────────────
+  void _applyDefaultRatesForType(String type, double amount) {
+    switch (type) {
+      case 'Appliance Loan':
+        // Walang CBU, walang Savings Deposit para sa Appliance Loan.
+        _serviceFeePct = 3; _insurancePct = 1.25; _sdPct = 0; _scPct = 0; _filingFeeAmt = 50; _interestOverride = 0;
+        break;
+      case 'ATM Loan':
+        _serviceFeePct = 3; _insurancePct = 1.25; _sdPct = 1; _scPct = 3; _filingFeeAmt = 100; _interestOverride = 0;
+        break;
+      case 'Petty Cash Loan':
+        // 3% Service Fee LANG — walang interest, walang Filing Fee,
+        // walang Insurance, walang CBU, walang Savings Deposit.
+        _serviceFeePct = 3; _insurancePct = 0; _sdPct = 0; _scPct = 0; _filingFeeAmt = 0; _interestOverride = 0;
+        break;
+      default: // Regular Loan
+        _serviceFeePct = 3; _insurancePct = 1.25; _sdPct = 1; _scPct = 3; _filingFeeAmt = amount <= 50000 ? 50 : 100; _interestOverride = 0;
+    }
+  }
   double get _interest => _effectiveRate * _amount * _term;
   double get _serviceFee => _amount * (_serviceFeePct / 100);
   double get _filingFee => _filingFeeAmt;
@@ -115,8 +177,10 @@ class _NewLoanApplicationScreenState extends State<NewLoanApplicationScreen> {
 
   // ── BAGO: dating "jump" na options (3,6,9,12,18,24,36,48) —
   // ngayon sunod-sunod na 1-12 buwan, dahil dito na lang talaga
-  // pipili ang admin. ─────────────────────────────────────────────────
-  List<int> get _termOptions => List.generate(12, (i) => i + 1);
+  // pipili ang admin.
+  // ── FIX: Petty Cash Loan ay LOCKED sa 1 buwan lang ("payable within
+  // 1 month only") — kaparehong ayos ng member-side at backend. ───────
+  List<int> get _termOptions => _loanType == 'Petty Cash Loan' ? const [1] : List.generate(12, (i) => i + 1);
 
   // ── BAGO: mag-scroll at mag-focus sa field na may error. ─────────────
   void _scrollToField(GlobalKey key, FocusNode focus) {
@@ -132,8 +196,17 @@ class _NewLoanApplicationScreenState extends State<NewLoanApplicationScreen> {
     // ── BAGO: tinanggal ang fixed na ₱3,000 minimum — desisyon na
     // lang ng admin/member kung magkano, basta hindi lalagpas sa max
     // loanable (na ino-enforce na rin habang nagta-type, hindi lang
-    // sa submit). ───────────────────────────────────────────────────
-    if (_amount > _maxLoanable) { setState(() => _amountError = 'Amount exceeds max loanable of ₱${_maxLoanable.toStringAsFixed(0)}.'); _scrollToField(_amountFieldKey, _amountFocus); return; }
+    // sa submit).
+    // ── FIX: gamit na ngayon ang "_effectiveMax" (hindi na basta
+    // "_maxLoanable") — para talagang ma-enforce ang ₱2,000 cap ng
+    // Petty Cash Loan sa submit, hindi lang sa keystroke-level capping. ──
+    if (_amount > _effectiveMax) {
+      setState(() => _amountError = _loanType == 'Petty Cash Loan'
+          ? 'Petty Cash Loan has a maximum amount of ₱2,000.'
+          : 'Amount exceeds max loanable of ₱${_effectiveMax.toStringAsFixed(0)}.');
+      _scrollToField(_amountFieldKey, _amountFocus);
+      return;
+    }
     if (_purposeCtrl.text.trim().isEmpty) { setState(() => _purposeError = 'Purpose is required.'); _scrollToField(_purposeFieldKey, _purposeFocus); return; }
 
     setState(() => _loading = true);
@@ -329,7 +402,24 @@ class _NewLoanApplicationScreenState extends State<NewLoanApplicationScreen> {
                 DropdownButtonFormField<String>(
                   value: _loanType,
                   items: kLoanTypesList.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12.5)))).toList(),
-                  onChanged: (v) => setState(() { _loanType = v!; if (!_termOptions.contains(_term)) _term = _termOptions.first; }),
+                  // ── FIX: dating hindi na-rereset ang mga rate (Service
+                  // Fee/Insurance/SD/CBU/Filing Fee) kapag nagpalit ng
+                  // loan type — kaya Regular Loan's defaults pa rin ang
+                  // nananatili kahit Appliance/ATM/Petty Cash Loan na ang
+                  // napili, hangga't hindi ito mano-manong ini-edit ng
+                  // admin. Idinagdag din: clear ng amount/error tuwing
+                  // magpapalit ng type (kaparehong UX ng member-side),
+                  // dahil posibleng lampas na sa bagong _effectiveMax
+                  // ang naka-type na halaga (hal. papuntang Petty Cash
+                  // Loan mula sa isang malaking Regular Loan amount). ────
+                  onChanged: (v) => setState(() {
+                    _loanType = v!;
+                    _applyDefaultRatesForType(_loanType, _amount);
+                    _amountCtrl.clear();
+                    _lastValidAmount = '';
+                    _amountError = null;
+                    _term = _termOptions.first;
+                  }),
                   decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                 ),
                 const SizedBox(height: 12),
@@ -359,7 +449,12 @@ class _NewLoanApplicationScreenState extends State<NewLoanApplicationScreen> {
                             return;
                           }
                           final parsed = int.tryParse(digitsOnly) ?? 0;
-                          if (_maxLoanable > 0 && parsed > _maxLoanable) {
+                          // ── FIX: gamit na ngayon ang "_effectiveMax"
+                          // (hindi na basta "_maxLoanable") — para
+                          // ma-cap talaga ang Petty Cash Loan sa ₱2,000
+                          // kahit mas malaki pa ang member's overall max
+                          // loanable. ──────────────────────────────────
+                          if (_effectiveMax > 0 && parsed > _effectiveMax) {
                             // tanggihan, ibalik sa huling valid na value
                             _amountCtrl.value = TextEditingValue(
                               text: _lastValidAmount,
@@ -376,13 +471,22 @@ class _NewLoanApplicationScreenState extends State<NewLoanApplicationScreen> {
                           }
                           setState(() => _amountError = null);
                         },
-                        decoration: InputDecoration(prefixText: '₱ ', hintText: 'Enter amount', isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), errorText: _amountError),
+                        decoration: InputDecoration(prefixText: '₱ ', hintText: _loanType == 'Petty Cash Loan' ? 'Max ₱2,000' : 'Enter amount', isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), errorText: _amountError),
                       ),
-                      // ── BAGO: "Range: ₱3,000 – ₱X" → "Max Loanable:
-                      // ₱X" na lang, dahil tinanggal na ang minimum. ──
-                      // hindi malinaw kung ano ang pinakamataas na
-                      // puwedeng i-type. ─────────────────────────────
-                      Padding(padding: const EdgeInsets.only(top: 4), child: Text('Max Loanable: ₱${_maxLoanable.toStringAsFixed(0)}', style: const TextStyle(fontSize: 9.5, color: _NLColors.sub))),
+                      // ── FIX: "Max Loanable: ₱X" → kailangang gamit ang
+                      // "_effectiveMax" (hindi basta "_maxLoanable") para
+                      // makita ng admin ang TAMANG hangganan kapag Petty
+                      // Cash Loan ang napili (₱2,000 cap, hindi ang buong
+                      // max loanable ng member). ───────────────────────
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          _loanType == 'Petty Cash Loan'
+                              ? 'Max: ₱2,000 (Petty Cash Loan cap) · Member\'s max loanable: ₱${_maxLoanable.toStringAsFixed(0)}'
+                              : 'Max Loanable: ₱${_effectiveMax.toStringAsFixed(0)}',
+                          style: const TextStyle(fontSize: 9.5, color: _NLColors.sub),
+                        ),
+                      ),
                     ]),
                   ),
                   const SizedBox(width: 10),
@@ -390,12 +494,18 @@ class _NewLoanApplicationScreenState extends State<NewLoanApplicationScreen> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       const Text('Term (months)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _NLColors.sub)),
                       const SizedBox(height: 4),
+                      // ── FIX: naka-disable/locked na ang dropdown na 'to
+                      // kapag Petty Cash Loan ang napili (1 buwan lang
+                      // talaga ang term nito — "payable within 1 month
+                      // only"). ───────────────────────────────────────
                       DropdownButtonFormField<int>(
                         value: _termOptions.contains(_term) ? _term : _termOptions.first,
                         items: _termOptions.map((t) => DropdownMenuItem(value: t, child: Text('$t month${t != 1 ? "s" : ""}', style: const TextStyle(fontSize: 12.5)))).toList(),
-                        onChanged: (v) => setState(() => _term = v!),
+                        onChanged: _loanType == 'Petty Cash Loan' ? null : (v) => setState(() => _term = v!),
                         decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                       ),
+                      if (_loanType == 'Petty Cash Loan')
+                        const Padding(padding: EdgeInsets.only(top: 4), child: Text('Payable within 1 month only.', style: TextStyle(fontSize: 9.5, color: _NLColors.sub))),
                     ]),
                   ),
                 ]),
@@ -408,7 +518,13 @@ class _NewLoanApplicationScreenState extends State<NewLoanApplicationScreen> {
                 const SizedBox(height: 4),
                 TextField(controller: _collateralCtrl, decoration: InputDecoration(hintText: 'e.g. Land title, vehicle', isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
 
-                if (_amount >= 3000) ...[
+                // ── FIX: dating "_amount >= 3000" — dahil ₱2,000 na
+                // lang ang maximum ng Petty Cash Loan, hindi ito
+                // KAILANMAN aabot sa ₱3,000, kaya HINDI KAILANMAN
+                // lumalabas ang computation preview para dito. Gamit
+                // na ngayon ang "_showComp" (amount > 0 na lang para sa
+                // Petty Cash Loan). ─────────────────────────────────
+                if (_showComp) ...[
                   const SizedBox(height: 16),
                   Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                     const Text('Loan Computation (LEAF MPC)', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _NLColors.title)),
@@ -438,7 +554,13 @@ class _NewLoanApplicationScreenState extends State<NewLoanApplicationScreen> {
                           ]),
                           const SizedBox(height: 4),
                           TextButton(
-                            onPressed: () => setState(() { _serviceFeePct = 3; _insurancePct = 1.25; _sdPct = 1; _scPct = 3; _filingFeeAmt = _amount <= 50000 ? 50 : 100; _interestOverride = 0; }),
+                            // ── FIX: dating naka-hardcode sa Regular
+                            // Loan's defaults ang "reset" na 'to kahit
+                            // anong loan type ang napili — gamit na
+                            // ngayon ang "_applyDefaultRatesForType()"
+                            // para tamang default per loan type ang
+                            // ibinabalik. ───────────────────────────
+                            onPressed: () => setState(() => _applyDefaultRatesForType(_loanType, _amount)),
                             child: const Text('↺ Reset to defaults', style: TextStyle(fontSize: 10, color: _NLColors.red)),
                           ),
                         ],
@@ -460,12 +582,23 @@ class _NewLoanApplicationScreenState extends State<NewLoanApplicationScreen> {
                       // naman. Tinanggal na ang linyang "Interest Rate",
                       // inilipat na lang ang rate info dito sa loob
                       // mismo ng "Interest" deduction row. ─────────────
-                      _PrevRow('Interest (${(_effectiveRate * 100).toStringAsFixed(3)}%/mo × $_term mo${_interestOverride > 0 ? " (custom)" : ""})', '− ₱${_interest.toStringAsFixed(2)}', color: _NLColors.red),
-                      _PrevRow('Service Fee ($_serviceFeePct%)', '− ₱${_serviceFee.toStringAsFixed(2)}', color: _NLColors.red),
-                      _PrevRow('Filing Fee (₱$_filingFeeAmt)', '− ₱${_filingFee.toStringAsFixed(2)}', color: _NLColors.red),
-                      _PrevRow('Insurance ($_insurancePct%)', '− ₱${_insurance.toStringAsFixed(2)}', color: _NLColors.red),
-                      _PrevRow('Savings Deposit ($_sdPct%)', '− ₱${_sd.toStringAsFixed(2)}', color: _NLColors.red),
-                      _PrevRow('Share Capital CBU ($_scPct%)', '− ₱${_sc.toStringAsFixed(2)}', color: _NLColors.red),
+                      // ── FIX: itinatago na ang mga deduction row kapag
+                      // 0 ang rate (hal. Petty Cash Loan — walang
+                      // interest/filing fee/insurance/SD/CBU) imbes na
+                      // magpakita ng "₱0.00" clutter. Kaparehong ayos ng
+                      // member-side's computation preview. ─────────────
+                      if (_effectiveRate > 0)
+                        _PrevRow('Interest (${(_effectiveRate * 100).toStringAsFixed(3)}%/mo × $_term mo${_interestOverride > 0 ? " (custom)" : ""})', '− ₱${_interest.toStringAsFixed(2)}', color: _NLColors.red),
+                      if (_serviceFeePct > 0)
+                        _PrevRow('Service Fee ($_serviceFeePct%)', '− ₱${_serviceFee.toStringAsFixed(2)}', color: _NLColors.red),
+                      if (_filingFeeAmt > 0)
+                        _PrevRow('Filing Fee (₱$_filingFeeAmt)', '− ₱${_filingFee.toStringAsFixed(2)}', color: _NLColors.red),
+                      if (_insurancePct > 0)
+                        _PrevRow('Insurance ($_insurancePct%)', '− ₱${_insurance.toStringAsFixed(2)}', color: _NLColors.red),
+                      if (_sdPct > 0)
+                        _PrevRow('Savings Deposit ($_sdPct%)', '− ₱${_sd.toStringAsFixed(2)}', color: _NLColors.red),
+                      if (_scPct > 0)
+                        _PrevRow('Share Capital CBU ($_scPct%)', '− ₱${_sc.toStringAsFixed(2)}', color: _NLColors.red),
                       const Divider(),
                       _PrevRow('Net Proceeds', '₱${_netProceeds.toStringAsFixed(2)}', bold: true),
                     ]),

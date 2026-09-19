@@ -158,6 +158,26 @@
   cursor: pointer;
 }
 
+/* ─── Section headers ─────────────────────────────────────────────────────── */
+/* ── BAGO: kaparehong visual style ng Admin's ".al-section-header"
+(RegisterModal sa AdminLayout.jsx/.css) — para magkatugma ang section
+grouping/layout ng dalawang application forms. ────────────────────────────── */
+.am-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #1b5e20;
+  padding: 10px 14px;
+  background: #f7faf7;
+  border-left: 3px solid #2e7d32;
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 4px;
+}
+
 /* ─── Classification cards ────────────────────────────────────────────────── */
 .am-class-options {
   display: flex;
@@ -178,6 +198,50 @@
 .am-class-card.selected { border-color: #2e7d32; background: #e8f5e9; box-shadow: 0 0 0 3px rgba(46,125,50,0.10); }
 .am-class-icon { font-size: 30px; margin-bottom: 8px; }
 .am-class-name { font-size: 12px; font-weight: 700; color: #2e7d32; }
+
+/* ── BAGO: paalala na automatic ang pag-pili ng classification card ── */
+.am-classification-auto-hint {
+  font-size: 11px;
+  color: #7a9260;
+  margin-top: 10px;
+  line-height: 1.5;
+}
+
+/* ─── Classification > Employed auto-fill notice ──────────────────────────── */
+/* ── BAGO: pinapalitan nito ang dating duplicate na "Occupation"/"Monthly
+Income" manual inputs sa Classification > Employed — read-only na lang
+ito, sinasalamin ang parehong values na inilagay sa Personal Info tab. ── */
+.am-autofill-notice {
+  background: #f1f8e9;
+  border: 1.5px solid #c8e6c9;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.am-autofill-row {
+  display: flex;
+  gap: 24px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.am-autofill-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #7a9260;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.am-autofill-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1b5e20;
+  margin-top: 2px;
+}
+.am-autofill-hint {
+  font-size: 11px;
+  color: #558b2f;
+  margin-top: 10px;
+  line-height: 1.5;
+}
 
 /* ─── Form footer ─────────────────────────────────────────────────────────── */
 .am-form-footer {
@@ -316,4 +380,5 @@
   .am-success-actions   { flex-direction: column; }
   .am-tab               { font-size: 11px; padding: 12px 6px; gap: 4px; }
   .am-tab-num           { width: 18px; height: 18px; font-size: 10px; }
+  .am-autofill-row      { gap: 16px; }
 }

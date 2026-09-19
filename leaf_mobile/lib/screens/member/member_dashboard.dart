@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../providers/member_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../services/loans_service.dart';
 import '../../services/payments_service.dart';
 import '../../services/announcements_service.dart';
@@ -146,6 +147,15 @@ class _MemberDashboardState extends State<MemberDashboard> {
   }
 
   Widget _buildOfficialDashboard(MemberProvider memberProv) {
+    // ── BAGO: dynamic/API-based na translation — "t" shortcut function
+    // mula sa LanguageProvider, gagamitin sa lahat ng English text sa
+    // ibaba. Ang mismong English text ang ginagamit bilang key, kaya
+    // hindi na kailangang idagdag muna sa translations.dart — kung
+    // wala pang manual na Filipino entry doon, awtomatikong tatawag sa
+    // MyMemory API at ise-cache. ─────────────────────────────────────
+    final languageProv = context.watch<LanguageProvider>();
+    String t(String key, [Map<String, dynamic>? vars]) => languageProv.t(key, vars);
+
     final activeLoan = _loans.firstWhere((l) => l['status'] == 'Active', orElse: () => _loans.isNotEmpty ? _loans.first : null);
     final totalLoan = double.tryParse('${activeLoan?['amount'] ?? 0}') ?? 0;
     final balance = double.tryParse('${activeLoan?['balance'] ?? 0}') ?? 0;
@@ -154,6 +164,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
     final paidPct = totalLoan > 0 ? ((totalPaid / totalLoan) * 100).round() : 0;
     final shareCapital = double.tryParse('${memberProv.profile?['share_capital'] ?? 0}') ?? 0;
     final firstname = memberProv.name.split(' ').first;
+    final loanTypeDisplay = activeLoan?['loan_type'] != null ? t('${activeLoan!['loan_type']}') : t('No active loan');
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -172,9 +183,9 @@ class _MemberDashboardState extends State<MemberDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Good day, $firstname!', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                Text(t('Good day, {name}!', {'name': firstname}), style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 2),
-                const Text("Here's a summary of your LEAF MPC account.", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                Text(t("Here's a summary of your LEAF MPC account."), style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 const SizedBox(height: 14),
                 Row(children: [
                   CircleAvatar(radius: 18, backgroundColor: Colors.white.withOpacity(0.2), child: Text(memberProv.initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800))),
@@ -191,7 +202,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-                    child: const Text('Active', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                    child: Text(t('Active'), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
                   ),
                 ]),
               ],
@@ -208,11 +219,11 @@ class _MemberDashboardState extends State<MemberDashboard> {
             mainAxisSpacing: 10,
             childAspectRatio: 1.5,
             children: [
-              _KpiCard(icon: Icons.account_balance_wallet_outlined, color: _MDColors.red, bg: const Color(0xFFFCE4EC), borderColor: const Color(0xFFFFCDD2), label: 'Remaining Balance', value: _peso(balance), sub: '${activeLoan?['loan_type'] ?? "No active loan"} · ${activeLoan?['loan_id'] ?? "—"}', onTap: () => Navigator.pushNamed(context, '/member/my-loans')),
-              _KpiCard(icon: Icons.calendar_today_outlined, color: _MDColors.orange, bg: const Color(0xFFF5F5F5), label: 'Next Payment Due', value: _peso(monthlyDue, decimals: true), sub: '${activeLoan?['next_due_date'] ?? "—"}', onTap: () => Navigator.pushNamed(context, '/member/my-loans')),
-              _KpiCard(icon: Icons.check_circle_outline, color: _MDColors.green, bg: const Color(0xFFF5F5F5), label: 'Total Paid', value: _peso(totalPaid), sub: '$paidPct% of loan completed', onTap: () => Navigator.pushNamed(context, '/member/my-loans')),
+              _KpiCard(icon: Icons.account_balance_wallet_outlined, color: _MDColors.red, bg: const Color(0xFFFCE4EC), borderColor: const Color(0xFFFFCDD2), label: t('Remaining Balance'), value: _peso(balance), sub: '$loanTypeDisplay · ${activeLoan?['loan_id'] ?? "—"}', onTap: () => Navigator.pushNamed(context, '/member/my-loans')),
+              _KpiCard(icon: Icons.calendar_today_outlined, color: _MDColors.orange, bg: const Color(0xFFF5F5F5), label: t('Next Payment Due'), value: _peso(monthlyDue, decimals: true), sub: '${activeLoan?['next_due_date'] ?? "—"}', onTap: () => Navigator.pushNamed(context, '/member/my-loans')),
+              _KpiCard(icon: Icons.check_circle_outline, color: _MDColors.green, bg: const Color(0xFFF5F5F5), label: t('Total Paid'), value: _peso(totalPaid), sub: t('{pct}% of loan completed', {'pct': paidPct}), onTap: () => Navigator.pushNamed(context, '/member/my-loans')),
               _KpiCard(
-                icon: Icons.trending_up, color: _MDColors.blue, bg: const Color(0xFFF5F5F5), label: 'Share Capital', value: _peso(shareCapital), sub: 'Max loanable: ${_peso(shareCapital)}',
+                icon: Icons.trending_up, color: _MDColors.blue, bg: const Color(0xFFF5F5F5), label: t('Share Capital'), value: _peso(shareCapital), sub: t('Max loanable: {amount}', {'amount': _peso(shareCapital)}),
                 onTap: () {
                   final memberId = memberProv.profile?['id'];
                   if (memberId != null) {
@@ -232,25 +243,25 @@ class _MemberDashboardState extends State<MemberDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Loan Repayment Progress', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _MDColors.dark)),
-                Text('${activeLoan?['loan_type'] ?? "—"} — ${activeLoan?['loan_id'] ?? "—"}', style: const TextStyle(fontSize: 10, color: _MDColors.sub)),
+                Text(t('Loan Repayment Progress'), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _MDColors.dark)),
+                Text('$loanTypeDisplay — ${activeLoan?['loan_id'] ?? "—"}', style: const TextStyle(fontSize: 10, color: _MDColors.sub)),
                 const SizedBox(height: 10),
                 ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: (paidPct / 100).clamp(0, 1), backgroundColor: const Color(0xFFF0F0F0), color: _MDColors.green, minHeight: 10)),
                 const SizedBox(height: 6),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text('${_peso(totalPaid)} paid', style: const TextStyle(fontSize: 10.5, color: _MDColors.green, fontWeight: FontWeight.w700)),
+                  Text(t('{amount} paid', {'amount': _peso(totalPaid)}), style: const TextStyle(fontSize: 10.5, color: _MDColors.green, fontWeight: FontWeight.w700)),
                   Text('$paidPct%', style: const TextStyle(fontSize: 10.5, color: _MDColors.sub)),
-                  Text('${_peso(balance)} left', style: const TextStyle(fontSize: 10.5, color: _MDColors.red)),
+                  Text(t('{amount} left', {'amount': _peso(balance)}), style: const TextStyle(fontSize: 10.5, color: _MDColors.red)),
                 ]),
                 const SizedBox(height: 12),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(child: _LoanDetailItem('Principal', _peso(totalLoan))),
-                  Expanded(child: _LoanDetailItem('Monthly Due', _peso(monthlyDue, decimals: true), color: _MDColors.green)),
+                  Expanded(child: _LoanDetailItem(t('Principal'), _peso(totalLoan))),
+                  Expanded(child: _LoanDetailItem(t('Monthly Due'), _peso(monthlyDue, decimals: true), color: _MDColors.green)),
                 ]),
                 const SizedBox(height: 10),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(child: _LoanDetailItem('Status', '${activeLoan?['status'] ?? "—"}')),
-                  Expanded(child: _LoanDetailItem('Next Due', '${activeLoan?['next_due_date'] ?? "—"}')),
+                  Expanded(child: _LoanDetailItem(t('Status'), activeLoan?['status'] != null ? t('${activeLoan!['status']}') : '—')),
+                  Expanded(child: _LoanDetailItem(t('Next Due'), '${activeLoan?['next_due_date'] ?? "—"}')),
                 ]),
               ],
             ),
@@ -265,11 +276,11 @@ class _MemberDashboardState extends State<MemberDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Loan Breakdown', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _MDColors.dark)),
-                const Text('Paid vs Remaining', style: TextStyle(fontSize: 10, color: _MDColors.sub)),
+                Text(t('Loan Breakdown'), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _MDColors.dark)),
+                Text(t('Paid vs Remaining'), style: const TextStyle(fontSize: 10, color: _MDColors.sub)),
                 const SizedBox(height: 10),
                 if (totalLoan == 0)
-                  const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Center(child: Text('No active loan.', style: TextStyle(color: _MDColors.sub))))
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Center(child: Text(t('No active loan.'), style: const TextStyle(color: _MDColors.sub))))
                 else
                   SizedBox(
                     height: 180,
@@ -284,9 +295,9 @@ class _MemberDashboardState extends State<MemberDashboard> {
                       Expanded(
                         flex: 2,
                         child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          _LegendRow(color: _MDColors.green, label: 'Paid'),
+                          _LegendRow(color: _MDColors.green, label: t('Paid')),
                           const SizedBox(height: 6),
-                          _LegendRow(color: const Color(0xFFC8E6C9), label: 'Remaining'),
+                          _LegendRow(color: const Color(0xFFC8E6C9), label: t('Remaining')),
                         ]),
                       ),
                     ]),
@@ -304,11 +315,11 @@ class _MemberDashboardState extends State<MemberDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Payment History', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _MDColors.dark)),
-                const Text('Last 6 months', style: TextStyle(fontSize: 10, color: _MDColors.sub)),
+                Text(t('Payment History'), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _MDColors.dark)),
+                Text(t('Last 6 months'), style: const TextStyle(fontSize: 10, color: _MDColors.sub)),
                 const SizedBox(height: 10),
                 if (_payments.isEmpty)
-                  const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Center(child: Text('No payment history yet.', style: TextStyle(color: _MDColors.sub))))
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Center(child: Text(t('No payment history yet.'), style: const TextStyle(color: _MDColors.sub))))
                 else
                   SizedBox(height: 160, child: _buildPaymentLineChart()),
               ],
@@ -325,12 +336,12 @@ class _MemberDashboardState extends State<MemberDashboard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  const Expanded(child: Text('Recent Transactions', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _MDColors.dark))),
-                  TextButton(onPressed: () => Navigator.pushNamed(context, '/member/my-loans'), child: const Text('View All →', style: TextStyle(fontSize: 10.5, color: _MDColors.green))),
+                  Expanded(child: Text(t('Recent Transactions'), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _MDColors.dark))),
+                  TextButton(onPressed: () => Navigator.pushNamed(context, '/member/my-loans'), child: Text(t('View All →'), style: const TextStyle(fontSize: 10.5, color: _MDColors.green))),
                 ]),
                 const SizedBox(height: 6),
                 if (_payments.isEmpty)
-                  const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Center(child: Text('No transactions yet.', style: TextStyle(color: _MDColors.sub, fontSize: 12))))
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Center(child: Text(t('No transactions yet.'), style: const TextStyle(color: _MDColors.sub, fontSize: 12))))
                 else
                   ..._payments.take(5).map((tx) => InkWell(
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReceiptScreen(tx: tx))),
@@ -343,7 +354,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Loan Payment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                  Text(t('Loan Payment'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                                   Text('${tx['paid_at'] ?? ''}', style: const TextStyle(fontSize: 10, color: _MDColors.sub)),
                                 ],
                               ),
@@ -366,12 +377,12 @@ class _MemberDashboardState extends State<MemberDashboard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  const Expanded(child: Text('Announcements', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _MDColors.dark))),
-                  TextButton(onPressed: () => Navigator.pushNamed(context, '/member/announcements'), child: const Text('View All →', style: TextStyle(fontSize: 10.5, color: _MDColors.green))),
+                  Expanded(child: Text(t('Announcements'), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _MDColors.dark))),
+                  TextButton(onPressed: () => Navigator.pushNamed(context, '/member/announcements'), child: Text(t('View All →'), style: const TextStyle(fontSize: 10.5, color: _MDColors.green))),
                 ]),
                 const SizedBox(height: 6),
                 if (_notifs.isEmpty)
-                  const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Center(child: Text('No announcements yet.', style: TextStyle(color: _MDColors.sub, fontSize: 12))))
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Center(child: Text(t('No announcements yet.'), style: const TextStyle(color: _MDColors.sub, fontSize: 12))))
                 else
                   ..._notifs.map((n) => InkWell(
                         onTap: () => Navigator.pushNamed(context, '/member/announcements'),
@@ -435,6 +446,8 @@ class _NonOfficialWelcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final languageProv = context.watch<LanguageProvider>();
+    String t(String key, [Map<String, dynamic>? vars]) => languageProv.t(key, vars);
     final firstname = memberProv.name.split(' ').first;
 
     return SingleChildScrollView(
@@ -452,9 +465,9 @@ class _NonOfficialWelcome extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Welcome, $firstname! 👋', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                Text(t('Welcome, {name}! 👋', {'name': firstname}), style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
-                const Text("You're almost there. Complete your membership to unlock all features.", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                Text(t("You're almost there. Complete your membership to unlock all features."), style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 const SizedBox(height: 14),
                 Row(children: [
                   CircleAvatar(radius: 18, backgroundColor: Colors.white.withOpacity(0.2), child: Text(memberProv.initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800))),
@@ -464,14 +477,14 @@ class _NonOfficialWelcome extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(memberProv.name, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-                        const Text('Pending Membership', style: TextStyle(color: Colors.white70, fontSize: 10)),
+                        Text(t('Pending Membership'), style: const TextStyle(color: Colors.white70, fontSize: 10)),
                       ],
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-                    child: const Text('Pending', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                    child: Text(t('Pending'), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
                   ),
                 ]),
               ],
@@ -493,9 +506,9 @@ class _NonOfficialWelcome extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Account Not Yet Official', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: _MDColors.dark)),
+                        Text(t('Account Not Yet Official'), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: _MDColors.dark)),
                         const SizedBox(height: 3),
-                        const Text('Your account is created but you are not yet an official LEAF MPC member. Some features are currently locked.', style: TextStyle(fontSize: 11.5, color: Color(0xFF555555), height: 1.5)),
+                        Text(t('Your account is created but you are not yet an official LEAF MPC member. Some features are currently locked.'), style: const TextStyle(fontSize: 11.5, color: Color(0xFF555555), height: 1.5)),
                       ],
                     ),
                   ),
@@ -509,14 +522,14 @@ class _NonOfficialWelcome extends StatelessWidget {
                       decoration: BoxDecoration(color: const Color(0xFFFFF5F5), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFFFCDD2))),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text('🔒 Locked Features', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _MDColors.red)),
-                          SizedBox(height: 6),
-                          Text('Dashboard overview', style: TextStyle(fontSize: 10.5, color: Color(0xFF888888))),
-                          SizedBox(height: 3),
-                          Text('My Loans & payments', style: TextStyle(fontSize: 10.5, color: Color(0xFF888888))),
-                          SizedBox(height: 3),
-                          Text('Apply for Loan', style: TextStyle(fontSize: 10.5, color: Color(0xFF888888))),
+                        children: [
+                          Text(t('🔒 Locked Features'), style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _MDColors.red)),
+                          const SizedBox(height: 6),
+                          Text(t('Dashboard overview'), style: const TextStyle(fontSize: 10.5, color: Color(0xFF888888))),
+                          const SizedBox(height: 3),
+                          Text(t('My Loans & payments'), style: const TextStyle(fontSize: 10.5, color: Color(0xFF888888))),
+                          const SizedBox(height: 3),
+                          Text(t('Apply for Loan'), style: const TextStyle(fontSize: 10.5, color: Color(0xFF888888))),
                         ],
                       ),
                     ),
@@ -528,14 +541,14 @@ class _NonOfficialWelcome extends StatelessWidget {
                       decoration: BoxDecoration(color: const Color(0xFFF1F8E9), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFC8E6C9))),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text('✅ Available Now', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _MDColors.green)),
-                          SizedBox(height: 6),
-                          Text('Notifications', style: TextStyle(fontSize: 10.5, color: Color(0xFF555555))),
-                          SizedBox(height: 3),
-                          Text('Announcements', style: TextStyle(fontSize: 10.5, color: Color(0xFF555555))),
-                          SizedBox(height: 3),
-                          Text('My Profile', style: TextStyle(fontSize: 10.5, color: Color(0xFF555555))),
+                        children: [
+                          Text(t('✅ Available Now'), style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _MDColors.green)),
+                          const SizedBox(height: 6),
+                          Text(t('Notifications'), style: const TextStyle(fontSize: 10.5, color: Color(0xFF555555))),
+                          const SizedBox(height: 3),
+                          Text(t('Announcements'), style: const TextStyle(fontSize: 10.5, color: Color(0xFF555555))),
+                          const SizedBox(height: 3),
+                          Text(t('My Profile'), style: const TextStyle(fontSize: 10.5, color: Color(0xFF555555))),
                         ],
                       ),
                     ),
@@ -547,7 +560,7 @@ class _NonOfficialWelcome extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(color: const Color(0xFFF9FBE7), borderRadius: BorderRadius.circular(8), border: const Border(left: BorderSide(color: Color(0xFFC5E1A5), width: 3))),
-                  child: const Text('💡 Please complete your profile information first before applying for official membership.', style: TextStyle(fontSize: 10.5, color: Color(0xFF555555))),
+                  child: Text(t('💡 Please complete your profile information first before applying for official membership.'), style: const TextStyle(fontSize: 10.5, color: Color(0xFF555555))),
                 ),
                 const SizedBox(height: 16),
 
@@ -558,7 +571,7 @@ class _NonOfficialWelcome extends StatelessWidget {
                     onPressed: () {
                       Navigator.pushNamed(context, '/member/apply-membership');
                     },
-                    child: const Text('Apply for Official Membership', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    child: Text(t('Apply for Official Membership'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                   ),
                 ),
               ],

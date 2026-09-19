@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getLoansAPI } from "../../api/loans";
-import { getPaymentsAPI, getPaymentStatsAPI, recordPaymentAPI } from "../../api/payments";
-import { Search, Eye, ChevronDown, ChevronUp, Wallet, AlertTriangle, BarChart3, Receipt, History, X, CheckCircle, PartyPopper, Link, Printer, CreditCard, Calendar, ClipboardList } from "lucide-react";
+import { getPaymentsAPI, getPaymentStatsAPI, recordPaymentAPI, getLoanReleaseAPI } from "../../api/payments";
+import { Search, Eye, ChevronDown, ChevronUp, Wallet, AlertTriangle, BarChart3, Receipt, History, X, CheckCircle, PartyPopper, Link, Printer, CreditCard, Calendar, ClipboardList, ShieldCheck, Landmark, ExternalLink } from "lucide-react";
 import api from "../../api/axiosInstance";
 import "./LoanPayment.css";
 import logo from '../../assets/logo.png';
@@ -244,6 +244,103 @@ function ReceiptModal({ tx, onClose, allLoansForLookup }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// BAGO: Loan Release Modal — ipinapakita ang BUONG deduction breakdown na
+// na-record sa Polygon blockchain sa oras na na-release ang loan (F2F man o
+// na-approve na online application) — HIWALAY ito sa mga payment/hulog
+// (ReceiptModal sa itaas). Sinadya itong gawing "human-readable" (may labels,
+// pesos sign, hiwalay na Verification section) para hindi na kailangang
+// buksan pa ang raw Polygonscan/Remix interface. ────────────────────────────
+function LoanReleaseModal({ loan, release, loading, onClose }) {
+  if (!loan) return null;
+  const isOnBlockchain = release?.polygon_tx && release?.network === "polygon";
+
+  const deductionRows = release ? [
+    ["Interest",                    release.interest],
+    ["Service Fee",                 release.service_fee],
+    ["Filing Fee",                  release.filing_fee],
+    ["Insurance",                   release.insurance],
+    ["Savings Deposit",             release.savings_deposit],
+    ["Share Capital CBU Retention", release.share_capital_cbu],
+  ].filter(([, v]) => Number(v) > 0) : [];
+
+  return (
+    <div className="lp-overlay" onClick={onClose}>
+      <div className="lp-modal lp-modal-sm" onClick={e=>e.stopPropagation()}>
+        <div className="lp-modal-header">
+          <div>
+            <div className="lp-modal-title" style={{display:"flex",alignItems:"center",gap:8}}><Landmark size={16} color="#1b5e20"/> Loan Release Record</div>
+            <div className="lp-modal-sub mono">{loan.loan_id}</div>
+          </div>
+          <button className="lp-modal-close" onClick={onClose}><X size={16}/></button>
+        </div>
+        <div className="lp-modal-body">
+          {loading ? (
+            <div style={{textAlign:"center",padding:"40px 10px",color:"#aaa",fontSize:13}}>Loading release record...</div>
+          ) : !release ? (
+            <div style={{textAlign:"center",padding:"30px 10px",color:"#aaa",fontSize:13,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}>
+              <AlertTriangle size={24} color="#ffb74d"/>
+              No blockchain release record found for this loan.<br/>
+              (Likely created before this feature was added.)
+            </div>
+          ) : (<>
+            <div className="lp-balance-row" style={{display:"grid",gridTemplateColumns:"repeat(2, 1fr)",gap:10,marginBottom:14}}>
+              <div className="lp-bal-item"><span className="lp-bal-label">Released At</span><span className="lp-bal-val" style={{fontSize:13}}>{release.released_at}</span></div>
+              <div className="lp-bal-item"><span className="lp-bal-label">Recorded By</span><span className="lp-bal-val" style={{fontSize:13}}>{release.recorded_by || "—"}</span></div>
+            </div>
+
+            <div style={{fontSize:10,fontWeight:700,color:"#2e7d32",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Deduction Breakdown</div>
+            <div style={{background:"#f9fef9",border:"1px solid #e8f5e9",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0"}}>
+                <span style={{fontSize:12,color:"#555"}}>Loan Amount (Principal)</span>
+                <span style={{fontSize:12,fontWeight:700}}>₱{Number(release.principal||0).toLocaleString()}</span>
+              </div>
+              <div style={{height:1,background:"#e8f5e9",margin:"4px 0"}}/>
+              {deductionRows.map(([label, val]) => (
+                <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"5px 0"}}>
+                  <span style={{fontSize:12,color:"#888"}}>{label}</span>
+                  <span style={{fontSize:12,color:"#c62828"}}>− ₱{Number(val||0).toLocaleString()}</span>
+                </div>
+              ))}
+              <div style={{height:1,background:"#e8f5e9",margin:"4px 0"}}/>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0"}}>
+                <span style={{fontSize:12,fontWeight:700,color:"#333"}}>Total Deductions</span>
+                <span style={{fontSize:12,fontWeight:700,color:"#c62828"}}>− ₱{Number(release.total_deductions||0).toLocaleString()}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0 2px",borderTop:"1.5px solid #a5d6a7",marginTop:4}}>
+                <span style={{fontSize:13,fontWeight:800,color:"#1b5e20"}}>Net Proceeds (actual release)</span>
+                <span style={{fontSize:14,fontWeight:800,color:"#2e7d32"}}>₱{Number(release.net_proceeds||0).toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div style={{fontSize:10,fontWeight:700,color:"#2e7d32",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Verification</div>
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:isOnBlockchain?"#e8f5e9":"#fff8e1",border:`1px solid ${isOnBlockchain?"#a5d6a7":"#ffe082"}`,borderRadius:8,marginBottom:8}}>
+              <ShieldCheck size={16} color={isOnBlockchain?"#2e7d32":"#f57c00"}/>
+              <span style={{fontSize:12,fontWeight:700,color:isOnBlockchain?"#2e7d32":"#f57c00"}}>
+                {isOnBlockchain
+                  ? "This record is locked on the Polygon blockchain."
+                  : "Recorded locally only (blockchain not yet confirmed)."}
+              </span>
+            </div>
+            <div style={{fontSize:11,wordBreak:"break-all",padding:"6px 0",color:"#555"}}>
+              <span style={{color:"#888",fontWeight:600}}>SHA-256:</span> <span style={{fontFamily:"monospace"}}>{release.hash || "—"}</span>
+            </div>
+            {release.polygon_tx && (
+              <a href={release.explorer_url || `https://polygonscan.com/tx/${release.polygon_tx}`} target="_blank" rel="noopener noreferrer"
+                style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,color:"#7c3aed",fontWeight:600,fontSize:12,marginTop:10,padding:"8px",background:"#f3e5f5",borderRadius:8,textDecoration:"none"}}>
+                View on Polygonscan <ExternalLink size={12}/>
+              </a>
+            )}
+          </>)}
+        </div>
+        <div className="lp-modal-footer">
+          <button className="lp-btn-cancel" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function parsePaidAtDate(paid_at) {
   if (!paid_at) return "Unknown";
   const d = new Date(paid_at);
@@ -329,7 +426,12 @@ function DailyGroup({ dateStr, txList, onViewTx }) {
   );
 }
 
-function LoanHistoryRow({ loan, transactions, idx }) {
+// ── BAGO: idinagdag ang "onViewRelease" prop — button na nagbubukas ng
+// LoanReleaseModal (blockchain deduction breakdown ng Loan Release, HIWALAY
+// sa mga payment/hulog). Ipinapakita ito para sa LAHAT ng status (Active,
+// Overdue, Completed, Declined) dahil dito rin makikita ang mga F2F loan na
+// hindi kailanman dumadaan sa LoanApproval.jsx. ─────────────────────────────
+function LoanHistoryRow({ loan, transactions, idx, onViewRelease }) {
   const [expanded, setExpanded] = useState(false);
   const payments  = transactions.filter(p => String(p.loan_code).trim() === String(loan.loan_id).trim());
   const totalPaid = payments.reduce((s,p) => s + parseFloat(p.amount||0), 0);
@@ -377,9 +479,20 @@ function LoanHistoryRow({ loan, transactions, idx }) {
       </div>
       {expanded && (
         <div style={{borderTop:"1px solid #e8f5e9",background:"#f9fef9"}}>
-          <div style={{padding:"8px 14px 4px",fontSize:11,fontWeight:700,color:"#2e7d32",display:"flex",alignItems:"center",gap:8}}>
-            <CreditCard size={13}/> Payment History — {loan.loan_id}
-            <span style={{fontWeight:400,color:"#aaa",fontSize:10}}>({payments.length} payment{payments.length!==1?"s":""})</span>
+          {/* ── BAGO: Loan Release blockchain record button — kasama para
+              sa LAHAT ng status, dahil kahit F2F o online-approved loan,
+              dito ito lumalabas pagka-release na. ────────────────────────── */}
+          <div style={{padding:"10px 14px 4px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#2e7d32",display:"flex",alignItems:"center",gap:8}}>
+              <CreditCard size={13}/> Payment History — {loan.loan_id}
+              <span style={{fontWeight:400,color:"#aaa",fontSize:10}}>({payments.length} payment{payments.length!==1?"s":""})</span>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewRelease(loan); }}
+              style={{background:"#33691e",color:"#fff",border:"none",borderRadius:7,padding:"5px 12px",cursor:"pointer",fontSize:11,fontWeight:700,fontFamily:"inherit",display:"flex",alignItems:"center",gap:5}}
+            >
+              <Landmark size={12}/> View Loan Release Record
+            </button>
           </div>
           {payments.length === 0 ? (
             <div style={{padding:"12px 14px",color:"#bbb",fontSize:12,textAlign:"center"}}>No payments recorded yet.</div>
@@ -441,6 +554,11 @@ export default function LoanPayment() {
   const [historyView,     setHistoryView]    = useState("daily");
   const [loanHistory,     setLoanHistory]    = useState(null);
   const [loanHistoryData, setLoanHistoryData]= useState([]);
+  // ── BAGO: Loan Release blockchain record na kasalukuyang tinitingnan
+  // ("releaseLoan" = aling loan; "releaseData" = "undefined" habang
+  // naglo-load, "null" kapag wala talagang record, o ang object mismo). ──
+  const [releaseLoan, setReleaseLoan] = useState(null);
+  const [releaseData, setReleaseData] = useState(undefined);
 
   const handleViewLoanHistory = (e, loan) => {
     e.stopPropagation();
@@ -449,6 +567,21 @@ export default function LoanPayment() {
     );
     setLoanHistoryData(filtered);
     setLoanHistory(loan);
+  };
+
+  // ── BAGO: kunin ang Loan Release blockchain record ng isang loan
+  // on-demand (kapag na-click yung "View Loan Release Record" button) —
+  // hindi ito kinukuha para sa LAHAT ng loans agad, iisang API call lang
+  // bawat click. ─────────────────────────────────────────────────────
+  const handleViewRelease = async (loan) => {
+    setReleaseLoan(loan);
+    setReleaseData(undefined);
+    try {
+      const res = await getLoanReleaseAPI(loan.id);
+      setReleaseData(res || null);
+    } catch {
+      setReleaseData(null);
+    }
   };
 
   const showToast = (msg,type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3500); };
@@ -668,6 +801,7 @@ export default function LoanPayment() {
       <RecordModal loan={recordLoan} onClose={()=>setRecord(null)} onSave={handleSave}/>
       <LoanHistoryModal/>
       <ReceiptModal tx={viewTx} onClose={()=>setViewTx(null)} allLoansForLookup={[...loans, ...allLoans]}/>
+      <LoanReleaseModal loan={releaseLoan} release={releaseData} loading={releaseData===undefined} onClose={()=>setReleaseLoan(null)}/>
 
       <div className="lp-page-header">
         <div>
@@ -821,7 +955,7 @@ export default function LoanPayment() {
                   {filteredAllLoans.length} loan{filteredAllLoans.length!==1?"s":""} found · Click a row to see payment history
                 </div>
                 {filteredAllLoans.map((loan, idx) => (
-                  <LoanHistoryRow key={loan.id} loan={loan} transactions={transactions} idx={idx}/>
+                  <LoanHistoryRow key={loan.id} loan={loan} transactions={transactions} idx={idx} onViewRelease={handleViewRelease}/>
                 ))}
               </>
             )}

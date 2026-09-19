@@ -15,4 +15,15 @@ class PaymentsService {
 
   static Future<Map<String, dynamic>> getPayment(int id) async =>
       await ApiClient.get('/payments/$id/');
+
+  // ── BAGO: kumuha ng Loan Release blockchain record (buong deduction
+  // breakdown — interest, service fee, filing fee, insurance, savings
+  // deposit, share capital CBU, net proceeds — na na-record sa Polygon
+  // blockchain sa oras na na-release ang loan). HIWALAY ito sa mga
+  // payment/hulog (getPayment/getPayments sa itaas) — parehong endpoint
+  // ang tinatawagan ng web (`getLoanReleaseAPI`). Ibinabalik ang "null"
+  // kapag walang record (hal. loan na ginawa bago pa idagdag ang
+  // feature na 'to) — hindi ito error, ordinaryong resulta lang. ──────
+  static Future<dynamic> getLoanRelease(int loanPk) async =>
+      await ApiClient.get('/payments/loan-release/$loanPk/');
 }

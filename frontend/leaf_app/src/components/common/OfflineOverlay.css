@@ -1,0 +1,88 @@
+.off-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(20, 30, 20, 0.72);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: off-fade-in 0.2s ease;
+}
+
+@keyframes off-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.off-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 36px 32px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  animation: off-pop-in 0.25s ease;
+}
+
+@keyframes off-pop-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+.off-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #ffebee;
+  color: #c62828;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.off-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1b5e20;
+  margin-bottom: 8px;
+}
+
+.off-text {
+  font-size: 12.5px;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.off-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #2e7d32;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.off-retry-btn:hover:not(:disabled) { background: #1b5e20; }
+.off-retry-btn:disabled { opacity: 0.7; cursor: default; }
+
+.off-spin { animation: off-spin-anim 0.8s linear infinite; }
+
+@keyframes off-spin-anim {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+  .off-card { padding: 28px 22px; }
+}
