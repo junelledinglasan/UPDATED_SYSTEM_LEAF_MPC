@@ -46,6 +46,14 @@ const List<_FieldSpec> _kPersonalFields = [
   _FieldSpec('Last Name', 'last_name'),
   _FieldSpec('First Name', 'first_name'),
   _FieldSpec('Middle Name', 'middle_name'),
+  // ── BAGO: dating wala pang "Status" field dito sa mobile Edit Member
+  // (hindi kagaya sa web na may editable na Status dropdown) — kaya
+  // hindi mapapalitan ng admin ang Active/Inactive status ng member
+  // mula sa mobile. Kaparehong ayos ngayon ng web (ManageMember.jsx):
+  // Active/Inactive lang ang pwedeng piliin dito; "Deactivated" ay
+  // naka-lock (dedikadong "Deactivate Member" action pa rin ang dapat
+  // gamitin para dito, may kasamang auto-completion ng active loans). ──
+  _FieldSpec('Status', 'status', type: 'select', options: ['Active', 'Inactive']),
   _FieldSpec('Birthdate', 'birth_date', type: 'date'),
   _FieldSpec('Place of Birth', 'place_of_birth'),
   _FieldSpec('Sex', 'sex', type: 'select', options: ['Male', 'Female']),
@@ -94,6 +102,13 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
   int _loanMultiplier = 1;
   bool _savingMultiplier = false;
   bool _multiplierSaved = false;
+  // ── BAGO: sinusubaybayan kung may successful na save sa loob ng
+  // screen na ito, para malaman ng list screen (ManageMemberScreen)
+  // kung kailangan nitong mag-refresh — pero HINDI na ito
+  // agad-agarang pinopop pagkatapos mag-save; ipinapasa na lang ito
+  // pabalik kapag talagang lumabas na ang user sa profile (tingnan
+  // ang WillPopScope sa build()). ─────────────────────────────────
+  bool _hasChanges = false;
 
   @override
   void initState() {
@@ -158,6 +173,11 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
 
       for (final entry in _form.entries) {
         if (entry.value is! bool) {
+          // ── FIX: kapag na-reload (hal. pagkatapos mag-save), i-dispose
+          // muna ang dating controller bago palitan ng bago — para
+          // hindi mag-leak, dahil tinatawag na ngayon ang _load() nang
+          // higit sa isang beses sa buhay ng screen na ito. ────────────
+          _controllers[entry.key]?.dispose();
           _controllers[entry.key] = TextEditingController(text: '${entry.value}');
         }
       }
@@ -175,13 +195,33 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
     for (final entry in _controllers.entries) {
       _form[entry.key] = entry.value.text;
     }
+    final payload = Map<String, dynamic>.from(_form);
+    // ── FIX: kapag naka-LOCK na ang share_capital (fully paid, ₱4,000+),
+    // huwag na itong isama sa PUT payload. Laging may laman ang
+    // controller nito (kahit hindi ito nakikitang editable dahil
+    // locked na), kaya kung ipapasa pa rin ito, tinatanggihan ng
+    // backend ang BUONG save (400 Bad Request) — "Share capital is
+    // already fully paid..." — kahit ibang field lang ang binago,
+    // gaya ng Contact Number o Address. ─────────────────────────────
+    final currentShareCapital = double.tryParse('${_form['share_capital'] ?? 0}') ?? 0;
+    if (currentShareCapital >= kRequiredShareCapital) {
+      payload.remove('share_capital');
+    }
     try {
-      await MembersService.updateMember(widget.member['id'], Map<String, dynamic>.from(_form));
+      await MembersService.updateMember(widget.member['id'], payload);
+      _hasChanges = true;
+      // ── FIX: dating "Navigator.pop(context, true)" agad pagkatapos
+      // mag-save — isinasara nito ang buong profile screen (bumabalik
+      // sa Manage Member list). Ngayon, nananatili sa loob ng profile
+      // (bumabalik sa View mode) at ni-re-refresh ang datos mula sa
+      // server para makita agad ang mga bagong na-save — kagaya na
+      // ngayon ng ginawa na sa web (ManageMember.jsx). ────────────────
+      await _load();
       if (mounted) {
+        setState(() => _editMode = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Member updated successfully.'), backgroundColor: _VEColors.green),
         );
-        Navigator.pop(context, true); // true = may binago, i-refresh yung list
       }
     } catch (_) {
       if (mounted) {
@@ -231,33 +271,58 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
     }
 
     if (spec.type == 'checkbox') {
+      // ── FIX: "ListTile background color or ink splashes may be
+      // invisible" — dating direktang CheckboxListTile ito, walang
+      // Material wrapper, kaya hindi maayos na naipipinta ang ripple
+      // effect nito sa loob ng puting Container (may BoxDecoration na
+      // may kulay) na naglalaman nito. Kaparehong fix ng ginawa na sa
+      // register_member_screen.dart. ──────────────────────────────────
       return SizedBox(
         width: spec.full ? double.infinity : null,
-        child: CheckboxListTile(
-          value: _form[spec.name] == true,
-          onChanged: (v) => setState(() => _form[spec.name] = v ?? false),
-          title: Text(spec.label, style: const TextStyle(fontSize: 12)),
-          controlAffinity: ListTileControlAffinity.leading,
-          contentPadding: EdgeInsets.zero,
-          dense: true,
+        child: Material(
+          color: Colors.transparent,
+          child: CheckboxListTile(
+            value: _form[spec.name] == true,
+            onChanged: (v) => setState(() => _form[spec.name] = v ?? false),
+            title: Text(spec.label, style: const TextStyle(fontSize: 12)),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
         ),
       );
     }
 
     if (spec.type == 'select' && spec.options != null) {
+      // ── FIX: kagaya sa web — kapag "Deactivated" na ang kasalukuyang
+      // status ng member, naka-lock ito sa "Deactivated" lang (hindi
+      // pwedeng piliin dito ang Active/Inactive). Gamitin na lang ang
+      // dedikadong "Deactivate Member" action para sa pagbabalik. ──────
+      final options = spec.name == 'status' && _form['status'] == 'Deactivated'
+          ? const ['Deactivated']
+          : spec.options!;
       return _EditFieldWrap(
         label: spec.label,
         full: spec.full,
         child: DropdownButtonFormField<String>(
-          value: spec.options!.contains(_form[spec.name]) ? _form[spec.name] : spec.options!.first,
-          items: spec.options!.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 12.5)))).toList(),
-          onChanged: (v) => setState(() => _form[spec.name] = v),
+          value: options.contains(_form[spec.name]) ? _form[spec.name] : options.first,
+          items: options.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 12.5)))).toList(),
+          onChanged: options.length > 1 ? (v) => setState(() => _form[spec.name] = v) : null,
           decoration: _inputDecoration(),
         ),
       );
     }
 
     final controller = _controllers[spec.name] ?? TextEditingController(text: '$value');
+    // ── BAGO: "number lang" na fields (CP No., TIN No., SSS/GSIS No.)
+    // — dating walang filter, kaya kahit letra ay nakikita pang ma-type.
+    // Kaparehong fix ng web (regex-based filtering) at ng Register screen. ──
+    List<TextInputFormatter>? formatters;
+    if (spec.name == 'contact_number') {
+      formatters = [FilteringTextInputFormatter.allow(RegExp(r'[\d+]'))];
+    } else if (spec.name == 'tin_no' || spec.name == 'sss_gsis_no') {
+      formatters = [FilteringTextInputFormatter.allow(RegExp(r'[\d-]'))];
+    }
     return _EditFieldWrap(
       label: spec.label,
       full: spec.full,
@@ -270,6 +335,7 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
                 : spec.type == 'tel'
                     ? TextInputType.phone
                     : TextInputType.text,
+        inputFormatters: formatters,
         style: const TextStyle(fontSize: 12.5),
         decoration: _inputDecoration(),
       ),
@@ -297,7 +363,18 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
     final shareCapital = double.tryParse(_editMode ? (_controllers['share_capital']?.text ?? '${_form['share_capital'] ?? 0}') : '${_form['share_capital'] ?? 0}') ?? 0;
     final classification = _form['classification'] ?? 'Employed';
 
-    return Scaffold(
+    // ── BAGO: kapag umalis ang user sa screen na ito (back button o
+    // swipe-back gesture) pagkatapos ng successful save, ipinapasa
+    // pabalik ang "_hasChanges" para malaman ng Manage Member list na
+    // kailangan nitong mag-refresh — dati, kaagad na napopop pagkatapos
+    // mag-save (umaalis agad sa profile), ngayon ay nananatili muna
+    // ito sa loob ng member profile hanggang aalis mismo ang user. ────
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.of(context).pop(_hasChanges);
+        return false;
+      },
+      child: Scaffold(
       // ── BAGO: dating plain gray ang background — ginawa nang light
       // green tint (tugma sa admin theme, hal. Manage Member list). ──
       backgroundColor: const Color(0xFFD8E8CC),
@@ -409,15 +486,28 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(children: [
-                                  const Text('SHARE CAPITAL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: _VEColors.label, letterSpacing: 0.4)),
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                                    decoration: BoxDecoration(color: shareCapital >= kRequiredShareCapital ? _VEColors.green : const Color(0xFFFFE0B2), borderRadius: BorderRadius.circular(20)),
-                                    child: Text(shareCapital >= kRequiredShareCapital ? 'FULLY PAID · LOCKED' : 'PARTIAL', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: shareCapital >= kRequiredShareCapital ? Colors.white : const Color(0xFFE65100))),
-                                  ),
-                                ]),
+                                // ── FIX: "RenderFlex overflowed by 15
+                                // pixels" — dating "Row" ito na naka-fixed
+                                // sa isang linya, kaya kapag masikip ang
+                                // espasyo (hal. sa Expanded na kalahati ng
+                                // card), hindi kasya ang "SHARE CAPITAL"
+                                // label + "FULLY PAID · LOCKED" badge sa
+                                // magkasabay. Ginawa nang "Wrap" — awtomatikong
+                                // lilipat na lang sa susunod na linya kapag
+                                // hindi kasya, imbes na mag-overflow. ────────
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    const Text('SHARE CAPITAL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: _VEColors.label, letterSpacing: 0.4)),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                                      decoration: BoxDecoration(color: shareCapital >= kRequiredShareCapital ? _VEColors.green : const Color(0xFFFFE0B2), borderRadius: BorderRadius.circular(20)),
+                                      child: Text(shareCapital >= kRequiredShareCapital ? 'FULLY PAID · LOCKED' : 'PARTIAL', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: shareCapital >= kRequiredShareCapital ? Colors.white : const Color(0xFFE65100))),
+                                    ),
+                                  ],
+                                ),
                                 const SizedBox(height: 3),
                                 if (_editMode && shareCapital < kRequiredShareCapital) ...[
                                   Row(children: [
@@ -553,7 +643,14 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
                       const SizedBox(height: 8),
                       _FieldGrid(fields: [
                         _buildField(const _FieldSpec('Employment Type', 'job_type', type: 'select', options: ['Employed', 'Self-Employed', 'Business', 'Freelance', 'Other'])),
-                        _buildField(const _FieldSpec('Monthly Income (₱)', 'monthly_income', type: 'number')),
+                        // ── FIX: dating "monthly_income" (hiwalay na field
+                        // mula sa job_profile, laging blangko/0 dahil hindi
+                        // na ito pinupunan mula nang i-unify ang Register
+                        // screen sa "income" na lang) — ginawa nang "income"
+                        // (parehong key/controller ng "Monthly Income (₱)"
+                        // sa Personal Information sa itaas), kaya laging
+                        // tugma at may laman ito, kaparehong ayos ng web. ──
+                        _buildField(const _FieldSpec('Monthly Income (₱)', 'income', type: 'number')),
                       ]),
                     ],
                     const SizedBox(height: 14),
@@ -639,6 +736,7 @@ class _ViewEditMemberScreenState extends State<ViewEditMemberScreen> {
                     : null,
               ),
             ),
+      ),
     );
   }
 }
@@ -695,7 +793,11 @@ class _ViewFieldTile extends StatelessWidget {
     // mismo sa constraints na ipinapasa ng Wrap parent). ────────────
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = full ? double.infinity : (constraints.maxWidth - 10) / 2;
+        // ── FIX: "BoxConstraints has a negative minimum width" —
+        // dating walang clamp, kaya puwedeng maging negatibo ang width
+        // kapag napakaliit ang constraints.maxWidth (hal. habang
+        // nagta-transition pa ang page). ────────────────────────────
+        final width = full ? double.infinity : ((constraints.maxWidth - 10) / 2).clamp(0.0, double.infinity);
         return SizedBox(
           width: width,
           child: Container(
@@ -728,7 +830,7 @@ class _EditFieldWrap extends StatelessWidget {
     // ── FIX: parehong dahilan/ayos ng _ViewFieldTile sa itaas. ───────
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = full ? double.infinity : (constraints.maxWidth - 10) / 2;
+        final width = full ? double.infinity : ((constraints.maxWidth - 10) / 2).clamp(0.0, double.infinity);
         return SizedBox(
           width: width,
           child: Container(

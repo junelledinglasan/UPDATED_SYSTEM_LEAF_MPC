@@ -7,6 +7,10 @@ import '../../widgets/ph_address_picker.dart';
 // Ito ang MAX CAP ng "Amount Paid" dito — dating walang anumang clamp,
 // kaya kahit anong halaga ay nakakapasa. ────────────────────────────
 const double kRequiredShareCapital = 4000;
+// ── BAGO: parehong age/classification auto-fill logic ng web's
+// AdminLayout.jsx (RegisterModal) — dapat magkatugma ang dalawang forms. ──
+const int kMinAge = 18; // minimum age para maka-register bilang member
+const int kSeniorAge = 60; // RA 9994 (Expanded Senior Citizens Act)
 
 class _RMColors {
   static const green  = Color(0xFF2E7D32);
@@ -61,11 +65,62 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
     super.dispose();
   }
 
+  // ── BAGO: kinakalkula ang edad base sa napiling birth_date — kaparehong
+  // formula ng computeAge() sa manage_member_screen.dart, hiwalay lang na
+  // function dito para hindi na kailangang mag-import pa (iwas circular
+  // dependency). ────────────────────────────────────────────────────────
+  int? _computeAge(String? birthDate) {
+    if (birthDate == null || birthDate.isEmpty) return null;
+    try {
+      final bd = DateTime.parse(birthDate);
+      final today = DateTime.now();
+      int age = today.year - bd.year;
+      if (today.month < bd.month || (today.month == bd.month && today.day < bd.day)) age--;
+      return age;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── BAGO: awtomatikong pinipili ang Classification (Student/Senior/
+  // Employed) base sa edad (Date of Birth) at sa laman ng Occupation/
+  // Income — eksaktong kaparehong logic ng web's AdminLayout.jsx
+  // (RegisterModal) para magkatugma ang dalawang forms. Tinatawag ito
+  // tuwing magbabago ang birth_date, occupation, o income. ──────────────
+  void _autoClassification() {
+    final age = _computeAge('${_form['birth_date']}');
+    final occupation = '${_form['occupation'] ?? ''}';
+    final income = double.tryParse('${_form['income'] ?? ''}') ?? 0;
+    String? autoClass;
+    if (age != null && age >= kSeniorAge) {
+      autoClass = 'Senior';
+    } else if (RegExp(r'student|estudyante|iskolar', caseSensitive: false).hasMatch(occupation)) {
+      autoClass = 'Student';
+    } else if (occupation.trim().isNotEmpty || income > 0) {
+      autoClass = 'Employed';
+    }
+    if (autoClass != null && autoClass != _form['classification']) {
+      setState(() => _form['classification'] = autoClass);
+    }
+  }
+
   Map<String, String> _validate() {
     final e = <String, String>{};
     if ('${_form['first_name']}'.trim().isEmpty) e['first_name'] = 'Required';
     if ('${_form['last_name']}'.trim().isEmpty) e['last_name'] = 'Required';
-    if ('${_form['birth_date']}'.trim().isEmpty) e['birth_date'] = 'Required';
+    if ('${_form['birth_date']}'.trim().isEmpty) {
+      e['birth_date'] = 'Required';
+    } else {
+      // ── BAGO: 18 years old minimum — dating walang anumang age check
+      // dito, kaya kahit taong-kasalukuyan ang ilagay bilang birthdate
+      // ay tumutuloy pa rin. ──────────────────────────────────────────
+      final age = _computeAge('${_form['birth_date']}');
+      if (age == null) {
+        e['birth_date'] = 'Invalid date';
+      } else if (age < kMinAge) {
+        e['birth_date'] = 'Member must be at least $kMinAge years old.';
+      }
+    }
     if ('${_form['place_of_birth']}'.trim().isEmpty) e['place_of_birth'] = 'Required';
     if (_form['sex'] == 'Other' && '${_form['sex_other']}'.trim().isEmpty) e['sex_other'] = 'Please specify';
     if ('${_form['religious_social_affiliation']}'.trim().isEmpty) e['religious_social_affiliation'] = 'Required';
@@ -160,11 +215,17 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
   }
 
   Future<void> _pickDate() async {
+    // ── BAGO: ang pinakabagong petsang puwedeng piliin sa calendar
+    // mismo ay eksaktong 18 taon bago ngayon — dating "DateTime.now()"
+    // ang lastDate, kaya kahit petsa ngayong taon ay puwedeng piliin
+    // sa UI palang, bago pa man dumating sa _validate(). ────────────────
+    final today = DateTime.now();
+    final eighteenYearsAgo = DateTime(today.year - 18, today.month, today.day);
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(2000, 1, 1),
+      initialDate: eighteenYearsAgo,
       firstDate: DateTime(1930),
-      lastDate: DateTime.now(),
+      lastDate: eighteenYearsAgo,
     );
     if (picked != null) {
       final formatted = '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
@@ -173,6 +234,7 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
         _ctrl('birth_date').text = formatted;
         _errors.remove('birth_date');
       });
+      _autoClassification();
     }
   }
 
@@ -187,7 +249,7 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _RMColors.green, width: 1.5)),
       );
 
-  Widget _textField(String key, String label, {bool required = false, bool optional = false, TextInputType? type, bool full = false}) {
+  Widget _textField(String key, String label, {bool required = false, bool optional = false, TextInputType? type, bool full = false, List<TextInputFormatter>? inputFormatters}) {
     return _FieldBox(
       label: label,
       required: required,
@@ -196,16 +258,30 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
       child: TextField(
         controller: _ctrl(key),
         keyboardType: type,
+        // ── BAGO: "number lang" na fields (CP No., TIN No., SSS/GSIS
+        // No.) — dating walang filter, kaya kahit letra ay nakikita
+        // pang ma-type. Kaparehong fix ng web (regex-based filtering). ──
+        inputFormatters: inputFormatters,
         style: const TextStyle(fontSize: 12.5),
-        onChanged: (_) => _errors.remove(key),
+        onChanged: (v) {
+          _errors.remove(key);
+          // ── BAGO: "occupation" at "income" lang ang kailangang
+          // i-sync agad sa _form (hindi lang sa Submit) dahil ito ang
+          // dalawang field na sinusubaybayan ng _autoClassification(). ──
+          if (key == 'occupation' || key == 'income') {
+            _form[key] = v;
+            _autoClassification();
+          }
+        },
         decoration: _dec(error: _errors[key]),
       ),
     );
   }
 
-  Widget _selectField(String key, String label, List<String> options, {bool full = false}) {
+  Widget _selectField(String key, String label, List<String> options, {bool full = false, bool required = false}) {
     return _FieldBox(
       label: label,
+      required: required,
       full: full,
       child: DropdownButtonFormField<String>(
         value: options.contains(_form[key]) ? _form[key] : options.first,
@@ -333,8 +409,8 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
           _selectField('civil_status', 'Civil Status', const ['Single', 'Married', 'Widowed', 'Separated']),
           _selectField('educational_attainment', 'Educational Attainment', const ['Elementary', 'High School', 'Vocational', 'College', 'Post Graduate']),
           _textField('religious_social_affiliation', 'Religious/Social Affiliation', required: true),
-          _textField('tin_no', 'TIN No.', optional: true),
-          _textField('sss_gsis_no', 'SSS/GSIS No.', optional: true),
+          _textField('tin_no', 'TIN No.', optional: true, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d-]'))]),
+          _textField('sss_gsis_no', 'SSS/GSIS No.', optional: true, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d-]'))]),
 
           const _SectionHeader(icon: Icons.location_on_outlined, label: 'ADDRESS'),
           PhAddressPicker(
@@ -346,7 +422,7 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
           ),
 
           const _SectionHeader(icon: Icons.call_outlined, label: 'CONTACT INFORMATION'),
-          _textField('contact_number', 'Tel. No. / CP No.', required: true, type: TextInputType.phone),
+          _textField('contact_number', 'Tel. No. / CP No.', required: true, type: TextInputType.phone, inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d+]'))]),
           _textField('email', 'Email Address', required: true, type: TextInputType.emailAddress),
 
           const _SectionHeader(icon: Icons.work_outline, label: 'EMPLOYMENT'),
@@ -480,7 +556,16 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Member Classification', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _RMColors.sub)),
+          // ── FIX: dating "Member Classification" lang, walang asterisk
+          // — ginawa nang UPPERCASE + red asterisk (*), kaparehong-
+          // kapareho ng web's "MEMBER CLASSIFICATION *" label. ─────────
+          Text.rich(
+            TextSpan(
+              text: 'MEMBER CLASSIFICATION',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _RMColors.sub, letterSpacing: 0.4),
+              children: const [TextSpan(text: ' *', style: TextStyle(color: _RMColors.red))],
+            ),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -490,6 +575,17 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
               const SizedBox(width: 8),
               Expanded(child: _ClassCard(label: 'Employed', icon: Icons.work_outline, active: classification == 'Employed', onTap: () => setState(() => _form['classification'] = 'Employed'))),
             ],
+          ),
+          // ── BAGO: helper caption — kaparehong-kapareho ng text sa web,
+          // para malinaw sa admin na auto ang pagpili nito base sa Date
+          // of Birth/Occupation, pero puwede pa rin i-override nang
+          // manual. ─────────────────────────────────────────────────────
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+              'Awtomatikong napipili ito batay sa Date of Birth at Occupation na inilagay sa Personal Info tab. Puwede pa ring i-click nang mano-mano kung kailangan mong baguhin.',
+              style: TextStyle(fontSize: 10.5, color: _RMColors.sub, height: 1.4),
+            ),
           ),
           const SizedBox(height: 14),
           LayoutBuilder(builder: (context, constraints) {
@@ -508,10 +604,61 @@ class _RegisterMemberScreenState extends State<RegisterMemberScreen> {
                     _selectField('educational_attainment', 'Educational Attainment', const ['Elementary', 'High School', 'Vocational', 'College', 'Post Graduate']),
                     _textField('pension_income', 'Monthly Pension Income (₱)', type: TextInputType.number),
                   ],
+                  // ── FIX: dating hiwalay na manual input ito (duplicate
+                  // ng "Occupation" sa Personal Info/Employment section,
+                  // at hiwalay na "monthly_income" state kaysa sa "income"
+                  // — kaya doble ang pinapasok ng admin). Ngayon, AUTO
+                  // FILL-UP na lang mula sa Personal Info/Employment
+                  // section — read-only display, eksaktong kaparehong
+                  // ayos ng web's AdminLayout.jsx (RegisterModal). ────────
                   if (classification == 'Employed') ...[
-                    _textField('occupation', 'Occupation/Job Title'),
-                    _selectField('job_type', 'Employment Type', const ['Employed', 'Self-Employed', 'Business', 'Freelance', 'Other']),
-                    _textField('monthly_income', 'Monthly Income (₱)', type: TextInputType.number),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Builder(builder: (context) {
+                        final occupation = '${_form['occupation'] ?? ''}';
+                        final income = double.tryParse('${_form['income'] ?? ''}') ?? 0;
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(color: const Color(0xFFF1F8E9), border: Border.all(color: const Color(0xFFC8E6C9)), borderRadius: BorderRadius.circular(10)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('AUTO-FILLED FROM PERSONAL INFO / EMPLOYMENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _RMColors.sub, letterSpacing: 0.4)),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 24,
+                                runSpacing: 8,
+                                children: [
+                                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    const Text('OCCUPATION', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF7A9260), letterSpacing: 0.5)),
+                                    const SizedBox(height: 2),
+                                    Text(occupation.isEmpty ? '—' : occupation, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _RMColors.dark)),
+                                  ]),
+                                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    const Text('MONTHLY INCOME', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF7A9260), letterSpacing: 0.5)),
+                                    const SizedBox(height: 2),
+                                    Text('₱${income.toStringAsFixed(0)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _RMColors.dark)),
+                                  ]),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Text.rich(
+                                TextSpan(
+                                  text: 'Gamit na ang Occupation at Monthly Income na inilagay sa Personal Info tab. Pumunta sa ',
+                                  style: const TextStyle(fontSize: 11, color: Color(0xFF558B2F), height: 1.5),
+                                  children: const [
+                                    TextSpan(text: 'Personal Info', style: TextStyle(fontWeight: FontWeight.w700)),
+                                    TextSpan(text: ' tab kung kailangan itong baguhin.'),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ),
+                    _selectField('job_type', 'Employment Type', const ['Employed', 'Self-Employed', 'Business', 'Freelance', 'Other'], required: true),
                   ],
                 ],
               ),
@@ -607,7 +754,12 @@ class _FieldBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final available = _FieldWidth.of(context);
-    final width = full ? double.infinity : (available - 10) / 2;
+    // ── FIX: "BoxConstraints has a negative minimum width" — nangyayari
+    // ito kapag napakaliit (o zero/negative) ang "available" width, hal.
+    // habang nagta-transition/animate pa ang page o sa unang frame bago
+    // pa ma-layout nang tama. Dating walang clamp dito, kaya puwedeng
+    // maging negatibo ang resultang width sa SizedBox. ─────────────────
+    final width = full ? double.infinity : ((available - 10) / 2).clamp(0.0, double.infinity);
     return SizedBox(
       width: width,
       child: Column(

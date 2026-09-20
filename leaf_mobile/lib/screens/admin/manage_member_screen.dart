@@ -63,6 +63,14 @@ class _ManageMemberScreenState extends State<ManageMemberScreen> {
   }
 
   void _checkAutoOpenMember() {
+    // ── FIX: "Looking up a deactivated widget's ancestor is unsafe" —
+    // dating walang "mounted" check dito bago tinawag ang
+    // "ModalRoute.of(context)" pagkatapos mag-await ng _fetchData().
+    // Kung naka-navigate na palayo (hal. nagbukas ng Register Member
+    // form) bago pa matapos ang fetch, disposed na ang widget na ito
+    // pero tinatawag pa rin ang context nito — eksaktong dahilan ng
+    // crash na ito. ─────────────────────────────────────────────────
+    if (!mounted) return;
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map && args['openMemberId'] != null) {
       final found = _members.firstWhere(

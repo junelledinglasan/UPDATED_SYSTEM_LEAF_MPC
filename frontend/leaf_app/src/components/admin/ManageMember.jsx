@@ -99,7 +99,7 @@ function ModalField({ label, name, type="text", options=null, full=false, mode, 
   );
 }
 
-function RegisterField({ label, name, type="text", options=null, full=false, form, handle, errors }) {
+function RegisterField({ label, name, type="text", options=null, full=false, form, handle, errors, max=null }) {
   const required = ["first_name","last_name","birth_date","contact_number","address","sex_other"].includes(name);
   return (
     <div className={`modal-field${full?" full":""}`}>
@@ -116,7 +116,7 @@ function RegisterField({ label, name, type="text", options=null, full=false, for
           <span>Yes</span>
         </label>
       ) : (
-        <input className={`modal-input${errors?.[name]?" err":""}`} type={type} name={name} value={form[name]||""} onChange={handle}/>
+        <input className={`modal-input${errors?.[name]?" err":""}`} type={type} name={name} value={form[name]||""} onChange={handle} max={max ?? undefined}/>
       )}
       {errors?.[name] && <div style={{fontSize:11,color:"#e53935",marginTop:2}}>{errors[name]}</div>}
     </div>
@@ -472,7 +472,13 @@ function ViewEditModal({ member, onClose, onSave }) {
   }, [member.id]);
 
   const handle = e => {
-    const val = e.target.type==="checkbox" ? e.target.checked : e.target.value;
+    let val = e.target.type==="checkbox" ? e.target.checked : e.target.value;
+    // ── BAGO: "number lang" na fields — dating walang filter, kaya
+    // kahit letra ay nakikita pang ma-type sa CP No./TIN/SSS-GSIS. ────
+    if (typeof val === "string") {
+      if (e.target.name === "contact_number") val = val.replace(/[^\d+]/g, "");
+      else if (e.target.name === "tin_no" || e.target.name === "sss_gsis_no") val = val.replace(/[^\d-]/g, "");
+    }
     setForm(p => ({...p,[e.target.name]:val}));
   };
 
@@ -498,7 +504,18 @@ function ViewEditModal({ member, onClose, onSave }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onSave(member.id, form);
+      const payload = { ...form };
+      // ── FIX: kapag naka-LOCK na ang share_capital (fully paid,
+      // ₱4,000+), huwag na itong isama sa payload. Laging may laman
+      // ito sa form state (kahit hindi na ito editable/locked na sa
+      // UI), kaya kung ipapasa pa rin ito, tinatanggihan ng backend
+      // ang BUONG save (400 Bad Request) — "Share capital is already
+      // fully paid..." — kahit ibang field lang ang binago, gaya ng
+      // Contact Number o Address. ────────────────────────────────────
+      if (Number(form.share_capital || 0) >= REQUIRED_SHARE_CAPITAL) {
+        delete payload.share_capital;
+      }
+      await onSave(member.id, payload);
       // ── FIX: dating "onClose()" pagkatapos mag-save — isinasara nito
       // ang buong profile page, kaya parang "nawawala" agad ang
       // na-save (bumabalik sa listahan ng members). Ngayon, nananatili
@@ -1115,6 +1132,31 @@ function PendingModal({ app, onClose, onConvert }) {
   );
 }
 
+// ── BAGO: parehong age/classification auto-fill logic ng AdminLayout.jsx's
+// RegisterModal — dapat magkatugma ang Admin at Staff register forms (ito
+// ang gamit ng Staff portal, via "staff-action" event). ─────────────────
+const MIN_AGE_V2    = 18;   // minimum age para maka-register bilang member
+const SENIOR_AGE_V2 = 60;   // RA 9994 (Expanded Senior Citizens Act)
+
+function calculateAgeV2(birthDateStr) {
+  if (!birthDateStr) return null;
+  const today = new Date();
+  const bd = new Date(birthDateStr);
+  if (Number.isNaN(bd.getTime())) return null;
+  let age = today.getFullYear() - bd.getFullYear();
+  const monthDiff = today.getMonth() - bd.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < bd.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+function latestAllowedBirthDateV2() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_AGE_V2);
+  return d.toISOString().split("T")[0];
+}
+
 function RegisterMemberModal({ onClose, onSuccess }) {
   const [tab,setTab]=useState("personal");
   const [loading,setLoading]=useState(false);
@@ -1131,8 +1173,53 @@ function RegisterMemberModal({ onClose, onSuccess }) {
     classification:"Employed",school_name:"",year_level:"",allowance:"",
     pension_income:"",job_type:"Employed",monthly_income:"",
   });
-  const handle=e=>{const val=e.target.type==="checkbox"?e.target.checked:e.target.value;setForm(p=>({...p,[e.target.name]:val}));setErrors(p=>({...p,[e.target.name]:""}));};
-  const validate=()=>{const e={};if(!form.first_name.trim())e.first_name="Required";if(!form.last_name.trim())e.last_name="Required";if(!form.birth_date)e.birth_date="Required";if(!form.contact_number.trim())e.contact_number="Required";if(!form.address.trim())e.address="Required";if(form.sex==="Other"&&!form.sex_other.trim())e.sex_other="Please specify";if(form.classification==="Student"&&!form.school_name.trim())e.school_name="Required";if(form.classification==="Student"&&!form.year_level.trim())e.year_level="Required";return e;};
+  const handle=e=>{
+    let val=e.target.type==="checkbox"?e.target.checked:e.target.value;
+    // ── BAGO: "number lang" na fields — dating walang filter, kaya
+    // kahit letra ay nakikita pang ma-type sa CP No./TIN/SSS-GSIS. ────
+    if (typeof val === "string") {
+      if (e.target.name === "contact_number") val = val.replace(/[^\d+]/g, "");
+      else if (e.target.name === "tin_no" || e.target.name === "sss_gsis_no") val = val.replace(/[^\d-]/g, "");
+    }
+    setForm(p=>({...p,[e.target.name]:val}));setErrors(p=>({...p,[e.target.name]:""}));
+  };
+
+  // ── BAGO: awtomatikong pinipili ang Classification (Student/Senior/
+  // Employed) base sa edad (Date of Birth) at sa laman ng Occupation —
+  // kaparehong logic ng AdminLayout.jsx's RegisterModal, para magkatugma
+  // ang Admin at Staff register forms. ────────────────────────────────
+  useEffect(() => {
+    const age = calculateAgeV2(form.birth_date);
+    let autoClass = null;
+    if (age !== null && age >= SENIOR_AGE_V2) {
+      autoClass = "Senior";
+    } else if (/student|estudyante|iskolar/i.test(form.occupation || "")) {
+      autoClass = "Student";
+    } else if ((form.occupation || "").trim() || Number(form.income) > 0) {
+      autoClass = "Employed";
+    }
+    if (autoClass && autoClass !== form.classification) {
+      setForm(p => ({ ...p, classification: autoClass }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.birth_date, form.occupation, form.income]);
+
+  // ── BAGO: REAL-TIME na minimum age check (18+) — lumalabas AGAD ang
+  // error sa ilalim ng "Birthdate" habang pumipili pa lang ng petsa. ────
+  useEffect(() => {
+    if (!form.birth_date) return;
+    const age = calculateAgeV2(form.birth_date);
+    if (age === null) return;
+    if (age < MIN_AGE_V2) {
+      setErrors(p => ({ ...p, birth_date: `Member must be at least ${MIN_AGE_V2} years old to register. (Current age: ${age})` }));
+    } else {
+      setErrors(p => (p.birth_date ? { ...p, birth_date: "" } : p));
+    }
+  }, [form.birth_date]);
+
+  const validate=()=>{const e={};if(!form.first_name.trim())e.first_name="Required";if(!form.last_name.trim())e.last_name="Required";
+    if(!form.birth_date){e.birth_date="Required";}else{const age=calculateAgeV2(form.birth_date);if(age===null){e.birth_date="Please enter a valid date.";}else if(age<MIN_AGE_V2){e.birth_date=`Member must be at least ${MIN_AGE_V2} years old to register.`;}}
+    if(!form.contact_number.trim())e.contact_number="Required";if(!form.address.trim())e.address="Required";if(form.sex==="Other"&&!form.sex_other.trim())e.sex_other="Please specify";if(form.classification==="Student"&&!form.school_name.trim())e.school_name="Required";if(form.classification==="Student"&&!form.year_level.trim())e.year_level="Required";return e;};
   const handleSubmit=async()=>{const e=validate();if(Object.keys(e).length){setErrors(e);const pf=["first_name","last_name","birth_date","contact_number","address","sex_other"];const cf=["school_name","year_level"];if(pf.some(f=>e[f])){setTab("personal");return;}if(cf.some(f=>e[f])){setTab("classification");return;}return;}
     setLoading(true);try{
       const payload = {
@@ -1171,7 +1258,7 @@ function RegisterMemberModal({ onClose, onSuccess }) {
             <RegisterField label="Last Name" name="last_name" form={form} handle={handle} errors={errors}/>
             <RegisterField label="First Name" name="first_name" form={form} handle={handle} errors={errors}/>
             <RegisterField label="Middle Name" name="middle_name" form={form} handle={handle} errors={errors}/>
-            <RegisterField label="Birthdate" name="birth_date" type="date" form={form} handle={handle} errors={errors}/>
+            <RegisterField label="Birthdate" name="birth_date" type="date" max={latestAllowedBirthDateV2()} form={form} handle={handle} errors={errors}/>
             <RegisterField label="Place of Birth" name="place_of_birth" form={form} handle={handle} errors={errors}/>
             <RegisterField label="Sex" name="sex" options={["Male","Female","Non-binary","Prefer not to say","Other"]} form={form} handle={handle} errors={errors}/>
             {form.sex==="Other" && <RegisterField label="Please specify" name="sex_other" form={form} handle={handle} errors={errors}/>}
@@ -1179,7 +1266,7 @@ function RegisterMemberModal({ onClose, onSuccess }) {
             <RegisterField label="TIN No." name="tin_no" form={form} handle={handle} errors={errors}/>
             <RegisterField label="SSS/GSIS No." name="sss_gsis_no" form={form} handle={handle} errors={errors}/>
             <RegisterField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} form={form} handle={handle} errors={errors}/>
-            <RegisterField label="Contact No." name="contact_number" form={form} handle={handle} errors={errors}/>
+            <RegisterField label="Contact No." name="contact_number" type="tel" form={form} handle={handle} errors={errors}/>
             <RegisterField label="Email" name="email" type="email" form={form} handle={handle} errors={errors}/>
             <RegisterField label="Occupation" name="occupation" form={form} handle={handle} errors={errors}/>
             <RegisterField label="Monthly Income (₱)" name="income" type="number" form={form} handle={handle} errors={errors}/>
@@ -1240,10 +1327,40 @@ function RegisterMemberModal({ onClose, onSuccess }) {
                   <div style={{fontSize:12,fontWeight:700,color:"#2e7d32"}}>{c}</div>
                 </div>))}
               </div>
+              {/* ── BAGO: kaparehong paalala ng AdminLayout.jsx's
+              RegisterModal ── */}
+              <div style={{fontSize:11,color:"#7a9260",marginTop:10,lineHeight:1.5}}>
+                Awtomatikong napipili ito batay sa Date of Birth at Occupation na inilagay sa Personal Info tab.
+                Puwede pa ring i-click nang mano-mano kung kailangan mong baguhin.
+              </div>
             </div>
             {form.classification==="Student"&&<><RegisterField label="School Name" name="school_name" form={form} handle={handle} errors={errors}/><RegisterField label="Year Level" name="year_level" options={["Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12","1st Year","2nd Year","3rd Year","4th Year","5th Year","Graduate"]} form={form} handle={handle} errors={errors}/><RegisterField label="Monthly Allowance (₱)" name="allowance" type="number" form={form} handle={handle} errors={errors}/></>}
             {form.classification==="Senior"&&<><RegisterField label="Educational Attainment" name="educational_attainment" options={["Elementary","High School","Vocational","College","Post Graduate"]} form={form} handle={handle} errors={errors}/><RegisterField label="Monthly Pension Income (₱)" name="pension_income" type="number" form={form} handle={handle} errors={errors}/></>}
-            {form.classification==="Employed"&&<><RegisterField label="Occupation/Job Title" name="occupation" form={form} handle={handle} errors={errors}/><RegisterField label="Employment Type" name="job_type" options={["Employed","Self-Employed","Business","Freelance","Other"]} form={form} handle={handle} errors={errors}/><RegisterField label="Monthly Income (₱)" name="monthly_income" type="number" form={form} handle={handle} errors={errors}/></>}
+            {/* ── FIX: dating hiwalay na manual input ito (duplicate ng
+            "Occupation"/"income" sa Personal Info tab, at hiwalay na
+            "monthly_income" state) — kaya doble ang pinapasok. Ngayon,
+            AUTO FILL-UP na lang mula sa Personal Info tab — read-only
+            display, kaparehong ayos ng AdminLayout.jsx's RegisterModal. ── */}
+            {form.classification==="Employed"&&<>
+              <div className="modal-field full" style={{background:"#f1f8e9",border:"1.5px solid #c8e6c9",borderRadius:10,padding:"14px 16px"}}>
+                <div className="modal-field-label">Auto-filled from Personal Info / Employment</div>
+                <div style={{display:"flex",gap:24,marginTop:8,flexWrap:"wrap"}}>
+                  <div>
+                    <div style={{fontSize:10.5,fontWeight:700,color:"#7a9260",textTransform:"uppercase",letterSpacing:0.5}}>Occupation</div>
+                    <div style={{fontSize:15,fontWeight:700,color:"#1b5e20",marginTop:2}}>{form.occupation || "—"}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:10.5,fontWeight:700,color:"#7a9260",textTransform:"uppercase",letterSpacing:0.5}}>Monthly Income</div>
+                    <div style={{fontSize:15,fontWeight:700,color:"#1b5e20",marginTop:2}}>₱{Number(form.income || 0).toLocaleString()}</div>
+                  </div>
+                </div>
+                <div style={{fontSize:11,color:"#558b2f",marginTop:10,lineHeight:1.5}}>
+                  Gamit na ang Occupation at Monthly Income na inilagay sa Personal Info tab.
+                  Pumunta sa <strong>Personal Info</strong> tab kung kailangan itong baguhin.
+                </div>
+              </div>
+              <RegisterField label="Employment Type" name="job_type" options={["Employed","Self-Employed","Business","Freelance","Other"]} form={form} handle={handle} errors={errors}/>
+            </>}
           </div>}
           {tab==="account"&&<div className="modal-grid">
             {result?(<>

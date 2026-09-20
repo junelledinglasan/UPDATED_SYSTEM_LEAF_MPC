@@ -433,7 +433,17 @@ function RegisterModal({ onClose }) {
   const [selCity,     setSelCity]     = useState(null);
 
   const handle = e => {
-    const val = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    let val = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    // ── BAGO: "number lang" na fields (Tel./CP No., TIN No., SSS/GSIS
+    // No.) — dating plain text lang ang mga ito (o "type=tel", na hindi
+    // rin talaga nagba-block ng letra), kaya kahit letra ay nakikita
+    // pang ma-type. Tinatanggal na agad ang hindi valid na character
+    // habang nagta-type, imbes na hintayin pa ang Submit bago mag-
+    // error. ───────────────────────────────────────────────────────
+    if (typeof val === "string") {
+      if (e.target.name === "contact_number") val = val.replace(/[^\d+]/g, "");
+      else if (e.target.name === "tin_no" || e.target.name === "sss_gsis_no") val = val.replace(/[^\d-]/g, "");
+    }
     setForm(p => ({ ...p, [e.target.name]: val }));
     setErrors(p => ({ ...p, [e.target.name]: "" }));
   };
