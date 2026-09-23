@@ -160,14 +160,40 @@ PAYMENT_ABI = [
 
 
 # ─── Generate local SHA-256 hash ──────────────────────────────────────────────
-def generate_payment_hash(tx_id: str, member_id: str, loan_id: str, amount) -> str:
-    payload = json.dumps({
+# ── FIX: "amount" ay minsan pumapasok dito bilang Python "float" (galing sa
+# mga lumang callsite na "float(amount)" muna), minsan naman bilang "Decimal"
+# (kapag direktang galing sa isang Payment model instance mula sa database).
+# Ang "str()" ng dalawa ay MAGKAIBA kahit magkaparehong halaga — hal.
+# str(float(1000)) == "1000.0" pero str(Decimal("1000.00")) == "1000.00".
+# Kaya't kapag kino-compute ang hash gamit ang float (paggawa ng payment), at
+# ire-recompute gamit ang Decimal mula sa DB (sa "Verify Integrity"), IBA ang
+# resulta kahit walang binago sa datos — nagreresulta sa maling "Tampered"
+# flag. Ini-normalize dito ang amount papuntang FIXED 2-decimal-place string
+# (gamit ang Decimal quantize), kaya PAREHONG format ang laging ginagamit,
+# kahit anong klaseng numero (float, Decimal, int, string) ang ipasa. ────────
+def _normalize_amount(amount) -> str:
+    return str(Decimal(str(amount)).quantize(Decimal('0.01')))
+
+
+# ── BAGO: idinagdag ang "balance" (running balance ng loan PAGKATAPOS ng
+# payment na 'to) bilang bahagi ng hash coverage — dati "amount" lang ang
+# protektado, kaya kung direktang babaguhin ang "balance" column sa DB
+# (hal. sa pamamagitan ng SQL), hindi ito nade-detect bilang tampering.
+# "balance" ay OPTIONAL parameter (default None) para hindi masira ang
+# mga LUMANG call site na hindi pa updated — pero dapat LAHAT ng bagong
+# call ay nagpapasa na nito, at kailangang i-rerun ang rehash script
+# pagkatapos nito (magbabago ang formula, kaya iba na ang magiging hash
+# ng LAHAT ng existing records). ─────────────────────────────────────────
+def generate_payment_hash(tx_id: str, member_id: str, loan_id: str, amount, balance=None) -> str:
+    payload = {
         'tx_id':     tx_id,
         'member_id': member_id,
         'loan_id':   loan_id,
-        'amount':    str(amount),
-    }, sort_keys=True)
-    return hashlib.sha256(payload.encode()).hexdigest()
+        'amount':    _normalize_amount(amount),
+    }
+    if balance is not None:
+        payload['balance'] = _normalize_amount(balance)
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
 # ── Hash individual fields para hindi obvious sa Polygonscan decoder ──────────
@@ -177,8 +203,22 @@ def hash_field(value: str) -> str:
 
 
 # ─── Record payment on Polygon ────────────────────────────────────────────────
-def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amount) -> dict:
-    local_hash = generate_payment_hash(tx_id, member_id, loan_id, amount)
+# ── BAGO: dalawang HIWALAY na hash na ngayon ang kino-compute dito:
+#   1) "chain_hash" — AMOUNT-ONLY (walang balance), ito ang isinusumite sa
+#      Polygon bilang "dataHash" param. Sinasadyang hindi kasama ang balance
+#      dito, dahil hindi puwedeng baguhin ang naka-lock na on-chain data ng
+#      mga LUMANG record (na-submit BAGO idinagdag ang balance sa hash
+#      formula) — kaya dapat SAME FORMULA (amount-only) magpakailanman ang
+#      ipinapadala sa chain, para tuloy-tuloy na tumutugma ang "verify"
+#      laban dito, luma man o bago ang record.
+#   2) "db_hash" — KASAMA na ang balance, ito ang ibinabalik bilang 'hash'
+#      key (ito ang nagiging "payment.hash" column sa DB) — ito ang
+#      basehan ng "db_tampered" check sa "Verify Integrity", na hiwalay at
+#      hindi umaasa sa Polygon (kaya puwedeng palawakin ang coverage nito
+#      anumang oras, hindi katulad ng on-chain data). ─────────────────────
+def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amount, balance=None) -> dict:
+    chain_hash = generate_payment_hash(tx_id, member_id, loan_id, amount)
+    db_hash    = generate_payment_hash(tx_id, member_id, loan_id, amount, balance)
     config     = get_config()
     w3         = get_web3()
 
@@ -189,7 +229,7 @@ def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amoun
             'success':      True,
             'tx_hash':      None,
             'block':        None,
-            'hash':         local_hash,
+            'hash':         db_hash,
             'network':      'local',
             'explorer_url': None,
         }
@@ -209,7 +249,7 @@ def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amoun
         hashed_tx_id     = hash_field(tx_id)
 
         tx = contract.functions.recordPayment(
-            hashed_tx_id, hashed_member_id, hashed_loan_id, amount_int, local_hash,
+            hashed_tx_id, hashed_member_id, hashed_loan_id, amount_int, chain_hash,
         ).build_transaction({
             'chainId':  config['chain_id'],
             'gas':      500000,
@@ -235,7 +275,7 @@ def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amoun
             'success':      receipt['status'] == 1,
             'tx_hash':      tx_hash.hex(),
             'block':        receipt['blockNumber'],
-            'hash':         local_hash,
+            'hash':         db_hash,
             'network':      'polygon',
             'explorer_url': explorer,
         }
@@ -246,7 +286,7 @@ def record_payment_on_blockchain(tx_id: str, member_id: str, loan_id: str, amoun
             'success':      True,
             'tx_hash':      None,
             'block':        None,
-            'hash':         local_hash,
+            'hash':         db_hash,
             'network':      'local',
             'error':        str(e),
         }
@@ -467,15 +507,27 @@ def verify_payment_integrity(tx_id: str, member_id: str, loan_id: str, amount) -
         # ── Use hashed tx_id to match what was stored ──
         hashed_tx_id = hash_field(tx_id)
         on_chain     = contract.functions.getPayment(hashed_tx_id).call()
-        on_chain_hash = on_chain[4]  # dataHash field
+        on_chain_hash   = on_chain[4]  # dataHash field
+        on_chain_amount = on_chain[3]  # amount field (uint256, integer pesos)
+
+        # ── BAGO: kunin din ang EXPECTED (DB-side) amount bilang parehong
+        # integer-peso na representasyon gaya ng ginamit noong i-record sa
+        # chain (tingnan ang "amount_int = int(Decimal(str(amount)))" sa
+        # "record_payment_on_blockchain()" sa itaas) — para makumpara ito
+        # sa "on_chain_amount" at maipakita ang "DB: ₱X vs Chain: ₱Y" kung
+        # sakaling "Tampered" (kaparehong pattern ng "field_diff" sa Loan
+        # Release verify). ───────────────────────────────────────────────
+        expected_amount = int(Decimal(str(amount)))
 
         match = (local_hash == on_chain_hash)
         return {
-            'verified':        match,
-            'local_hash':      local_hash,
-            'blockchain_hash': on_chain_hash,
-            'tampered':        not match,
-            'block_timestamp': on_chain[5],
+            'verified':          match,
+            'local_hash':        local_hash,
+            'blockchain_hash':   on_chain_hash,
+            'tampered':          not match,
+            'block_timestamp':   on_chain[5],
+            'expected_amount':   expected_amount,
+            'blockchain_amount': on_chain_amount,
         }
     except Exception as e:
         return {'verified': False, 'reason': str(e)}

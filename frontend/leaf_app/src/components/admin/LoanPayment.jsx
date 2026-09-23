@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { getLoansAPI } from "../../api/loans";
-import { getPaymentsAPI, getPaymentStatsAPI, recordPaymentAPI, getLoanReleaseAPI } from "../../api/payments";
+import { getPaymentsAPI, getPaymentStatsAPI, recordPaymentAPI, getLoanReleaseAPI, verifyPaymentIntegrityAPI, verifyLoanReleaseIntegrityAPI } from "../../api/payments";
 import { Search, Eye, ChevronDown, ChevronUp, Wallet, AlertTriangle, BarChart3, Receipt, History, X, CheckCircle, PartyPopper, Link, Printer, CreditCard, Calendar, ClipboardList, ShieldCheck, Landmark, ExternalLink } from "lucide-react";
 import api from "../../api/axiosInstance";
 import "./LoanPayment.css";
@@ -86,8 +86,27 @@ function RecordModal({ loan, onClose, onSave }) {
 
 // ── ReceiptModal — updated with professional print layout ──────────────────────
 function ReceiptModal({ tx, onClose, allLoansForLookup }) {
+  // ── BAGO: "Verify Integrity" state — undefined=hindi pa na-check,
+  // null=kasalukuyang tinatawag, object=resulta. Naka-declare BAGO ang
+  // "if (!tx) return null" (rules of hooks — dapat laging tumatakbo ang
+  // hooks sa bawat render, kahit "null" pa ang tx). Nire-reset kapag
+  // nagpalit ng tx (bagong resibo binuksan). ────────────────────────────
+  const [verify, setVerify] = useState(undefined);
+  useEffect(() => { setVerify(undefined); }, [tx?.tx_id]);
+
   if (!tx) return null;
   const isOnBlockchain = tx.polygon_tx && tx.network === 'polygon';
+
+  const runVerify = async () => {
+    if (!tx?.tx_id) return;
+    setVerify(null);
+    try {
+      const r = await verifyPaymentIntegrityAPI(tx.tx_id);
+      setVerify(r);
+    } catch {
+      setVerify({ overall: "error" });
+    }
+  };
   const explorerUrl    = tx.polygon_tx ? `https://polygonscan.com/tx/${tx.polygon_tx}` : null;
   const isFullyPaid    = parseFloat(tx.balance || 0) === 0;
   // ── BAGO: hinahanap ang orihinal na loan record gamit ang loan_code
@@ -213,6 +232,34 @@ function ReceiptModal({ tx, onClose, allLoansForLookup }) {
                 <span className="lp-rv mono">{tx.block_number}</span>
               </div>
             )}
+            {/* ── BAGO: "Verify Integrity" — ire-recompute ang hash gamit ang
+            CURRENT na laman ng record sa database, at ikukumpara sa stored
+            hash (at sa Polygon kung naka-configure) — para makita kung
+            "Tampered" ang record na 'to. Screen-only, hindi lalabas sa print. ── */}
+            <div className="lp-receipt-row-item no-print">
+              <span className="lp-rk">Integrity Check</span>
+              <span className="lp-rv">
+                {verify === undefined && (
+                  <button onClick={runVerify} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #c8e6c9",background:"#f4faf4",color:"#2e7d32",cursor:"pointer",fontWeight:600,fontFamily:"inherit"}}>
+                    Verify
+                  </button>
+                )}
+                {verify === null && <span style={{fontSize:11,color:"#888"}}>Checking...</span>}
+                {verify?.overall === "error" && (
+                  <span onClick={runVerify} style={{fontSize:11,color:"#e65100",cursor:"pointer"}} title="Click to retry">Check failed — retry</span>
+                )}
+                {verify?.overall === "tampered" && (
+                  <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:"#c62828",fontWeight:700}}>
+                    <AlertTriangle size={13}/> Tampered
+                  </span>
+                )}
+                {verify?.overall === "verified" && (
+                  <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:"#2e7d32",fontWeight:700}}>
+                    <CheckCircle size={13}/> Verified{!verify.chain_checked && " (local)"}
+                  </span>
+                )}
+              </span>
+            </div>
           </div>
 
           {/* Polygonscan link — screen only */}
@@ -252,8 +299,25 @@ function ReceiptModal({ tx, onClose, allLoansForLookup }) {
 // pesos sign, hiwalay na Verification section) para hindi na kailangang
 // buksan pa ang raw Polygonscan/Remix interface. ────────────────────────────
 function LoanReleaseModal({ loan, release, loading, onClose }) {
+  // ── BAGO: "Verify Integrity" state — parehong pattern gaya ng
+  // ReceiptModal sa itaas. Naka-declare BAGO ang "if (!loan) return null"
+  // (rules of hooks). Nire-reset kapag nagpalit ng release record. ────────
+  const [verify, setVerify] = useState(undefined);
+  useEffect(() => { setVerify(undefined); }, [release?.tx_id]);
+
   if (!loan) return null;
   const isOnBlockchain = release?.polygon_tx && release?.network === "polygon";
+
+  const runVerify = async () => {
+    if (!release?.tx_id) return;
+    setVerify(null);
+    try {
+      const r = await verifyLoanReleaseIntegrityAPI(release.tx_id);
+      setVerify(r);
+    } catch {
+      setVerify({ overall: "error" });
+    }
+  };
 
   const deductionRows = release ? [
     ["Interest",                    release.interest],
@@ -325,6 +389,61 @@ function LoanReleaseModal({ loan, release, loading, onClose }) {
             <div style={{fontSize:11,wordBreak:"break-all",padding:"6px 0",color:"#555"}}>
               <span style={{color:"#888",fontWeight:600}}>SHA-256:</span> <span style={{fontFamily:"monospace"}}>{release.hash || "—"}</span>
             </div>
+
+            {/* ── BAGO: "Verify Integrity" — ire-recompute ang hash gamit ang
+            CURRENT na laman ng buong deduction breakdown sa database, at
+            ikukumpara sa stored hash (at sa Polygon kung naka-configure). ── */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderTop:"1px solid #f0f0f0",marginTop:4}}>
+              <span style={{fontSize:11,color:"#888",fontWeight:600}}>Integrity Check</span>
+              {verify === undefined && (
+                <button onClick={runVerify} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #c8e6c9",background:"#f4faf4",color:"#2e7d32",cursor:"pointer",fontWeight:600,fontFamily:"inherit"}}>
+                  Verify
+                </button>
+              )}
+              {verify === null && <span style={{fontSize:11,color:"#888"}}>Checking...</span>}
+              {verify?.overall === "error" && (
+                <span onClick={runVerify} style={{fontSize:11,color:"#e65100",cursor:"pointer"}} title="Click to retry">Check failed — retry</span>
+              )}
+              {verify?.overall === "tampered" && (
+                <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:"#c62828",fontWeight:700}}>
+                  <AlertTriangle size={13}/> Tampered
+                </span>
+              )}
+              {verify?.overall === "verified" && (
+                <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:"#2e7d32",fontWeight:700}}>
+                  <CheckCircle size={13}/> Verified{!verify.chain_checked && " (local)"}
+                </span>
+              )}
+            </div>
+
+            {/* ── BAGO: per-field diff — kapag "Tampered" AT may laman ang
+            "field_diff" (mula sa on-chain comparison), ipakita EXACTLY kung
+            aling field(s) ang hindi tumutugma sa pagitan ng DB (ngayon) at
+            ng naka-lock na sa Polygon. Malaking tulong ito para malaman kung
+            totoong may binago, o may ibang dahilan (hal. rounding). ────────── */}
+            {verify?.overall === "tampered" && verify?.field_diff && (
+              <div style={{background:"#fff8f7",border:"1px solid #ffcdd2",borderRadius:8,padding:"8px 12px",marginBottom:10,marginTop:-4}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#c62828",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>
+                  Hindi tumutugma:
+                </div>
+                {verify.field_diff.filter(f => !f.match).map(f => (
+                  <div key={f.field} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"2px 0"}}>
+                    <span style={{color:"#888"}}>{f.field.replace(/_/g," ")}</span>
+                    <span>
+                      <span style={{color:"#c62828"}}>DB: ₱{Number(f.db_value).toLocaleString()}</span>
+                      {" vs "}
+                      <span style={{color:"#7c3aed"}}>Chain: ₱{Number(f.chain_value).toLocaleString()}</span>
+                    </span>
+                  </div>
+                ))}
+                {verify.field_diff.every(f => f.match) && (
+                  <div style={{fontSize:11,color:"#888"}}>
+                    Tugma ang lahat ng field values — baka nasa hash comparison mismo ang pagkakaiba (posibleng luma pang on-chain record bago ang huling fix).
+                  </div>
+                )}
+              </div>
+            )}
+
             {release.polygon_tx && (
               <a href={release.explorer_url || `https://polygonscan.com/tx/${release.polygon_tx}`} target="_blank" rel="noopener noreferrer"
                 style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,color:"#7c3aed",fontWeight:600,fontSize:12,marginTop:10,padding:"8px",background:"#f3e5f5",borderRadius:8,textDecoration:"none"}}>

@@ -1,9 +1,17 @@
-import hashlib
-import json
 from django.db import models
 from django.utils import timezone
 from loans.models import Loan
 from members.models import Member
+# ── FIX: dating gumagawa ang Payment.save() (sa ibaba) ng SARILI NIYANG
+# duplicate na hash logic — gamit ang "self.member_id"/"self.loan_id" (ang
+# NUMERIC DATABASE ID ng foreign key, hal. 21), HINDI ang "self.member.
+# member_id"/"self.loan.loan_id" (ang human-readable code, hal. "LEAF-002"/
+# "LN-2026-011") na siyang ginagamit ng "blockchain.py" at ng "Verify
+# Integrity" endpoint. Kaya kahit walang binago sa payment, palaging
+# "Tampered" ang lalabas kapag ni-verify — dahil magkaiba talaga ang
+# ginamit na basehan ng hash. Dito na lang ngayon tumatawag sa iisang
+# "generate_payment_hash()" (single source of truth, tama ang fields). ──────
+from .blockchain import generate_payment_hash, generate_loan_release_hash
 
 
 class Payment(models.Model):
@@ -56,14 +64,20 @@ class Payment(models.Model):
             self.tx_id = f"{prefix}{str(max_num + 1).zfill(3)}"
 
         if not self.hash:
-            # Full SHA-256 hash — matches blockchain generate_payment_hash()
-            payload   = json.dumps({
-                'tx_id':     self.tx_id,
-                'member_id': str(self.member_id),
-                'loan_id':   str(self.loan_id),
-                'amount':    str(self.amount),
-            }, sort_keys=True)
-            self.hash = hashlib.sha256(payload.encode()).hexdigest()
+            # ── FIX: gamit na ngayon ang tamang "member.member_id"/
+            # "loan.loan_id" (string code, hindi ang numeric FK id), at
+            # ang "generate_payment_hash()" mula sa blockchain.py — para
+            # eksaktong pareho ang basehan ng hash kahit saan pa ito
+            # kino-compute (paggawa ng payment, on-chain recording, at
+            # "Verify Integrity" recompute).
+            # ── BAGO: kasama na rin ang "balance" (running balance ng
+            # loan PAGKATAPOS ng payment na 'to) sa hash — dati "amount"
+            # lang ang protektado, kaya kung direktang babaguhin ang
+            # "balance" column sa DB, hindi ito nade-detect bilang
+            # tampering. ────────────────────────────────────────────────
+            self.hash = generate_payment_hash(
+                self.tx_id, self.member.member_id, self.loan.loan_id, self.amount, self.balance,
+            )
 
         super().save(*args, **kwargs)
 
@@ -140,14 +154,19 @@ class LoanRelease(models.Model):
             self.tx_id = f"{prefix}{str(max_num + 1).zfill(3)}"
 
         if not self.hash:
-            # ── Comprehensive hash — sumasaklaw sa BUONG breakdown, hindi
-            # lang sa net proceeds. Kung may magbago kahit isang field dito
-            # sa database pagkatapos ma-record, hindi na ito tutugma sa
-            # hash na naka-lock na sa Polygon. ─────────────────────────────
-            payload = json.dumps({
-                'tx_id':             self.tx_id,
-                'member_id':         str(self.member_id),
-                'loan_id':           str(self.loan_id),
+            # ── FIX: parehong bug gaya ng sa Payment.save() sa itaas —
+            # "self.member_id"/"self.loan_id" ay ang NUMERIC FK id, hindi
+            # ang "member.member_id"/"loan.loan_id" (string code) na
+            # ginagamit ng "generate_loan_release_hash()" sa blockchain.py
+            # (na siya namang ginagamit ng loans/views.py at ng "Verify
+            # Integrity" endpoint). Sa dating code, ito ay na-o-overwrite
+            # pa rin ng TAMANG hash pagkatapos (sa loans/views.py, pagkatapos
+            # ng "record_loan_release_on_blockchain()" call), kaya hindi ito
+            # gaanong naging problema — pero mali pa rin ito bilang
+            # fallback, at posibleng magkamali kung sakaling ma-skip ang
+            # overwrite step na 'yon sa hinaharap. Ginawa na ring gamit
+            # ang iisang "generate_loan_release_hash()" dito. ──────────────
+            breakdown = {
                 'principal':         str(self.principal),
                 'interest':          str(self.interest),
                 'service_fee':       str(self.service_fee),
@@ -156,7 +175,9 @@ class LoanRelease(models.Model):
                 'savings_deposit':   str(self.savings_deposit),
                 'share_capital_cbu': str(self.share_capital_cbu),
                 'net_proceeds':      str(self.net_proceeds),
-            }, sort_keys=True)
-            self.hash = hashlib.sha256(payload.encode()).hexdigest()
+            }
+            self.hash = generate_loan_release_hash(
+                self.tx_id, self.member.member_id, self.loan.loan_id, breakdown,
+            )
 
         super().save(*args, **kwargs)

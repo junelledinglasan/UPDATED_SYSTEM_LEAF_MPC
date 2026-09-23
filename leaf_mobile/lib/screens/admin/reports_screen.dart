@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../services/reports_service.dart';
+import '../../utils/file_download.dart';
 import '../../widgets/admin/admin_scaffold_helpers.dart';
 
 class _RPColors {
@@ -87,6 +88,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   DateTime _genTo = DateTime.now();
   bool _genLoading = false;
   Map<String, dynamic>? _genPreview;
+  String _exporting = ''; // '' | 'excel' | 'pdf' — anong export ang kasalukuyang tumatakbo
 
   // ── Audit Log tab state ─────────────────────────────────────────────────
   bool _auditLoading = true;
@@ -215,17 +217,52 @@ class _ReportsScreenState extends State<ReportsScreen> {
     } catch (_) {}
   }
 
+  String _fmtDate(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   Future<void> _loadPreview() async {
     setState(() { _genLoading = true; _genPreview = null; });
     try {
-      final from = '${_genFrom.year}-${_genFrom.month.toString().padLeft(2, '0')}-${_genFrom.day.toString().padLeft(2, '0')}';
-      final to = '${_genTo.year}-${_genTo.month.toString().padLeft(2, '0')}-${_genTo.day.toString().padLeft(2, '0')}';
-      final data = await ReportsService.previewReport(_genType, from, to);
+      final data = await ReportsService.previewReport(_genType, _fmtDate(_genFrom), _fmtDate(_genTo));
       if (mounted) setState(() => _genPreview = data);
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to load preview.'), backgroundColor: _RPColors.red));
     } finally {
       if (mounted) setState(() => _genLoading = false);
+    }
+  }
+
+  // ── BAGO: actual Excel/PDF export — dating placeholder na SnackBar lang
+  // ("kailangan pa ng file-download support"), ngayon totoong kinukuha na
+  // ang file bytes mula sa backend (gamit ang parehong auth/token setup
+  // ng ApiClient), sine-save sa temp directory ng device (path_provider),
+  // tapos ipinapakita ang native share/save sheet (share_plus) para
+  // ma-download/ma-send ng user ang file — katulad ng browser-download
+  // na ginagawa na ng web version. ─────────────────────────────────────────
+  Future<void> _exportReport(String format) async {
+    setState(() => _exporting = format);
+    try {
+      final from = _fmtDate(_genFrom);
+      final to = _fmtDate(_genTo);
+      final bytes = format == 'excel'
+          ? await ReportsService.exportExcelBytes(_genType, from, to)
+          : await ReportsService.exportPdfBytes(_genType, from, to);
+
+      final ext = format == 'excel' ? 'xlsx' : 'pdf';
+      final safeName = _genType.replaceAll(' ', '_');
+      final fileName = 'LEAF_MPC_${safeName}_${from}_to_$to.$ext';
+
+      // ── Platform-aware: sa web, direktang browser download (Blob +
+      // <a download>); sa mobile/desktop, i-se-save sa temp folder tapos
+      // ipapakita ang native share/save sheet. Iisa lang itong function
+      // (`saveAndShareBytes`) — pinipili ni Dart sa COMPILE TIME kung
+      // aling implementation ang gagana, base sa target platform. ──────
+      await saveAndShareBytes(bytes, fileName, shareText: '$_genType ($from to $to)');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: _RPColors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = '');
     }
   }
 
@@ -289,6 +326,75 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (key == 'classification' && !_classFetched) _loadClassification();
     if (key == 'performance' && !_perfFetched) _loadPerformance();
     if (key == 'audit' && !_auditFetched) _loadAudit();
+  }
+
+  // ── "View All" full-list bottom sheet — BAGO: dating pag maraming
+  // laman ang isang section (Top Borrowers, Share Capital Growth,
+  // Delinquency Report, Risk Assessment, atbp.), basta pinuputol lang
+  // sa unang 10 items — kahit walang paalam minsan na may itinatago
+  // pang records, at wala talagang paraan para makita yung natitira.
+  // Ngayon, may tappable "View All (N)" sa ilalim ng bawat ganitong
+  // list — pag pinindot, mag-fofloat ang KUMPLETONG listahan bilang
+  // scrollable bottom sheet, katulad ng floating modal na ginawa rin
+  // natin sa web version. ──────────────────────────────────────────────
+  void _showFullListSheet({
+    required String title,
+    required List<dynamic> data,
+    required Widget Function(dynamic row, int index) rowBuilder,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (ctx, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 6),
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(2)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 6, 14, 10),
+                child: Row(children: [
+                  Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _RPColors.title))),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: const Color(0xFFE8F5E9), borderRadius: BorderRadius.circular(20)),
+                    child: Text('${data.length} record${data.length != 1 ? "s" : ""}', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: _RPColors.green)),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    icon: const Icon(Icons.close, size: 18, color: Color(0xFF999999)),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ]),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: data.isEmpty
+                    ? const _NoData()
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 20),
+                        itemCount: data.length,
+                        itemBuilder: (ctx, i) => rowBuilder(data[i], i),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -706,44 +812,49 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
       const SizedBox(height: 14),
 
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Repayment Progress', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title)),
-            Text('$_selectedYear — % of loan amount already repaid', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
-            const SizedBox(height: 12),
-            if (_repaymentProgress.isEmpty)
-              const _NoData()
-            else
-              ..._repaymentProgress.take(10).map((row) {
-                final pct = double.tryParse('${row['progress_pct'] ?? 0}') ?? 0;
-                final color = pct >= 75 ? _RPColors.green : pct >= 40 ? _RPColors.orange : _RPColors.red;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        Expanded(child: Text('${row['member_name'] ?? row['loan_id'] ?? ''}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                        Text('${pct.toStringAsFixed(0)}%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
-                      ]),
-                      const SizedBox(height: 3),
-                      ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: (pct / 100).clamp(0, 1), backgroundColor: const Color(0xFFF0F0F0), color: color, minHeight: 5)),
-                    ],
-                  ),
-                );
-              }),
-            if (_repaymentProgress.length > 10) ...[
-              const SizedBox(height: 6),
-              Text('+ ${_repaymentProgress.length - 10} more loans', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
+      Builder(builder: (context) {
+        Widget repaymentRow(dynamic row, [int? _i]) {
+          final pct = double.tryParse('${row['progress_pct'] ?? 0}') ?? 0;
+          final color = pct >= 75 ? _RPColors.green : pct >= 40 ? _RPColors.orange : _RPColors.red;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Expanded(child: Text('${row['member_name'] ?? row['loan_id'] ?? ''}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                  Text('${pct.toStringAsFixed(0)}%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+                ]),
+                const SizedBox(height: 3),
+                ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: (pct / 100).clamp(0, 1), backgroundColor: const Color(0xFFF0F0F0), color: color, minHeight: 5)),
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Repayment Progress', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title)),
+              Text('$_selectedYear — % of loan amount already repaid', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
+              const SizedBox(height: 12),
+              if (_repaymentProgress.isEmpty)
+                const _NoData()
+              else
+                ..._repaymentProgress.take(10).map(repaymentRow),
+              if (_repaymentProgress.length > 10)
+                _ViewAllButton(
+                  total: _repaymentProgress.length,
+                  onTap: () => _showFullListSheet(title: 'Repayment Progress', data: _repaymentProgress, rowBuilder: repaymentRow),
+                ),
             ],
-          ],
-        ),
-      ),
+          ),
+        );
+      }),
     ];
   }
 
@@ -812,45 +923,69 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
       const SizedBox(height: 14),
 
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(children: [Icon(Icons.emoji_events_outlined, size: 15, color: _RPColors.orange), SizedBox(width: 6), Text('Top Borrowers', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title))]),
-            Text('$_selectedYear — members with highest total loan amounts', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
-            const SizedBox(height: 10),
-            if (topList.isEmpty)
-              const _NoData()
-            else
-              ...topList.take(10).toList().asMap().entries.map((entry) {
-                final rank = entry.key + 1;
-                final row = entry.value;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(8)),
-                  child: Row(children: [
-                    Container(
-                      width: 22, height: 22,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(color: rank <= 3 ? const Color(0xFFFFF3E0) : const Color(0xFFF0F0F0), shape: BoxShape.circle),
-                      child: Text('$rank', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: rank <= 3 ? _RPColors.orange : const Color(0xFF888888))),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                    Text('₱${(double.tryParse('${row['total_amount'] ?? 0}') ?? 0).toStringAsFixed(0)}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _RPColors.green)),
-                  ]),
-                );
-              }),
-          ],
-        ),
-      ),
+      Builder(builder: (context) {
+        Widget topBorrowerRow(dynamic row, int index) {
+          final rank = index + 1;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(8)),
+            child: Row(children: [
+              Container(
+                width: 22, height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: rank <= 3 ? const Color(0xFFFFF3E0) : const Color(0xFFF0F0F0), shape: BoxShape.circle),
+                child: Text('$rank', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: rank <= 3 ? _RPColors.orange : const Color(0xFF888888))),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+              Text('₱${(double.tryParse('${row['total_amount'] ?? 0}') ?? 0).toStringAsFixed(0)}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _RPColors.green)),
+            ]),
+          );
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(children: [Icon(Icons.emoji_events_outlined, size: 15, color: _RPColors.orange), SizedBox(width: 6), Text('Top Borrowers', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title))]),
+              Text('$_selectedYear — members with highest total loan amounts', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
+              const SizedBox(height: 10),
+              if (topList.isEmpty)
+                const _NoData()
+              else ...[
+                ...List.generate(topList.length > 10 ? 10 : topList.length, (i) => topBorrowerRow(topList[i], i)),
+                if (topList.length > 10)
+                  _ViewAllButton(
+                    total: topList.length,
+                    onTap: () => _showFullListSheet(title: 'Top Borrowers', data: topList, rowBuilder: topBorrowerRow),
+                  ),
+              ],
+            ],
+          ),
+        );
+      }),
       const SizedBox(height: 14),
 
-      Container(
+      Builder(builder: (context) {
+        Widget firstTimeRow(dynamic row, [int? _i]) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(8)),
+            child: Row(children: [
+              CircleAvatar(radius: 12, backgroundColor: _RPColors.blue, child: Text('${row['member_name'] ?? 'M'}'.isNotEmpty ? '${row['member_name']}'[0].toUpperCase() : 'M', style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700))),
+              const SizedBox(width: 8),
+              Expanded(child: Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+              Text('${row['loan_id'] ?? ''}', style: const TextStyle(fontSize: 10, color: _RPColors.sub, fontFamily: 'monospace')),
+            ]),
+          );
+        }
+
+        return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
@@ -868,22 +1003,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const SizedBox(height: 10),
             if (firstTimeList.isEmpty)
               const _NoData()
-            else
-              ...firstTimeList.take(10).map((row) => Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(8)),
-                    child: Row(children: [
-                      CircleAvatar(radius: 12, backgroundColor: _RPColors.blue, child: Text('${row['member_name'] ?? 'M'}'.isNotEmpty ? '${row['member_name']}'[0].toUpperCase() : 'M', style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700))),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                      Text('${row['loan_id'] ?? ''}', style: const TextStyle(fontSize: 10, color: _RPColors.sub, fontFamily: 'monospace')),
-                    ]),
-                  )),
-            if (firstTimeList.length > 10) Padding(padding: const EdgeInsets.only(top: 4), child: Text('+ ${firstTimeList.length - 10} more', style: const TextStyle(fontSize: 10, color: _RPColors.sub))),
+            else ...[
+              ...firstTimeList.take(10).map(firstTimeRow),
+              if (firstTimeList.length > 10)
+                _ViewAllButton(
+                  total: firstTimeList.length,
+                  onTap: () => _showFullListSheet(title: 'First-Time Borrowers', data: firstTimeList, rowBuilder: firstTimeRow),
+                ),
+            ],
           ],
         ),
-      ),
+      );
+      }),
     ];
   }
 
@@ -898,182 +1029,226 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     return [
       // ── Member Performance ────────────────────────────────────────────
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Member Performance', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title)),
-            Text('$_selectedYear — top members by payment reliability', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
-            const SizedBox(height: 10),
-            if (_memberPerformance.isEmpty)
-              const _NoData()
-            else
-              ..._memberPerformance.take(10).map((row) {
-                final onTimePct = double.tryParse('${row['on_time_pct'] ?? row['performance_pct'] ?? 0}') ?? 0;
-                final rating = onTimePct >= 90 ? 'Excellent' : onTimePct >= 75 ? 'Good' : onTimePct >= 50 ? 'Fair' : 'Poor';
-                final color = onTimePct >= 90 ? _RPColors.green : onTimePct >= 75 ? _RPColors.blue : onTimePct >= 50 ? _RPColors.orange : _RPColors.red;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(8)),
-                  child: Row(children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-                          Text('${row['member_id'] ?? ''}', style: const TextStyle(fontSize: 9.5, color: _RPColors.sub, fontFamily: 'monospace')),
-                        ],
-                      ),
-                    ),
-                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Text('${onTimePct.toStringAsFixed(0)}%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                        child: Text(rating, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700, color: color)),
-                      ),
-                    ]),
-                  ]),
-                );
-              }),
-            if (_memberPerformance.length > 10)
-              Padding(padding: const EdgeInsets.only(top: 4), child: Text('+ ${_memberPerformance.length - 10} more members', style: const TextStyle(fontSize: 10, color: _RPColors.sub))),
-          ],
-        ),
-      ),
+      Builder(builder: (context) {
+        Widget memberPerfRow(dynamic row, [int? _i]) {
+          final onTimePct = double.tryParse('${row['on_time_pct'] ?? row['performance_pct'] ?? 0}') ?? 0;
+          final rating = onTimePct >= 90 ? 'Excellent' : onTimePct >= 75 ? 'Good' : onTimePct >= 50 ? 'Fair' : 'Poor';
+          final color = onTimePct >= 90 ? _RPColors.green : onTimePct >= 75 ? _RPColors.blue : onTimePct >= 50 ? _RPColors.orange : _RPColors.red;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(8)),
+            child: Row(children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    Text('${row['member_id'] ?? ''}', style: const TextStyle(fontSize: 9.5, color: _RPColors.sub, fontFamily: 'monospace')),
+                  ],
+                ),
+              ),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('${onTimePct.toStringAsFixed(0)}%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                  child: Text(rating, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700, color: color)),
+                ),
+              ]),
+            ]),
+          );
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Member Performance', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title)),
+              Text('$_selectedYear — top members by payment reliability', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
+              const SizedBox(height: 10),
+              if (_memberPerformance.isEmpty)
+                const _NoData()
+              else ...[
+                ..._memberPerformance.take(10).map(memberPerfRow),
+                if (_memberPerformance.length > 10)
+                  _ViewAllButton(
+                    total: _memberPerformance.length,
+                    onTap: () => _showFullListSheet(title: 'Member Performance', data: _memberPerformance, rowBuilder: memberPerfRow),
+                  ),
+              ],
+            ],
+          ),
+        );
+      }),
       const SizedBox(height: 14),
 
       // ── Share Capital Growth ──────────────────────────────────────────
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Share Capital Growth', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title)),
-            Text('$_selectedYear — top contributors', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
-            const SizedBox(height: 10),
-            if (_shareCapitalGrowth.isEmpty)
-              const _NoData()
-            else
-              ..._shareCapitalGrowth.take(10).map((row) => Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(8)),
-                    child: Row(children: [
-                      Expanded(child: Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                      Text('₱${(double.tryParse('${row['total_deposit'] ?? row['amount'] ?? 0}') ?? 0).toStringAsFixed(0)}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _RPColors.purple)),
-                    ]),
-                  )),
-          ],
-        ),
-      ),
+      Builder(builder: (context) {
+        Widget shareCapRow(dynamic row, [int? _i]) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(8)),
+            child: Row(children: [
+              Expanded(child: Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+              Text('₱${(double.tryParse('${row['total_deposit'] ?? row['amount'] ?? 0}') ?? 0).toStringAsFixed(0)}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _RPColors.purple)),
+            ]),
+          );
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Share Capital Growth', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title)),
+              Text('$_selectedYear — top contributors', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
+              const SizedBox(height: 10),
+              if (_shareCapitalGrowth.isEmpty)
+                const _NoData()
+              else ...[
+                ..._shareCapitalGrowth.take(10).map(shareCapRow),
+                if (_shareCapitalGrowth.length > 10)
+                  _ViewAllButton(
+                    total: _shareCapitalGrowth.length,
+                    onTap: () => _showFullListSheet(title: 'Share Capital Growth', data: _shareCapitalGrowth, rowBuilder: shareCapRow),
+                  ),
+              ],
+            ],
+          ),
+        );
+      }),
       const SizedBox(height: 14),
 
       // ── Delinquency Report ────────────────────────────────────────────
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              const Icon(Icons.warning_amber_rounded, size: 15, color: _RPColors.red),
-              const SizedBox(width: 6),
-              const Text('Delinquency Report', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title)),
-              const Spacer(),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: const Color(0xFFFCE4EC), borderRadius: BorderRadius.circular(20)), child: Text('${_delinquency['count'] ?? 0}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _RPColors.red))),
+      Builder(builder: (context) {
+        Widget delinqRow(dynamic row, [int? _i]) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(color: const Color(0xFFFFF8F8), border: Border.all(color: const Color(0xFFFFCDD2)), borderRadius: BorderRadius.circular(8)),
+            child: Row(children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    Text('${row['loan_id'] ?? ''}', style: const TextStyle(fontSize: 9.5, color: _RPColors.sub, fontFamily: 'monospace')),
+                  ],
+                ),
+              ),
+              Text('₱${(double.tryParse('${row['balance'] ?? 0}') ?? 0).toStringAsFixed(0)}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _RPColors.red)),
             ]),
-            Text('Loans overdue by $_delinqMonths+ month${_delinqMonths > 1 ? "s" : ""}', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 4,
-              children: [1, 2, 3].map((m) {
-                final active = _delinqMonths == m;
-                return ChoiceChip(
-                  label: Text('${m}mo+', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: active ? Colors.white : const Color(0xFF888888))),
-                  selected: active,
-                  selectedColor: _RPColors.red,
-                  backgroundColor: Colors.white,
-                  side: BorderSide(color: active ? _RPColors.red : _RPColors.border),
-                  visualDensity: VisualDensity.compact,
-                  onSelected: (_) { setState(() => _delinqMonths = m); _reloadDelinquency(); },
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 10),
-            if (delinqData.isEmpty)
-              const _NoData(text: 'No delinquent loans found.', icon: Icons.celebration_outlined)
-            else
-              ...delinqData.take(10).map((row) => Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(color: const Color(0xFFFFF8F8), border: Border.all(color: const Color(0xFFFFCDD2)), borderRadius: BorderRadius.circular(8)),
-                    child: Row(children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-                            Text('${row['loan_id'] ?? ''}', style: const TextStyle(fontSize: 9.5, color: _RPColors.sub, fontFamily: 'monospace')),
-                          ],
-                        ),
-                      ),
-                      Text('₱${(double.tryParse('${row['balance'] ?? 0}') ?? 0).toStringAsFixed(0)}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _RPColors.red)),
-                    ]),
-                  )),
-          ],
-        ),
-      ),
+          );
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                const Icon(Icons.warning_amber_rounded, size: 15, color: _RPColors.red),
+                const SizedBox(width: 6),
+                const Text('Delinquency Report', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title)),
+                const Spacer(),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: const Color(0xFFFCE4EC), borderRadius: BorderRadius.circular(20)), child: Text('${_delinquency['count'] ?? 0}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _RPColors.red))),
+              ]),
+              Text('Loans overdue by $_delinqMonths+ month${_delinqMonths > 1 ? "s" : ""}', style: const TextStyle(fontSize: 10, color: _RPColors.sub)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 4,
+                children: [1, 2, 3].map((m) {
+                  final active = _delinqMonths == m;
+                  return ChoiceChip(
+                    label: Text('${m}mo+', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: active ? Colors.white : const Color(0xFF888888))),
+                    selected: active,
+                    selectedColor: _RPColors.red,
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: active ? _RPColors.red : _RPColors.border),
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (_) { setState(() => _delinqMonths = m); _reloadDelinquency(); },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 10),
+              if (delinqData.isEmpty)
+                const _NoData(text: 'No delinquent loans found.', icon: Icons.celebration_outlined)
+              else ...[
+                ...delinqData.take(10).map(delinqRow),
+                if (delinqData.length > 10)
+                  _ViewAllButton(
+                    total: delinqData.length,
+                    onTap: () => _showFullListSheet(title: 'Delinquency Report', data: delinqData, rowBuilder: delinqRow),
+                  ),
+              ],
+            ],
+          ),
+        );
+      }),
       const SizedBox(height: 14),
 
       // ── Risk Assessment ───────────────────────────────────────────────
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(children: [Icon(Icons.security_outlined, size: 15, color: _RPColors.orange), SizedBox(width: 6), Text('Risk Assessment', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title))]),
-            const Text('Members flagged for higher lending risk', style: TextStyle(fontSize: 10, color: _RPColors.sub)),
-            const SizedBox(height: 10),
-            if (riskSummary.isNotEmpty)
-              Row(
-                children: riskSummary.entries.take(3).map((e) => Expanded(
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 6),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        decoration: BoxDecoration(color: const Color(0xFFFFF8E1), borderRadius: BorderRadius.circular(8)),
-                        child: Column(children: [
-                          Text('${e.value}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _RPColors.orange)),
-                          Text('${e.key}', style: const TextStyle(fontSize: 8, color: _RPColors.orange, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
-                        ]),
-                      ),
-                    )).toList(),
-              ),
-            const SizedBox(height: 10),
-            if (riskData.isEmpty)
-              const _NoData(text: 'No high-risk members flagged.')
-            else
-              ...riskData.take(10).map((row) => Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(color: const Color(0xFFFFF8F0), border: Border.all(color: const Color(0xFFFFE0B2)), borderRadius: BorderRadius.circular(8)),
-                    child: Row(children: [
-                      Expanded(child: Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                      Text('${row['risk_level'] ?? row['risk_score'] ?? ''}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _RPColors.orange)),
-                    ]),
-                  )),
-          ],
-        ),
-      ),
+      Builder(builder: (context) {
+        Widget riskRow(dynamic row, [int? _i]) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(color: const Color(0xFFFFF8F0), border: Border.all(color: const Color(0xFFFFE0B2)), borderRadius: BorderRadius.circular(8)),
+            child: Row(children: [
+              Expanded(child: Text('${row['member_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+              Text('${row['risk_level'] ?? row['risk_score'] ?? ''}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _RPColors.orange)),
+            ]),
+          );
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: _RPColors.border), borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(children: [Icon(Icons.security_outlined, size: 15, color: _RPColors.orange), SizedBox(width: 6), Text('Risk Assessment', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _RPColors.title))]),
+              const Text('Members flagged for higher lending risk', style: TextStyle(fontSize: 10, color: _RPColors.sub)),
+              const SizedBox(height: 10),
+              if (riskSummary.isNotEmpty)
+                Row(
+                  children: riskSummary.entries.take(3).map((e) => Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(color: const Color(0xFFFFF8E1), borderRadius: BorderRadius.circular(8)),
+                          child: Column(children: [
+                            Text('${e.value}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _RPColors.orange)),
+                            Text('${e.key}', style: const TextStyle(fontSize: 8, color: _RPColors.orange, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+                          ]),
+                        ),
+                      )).toList(),
+                ),
+              const SizedBox(height: 10),
+              if (riskData.isEmpty)
+                const _NoData(text: 'No high-risk members flagged.')
+              else ...[
+                ...riskData.take(10).map(riskRow),
+                if (riskData.length > 10)
+                  _ViewAllButton(
+                    total: riskData.length,
+                    onTap: () => _showFullListSheet(title: 'Risk Assessment', data: riskData, rowBuilder: riskRow),
+                  ),
+              ],
+            ],
+          ),
+        );
+      }),
     ];
   }
 
@@ -1242,18 +1417,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
         Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Excel export — kailangan pa ng file-download support (path_provider/share_plus). Darating pa.'))),
-              icon: const Icon(Icons.grid_on, size: 15, color: _RPColors.green),
-              label: const Text('Export Excel', style: TextStyle(fontSize: 11.5)),
+              onPressed: _exporting.isNotEmpty ? null : () => _exportReport('excel'),
+              icon: _exporting == 'excel'
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: _RPColors.green))
+                  : const Icon(Icons.grid_on, size: 15, color: _RPColors.green),
+              label: Text(_exporting == 'excel' ? 'Exporting...' : 'Export Excel', style: const TextStyle(fontSize: 11.5)),
               style: OutlinedButton.styleFrom(foregroundColor: _RPColors.green, side: const BorderSide(color: Color(0xFFC8E6C9))),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: OutlinedButton.icon(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF export — kailangan pa ng file-download support (path_provider/share_plus). Darating pa.'))),
-              icon: const Icon(Icons.picture_as_pdf_outlined, size: 15, color: _RPColors.red),
-              label: const Text('Export PDF', style: TextStyle(fontSize: 11.5)),
+              onPressed: _exporting.isNotEmpty ? null : () => _exportReport('pdf'),
+              icon: _exporting == 'pdf'
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: _RPColors.red))
+                  : const Icon(Icons.picture_as_pdf_outlined, size: 15, color: _RPColors.red),
+              label: Text(_exporting == 'pdf' ? 'Exporting...' : 'Export PDF', style: const TextStyle(fontSize: 11.5)),
               style: OutlinedButton.styleFrom(foregroundColor: _RPColors.red, side: const BorderSide(color: Color(0xFFFFCDD2))),
             ),
           ),
@@ -1619,6 +1798,34 @@ class _LegendDot extends StatelessWidget {
       const SizedBox(width: 4),
       Text(label, style: const TextStyle(fontSize: 9, color: Color(0xFF888888), fontWeight: FontWeight.w500)),
     ]);
+  }
+}
+
+class _ViewAllButton extends StatelessWidget {
+  final int total;
+  final VoidCallback onTap;
+  const _ViewAllButton({required this.total, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('View all $total records', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _RPColors.green)),
+              const SizedBox(width: 3),
+              const Icon(Icons.chevron_right, size: 14, color: _RPColors.green),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

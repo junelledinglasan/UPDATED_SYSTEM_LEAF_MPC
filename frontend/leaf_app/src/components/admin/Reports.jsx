@@ -16,6 +16,9 @@ import {
   getMemberGrowthAPI, getLoanApprovalRateAPI, getUpcomingMaturitiesAPI,
   getFirstTimeBorrowersAPI, getRiskAssessmentAPI,
 } from "../../api/reports";
+// ── BAGO: "Verify Integrity" — hash comparison (DB + on-chain) para sa
+// Blockchain Audit Log table sa "audit" tab, sa ibaba ng file na 'to. ────────
+import { verifyPaymentIntegrityAPI } from "../../api/payments";
 import {
   BarChart2, TrendingUp, FileText, Link2, Users, PieChart,
   Wallet, ClipboardList, AlertTriangle, PiggyBank,
@@ -23,7 +26,7 @@ import {
   Calendar, UserPlus, Shield,
   Activity, Clock, CheckCircle, XCircle, Percent,
   BookOpen, Layers, Award, ArrowUpRight, Coins,
-  X, Download, Eye, Check,
+  X, Download, Eye, Check, ChevronRight,
 } from "lucide-react";
 import "./Reports.css";
 
@@ -78,7 +81,7 @@ function ReportPreviewModal({ type, dateFrom, dateTo, onClose }) {
 
   return (
     <div className="rp-overlay" onClick={onClose}>
-      <div className="rp-modal rp-modal-lg" onClick={e => e.stopPropagation()}>
+      <div className="rp-modal rp-modal-table" onClick={e => e.stopPropagation()}>
         <div className="rp-modal-header">
           <div>
             <div className="rp-modal-title" style={{display:"flex",alignItems:"center",gap:8}}><FileText size={17}/> {type}</div>
@@ -86,7 +89,7 @@ function ReportPreviewModal({ type, dateFrom, dateTo, onClose }) {
           </div>
           <button className="rp-modal-close" onClick={onClose}><X size={16}/></button>
         </div>
-        <div className="rp-modal-body">
+        <div className="rp-modal-body rp-modal-body-table">
           {loading ? (
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,padding:"48px 20px"}}>
               <div style={{width:40,height:40,border:"4px solid #e8f5e9",borderTop:"4px solid #2e7d32",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
@@ -141,28 +144,96 @@ function ReportPreviewModal({ type, dateFrom, dateTo, onClose }) {
 }
 
 // ─── Professional Table ───────────────────────────────────────────────────────
-function ProTable({ columns, rows, empty = "No data available." }) {
+// ── BAGO: dating puro matinding green-gradient header ang bawat table
+// (10+ tables sa buong page), kaya paulit-ulit na "loud" ang tingin at
+// nagiging magulo kapag maraming table na magkakasunod. Ginawang mas
+// magaan/malinis ang header (light background + accent line, tugma sa
+// disenyo ng ibang bahagi ng page). Dagdag din: default 8 rows lang
+// ang makikita agad ("collapsed"), may "Show all X records" button
+// kapag mas marami pa — dito talaga pinaka-nararamdaman ang "magulo"
+// dating dahil sabay-sabay lumalabas ang LAHAT ng rows ng LAHAT ng
+// table sa isang sunod-sunod na pahina. ─────────────────────────────
+function ProTable({ columns, rows, empty = "No data available.", pageSize = 8 }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (!rows || !rows.length) return (
-    <div style={{textAlign:"center",padding:"32px",color:"#bbb",fontSize:13}}>{empty}</div>
+    <div className="rp-table-empty">
+      <Database size={26} color="#d8e0d5"/>
+      <div>{empty}</div>
+    </div>
   );
+
+  const visibleRows = expanded ? rows : rows.slice(0, pageSize);
+  const hasMore = rows.length > pageSize;
+
   return (
-    <div className="rp-pro-table-wrap">
-      <table className="rp-pro-table">
-        <thead>
-          <tr>{columns.map((c,i) => <th key={i} style={c.style}>{c.label}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((row, ri) => (
-            <tr key={ri}>
-              {columns.map((c, ci) => (
-                <td key={ci} style={c.tdStyle}>
-                  {c.render ? c.render(row, ri) : row[c.key]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="rp-pro-table-shell">
+      <div className="rp-pro-table-wrap">
+        <table className="rp-pro-table">
+          <thead>
+            <tr>{columns.map((c,i) => <th key={i} style={c.style}>{c.label}</th>)}</tr>
+          </thead>
+          <tbody>
+            {visibleRows.map((row, ri) => (
+              <tr key={ri}>
+                {columns.map((c, ci) => (
+                  <td key={ci} style={c.tdStyle}>
+                    {c.render ? c.render(row, ri) : row[c.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="rp-pro-table-footer">
+        <span className="rp-pro-table-count">{rows.length} record{rows.length!==1?"s":""}</span>
+        {hasMore && (
+          <button className="rp-pro-table-more" onClick={() => setExpanded(e => !e)}>
+            {expanded ? "Show less" : `Show all ${rows.length} records`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Table Card — BAGO: dating naka-inline agad ang buong table sa
+// page (kahit maraming table na magkakasunod, sabay lahat lumalabas).
+// Ngayon, ang title/subtitle lang ang laging visible at CLICKABLE —
+// pag-click, saka lang "float" (modal, may dark overlay) ang buong
+// table, malinis ang tingin ng page habang naka-collapse. Ang "extra"
+// (hal. filter buttons, summary stat cards) ay nananatiling visible
+// kahit naka-collapse dahil mga mabilisang-tingnan na KPI ito. ────────
+function TableCard({ icon, title, subtitle, extra, rowCount, open, onOpen, onClose, children, style }) {
+  return (
+    <div className="rp-chart-card" style={style}>
+      <div className="rp-table-trigger" onClick={onOpen}>
+        <div>
+          <div className="rp-chart-title" style={{display:"flex",alignItems:"center",gap:6}}>{icon} {title}</div>
+          {subtitle && <div className="rp-chart-sub" style={{marginBottom:0}}>{subtitle}</div>}
+        </div>
+        <div className="rp-table-trigger-hint">
+          <Eye size={13}/> View table{typeof rowCount === "number" ? ` (${rowCount})` : ""} <ChevronRight size={14}/>
+        </div>
+      </div>
+      {extra}
+      {open && (
+        <div className="rp-overlay" onClick={onClose}>
+          <div className="rp-modal rp-modal-table" onClick={e => e.stopPropagation()}>
+            <div className="rp-modal-header">
+              <div>
+                <div className="rp-modal-title" style={{display:"flex",alignItems:"center",gap:8}}>{icon} {title}</div>
+                {subtitle && <div className="rp-modal-sub">{subtitle}</div>}
+              </div>
+              <button className="rp-modal-close" onClick={onClose}><X size={16}/></button>
+            </div>
+            <div className="rp-modal-body rp-modal-body-table">
+              {children}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -196,6 +267,11 @@ export default function Reports() {
   const [loanType,       setLoanType]      = useState({});
   const [payBehav,       setPayBehav]      = useState({});
   const [auditLog,       setAuditLog]      = useState([]);
+  // ── BAGO: per-row na resulta ng "Verify Integrity" click, keyed by tx_id
+  // ({ [tx_id]: { overall, db_tampered, chain_checked, chain_tampered, ... } }),
+  // at kung aling tx_id ang kasalukuyang tinatawag/loading. ────────────────────
+  const [verifyResults,  setVerifyResults] = useState({});
+  const [verifying,      setVerifying]     = useState("");
   const [classification, setClass]         = useState([]);
   const [memberPerf,     setMemberPerf]    = useState([]);
   const [topBorrowers,   setTopBorrowers]  = useState({ data: [] });
@@ -205,6 +281,9 @@ export default function Reports() {
   const [overdue,        setOverdue]       = useState([]);
   const [monthlyLoans,   setMonthlyLoans]  = useState([]);
   const [fetchedTabs,    setFetchedTabs]   = useState({});
+  // ── BAGO: kung aling table ang naka-"float"/open bilang modal —
+  // isa lang dapat bukas sa isang pagkakataon. ────────────────────────
+  const [openTable,      setOpenTable]     = useState(null);
 
   // ── New analytics state ──
   const [repayment,      setRepayment]     = useState([]);
@@ -484,39 +563,42 @@ export default function Reports() {
             </div>
 
             {/* Collection Efficiency */}
-            <div className="rp-chart-card">
-              <div className="rp-chart-title" style={{display:"flex",alignItems:"center",gap:6}}><TrendingUp size={14} color="#1b5e20"/> Collection Efficiency ({selectedYear})</div>
-              <div className="rp-chart-sub">Actual collected vs expected monthly collection from active loans</div>
-              {!efficiency.data?.length ? <div className="rp-no-data" style={{minHeight:80}}>No data yet.</div> : (
-                <ProTable
-                  columns={[
-                    {label:"Month",       key:"month",          tdStyle:{fontWeight:600}},
-                    {label:"Expected",    key:"expected",       render:r=>`₱${Number(r.expected).toLocaleString()}`,   tdStyle:{color:"#1565c0"}},
-                    {label:"Collected",   key:"collected",      render:r=>`₱${Number(r.collected).toLocaleString()}`,  tdStyle:{fontWeight:700,color:"#2e7d32"}},
-                    {label:"Efficiency",  key:"efficiency_pct", render:r=>(
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <div style={{flex:1,height:7,background:"#f0f0f0",borderRadius:4,overflow:"hidden",minWidth:60}}>
-                          <div style={{width:`${Math.min(r.efficiency_pct,100)}%`,height:"100%",background:r.efficiency_pct>=90?"#2e7d32":r.efficiency_pct>=70?"#f57c00":"#c62828",borderRadius:4}}/>
-                        </div>
-                        <span style={{fontWeight:700,fontSize:12,color:r.efficiency_pct>=90?"#2e7d32":r.efficiency_pct>=70?"#f57c00":"#c62828",flexShrink:0}}>{r.efficiency_pct}%</span>
+            <TableCard
+              icon={<TrendingUp size={14} color="#1b5e20"/>}
+              title={`Collection Efficiency (${selectedYear})`}
+              subtitle="Actual collected vs expected monthly collection from active loans"
+              rowCount={efficiency.data?.length || 0}
+              open={openTable==="efficiency"} onOpen={()=>setOpenTable("efficiency")} onClose={()=>setOpenTable(null)}
+            >
+              <ProTable
+                columns={[
+                  {label:"Month",       key:"month",          tdStyle:{fontWeight:600}},
+                  {label:"Expected",    key:"expected",       render:r=>`₱${Number(r.expected).toLocaleString()}`,   tdStyle:{color:"#1565c0"}},
+                  {label:"Collected",   key:"collected",      render:r=>`₱${Number(r.collected).toLocaleString()}`,  tdStyle:{fontWeight:700,color:"#2e7d32"}},
+                  {label:"Efficiency",  key:"efficiency_pct", render:r=>(
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{flex:1,height:7,background:"#f0f0f0",borderRadius:4,overflow:"hidden",minWidth:60}}>
+                        <div style={{width:`${Math.min(r.efficiency_pct,100)}%`,height:"100%",background:r.efficiency_pct>=90?"#2e7d32":r.efficiency_pct>=70?"#f57c00":"#c62828",borderRadius:4}}/>
                       </div>
-                    )},
-                    {label:"Transactions",key:"tx_count",       tdStyle:{textAlign:"center"}},
-                  ]}
-                  rows={efficiency.data}
-                  empty="No data yet."
-                />
-              )}
-            </div>
+                      <span style={{fontWeight:700,fontSize:12,color:r.efficiency_pct>=90?"#2e7d32":r.efficiency_pct>=70?"#f57c00":"#c62828",flexShrink:0}}>{r.efficiency_pct}%</span>
+                    </div>
+                  )},
+                  {label:"Transactions",key:"tx_count",       tdStyle:{textAlign:"center"}},
+                ]}
+                rows={efficiency.data}
+                empty="No data yet."
+              />
+            </TableCard>
 
             {/* Upcoming Maturities */}
-            <div className="rp-chart-card">
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:8}}>
-                <div>
-                  <div className="rp-chart-title" style={{display:"flex",alignItems:"center",gap:6}}><Calendar size={14} color="#1b5e20"/> Upcoming Loan Maturities</div>
-                  <div className="rp-chart-sub">Loans completing within the next {maturMonths} month{maturMonths>1?"s":""} — {maturities.count||0} loans</div>
-                </div>
-                <div style={{display:"flex",gap:6}}>
+            <TableCard
+              icon={<Calendar size={14} color="#1b5e20"/>}
+              title="Upcoming Loan Maturities"
+              subtitle={`Loans completing within the next ${maturMonths} month${maturMonths>1?"s":""} — ${maturities.count||0} loans`}
+              rowCount={maturities.data?.length || 0}
+              open={openTable==="maturities"} onOpen={()=>setOpenTable("maturities")} onClose={()=>setOpenTable(null)}
+              extra={
+                <div style={{display:"flex",gap:6,marginTop:10}} onClick={e=>e.stopPropagation()}>
                   {[1,2,3,6].map(m => (
                     <button key={m} onClick={()=>{setMaturMonths(m);setFetchedTabs(p=>({...p,overview:false}));}}
                       style={{padding:"4px 12px",borderRadius:20,border:`1.5px solid ${maturMonths===m?"#1565c0":"#e0e0e0"}`,background:maturMonths===m?"#e3f2fd":"#fff",color:maturMonths===m?"#1565c0":"#888",fontWeight:700,fontSize:11,cursor:"pointer"}}>
@@ -524,7 +606,8 @@ export default function Reports() {
                     </button>
                   ))}
                 </div>
-              </div>
+              }
+            >
               <ProTable
                 columns={[
                   {label:"Loan ID",    key:"loan_id",     tdStyle:{fontFamily:"monospace",fontSize:11}},
@@ -537,7 +620,7 @@ export default function Reports() {
                 rows={maturities.data||[]}
                 empty="No upcoming maturities."
               />
-            </div>
+            </TableCard>
 
             {/* Member Growth */}
             <div className="rp-chart-card">
@@ -598,22 +681,31 @@ export default function Reports() {
           </div>
 
           {/* Approval Rate */}
-          <div className="rp-chart-card" style={{gridColumn:"1/-1"}}>
-            <div className="rp-chart-title" style={{display:"flex",alignItems:"center",gap:6}}><CheckCircle size={14} color="#1b5e20"/> Loan Approval Rate by Type ({selectedYear})</div>
-            <div className="rp-chart-sub">Approved vs declined applications per loan type</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:12}}>
-              {[
-                {label:"Total",        val:approvalRate.total||0,          color:"#1565c0"},
-                {label:"Approved",     val:approvalRate.approved||0,       color:"#2e7d32"},
-                {label:"Declined",     val:approvalRate.declined||0,       color:"#c62828"},
-                {label:"Approval Rate",val:`${approvalRate.approval_rate||0}%`, color:"#6a1b9a"},
-              ].map((c,i) => (
-                <div key={i} style={{background:"#f9fef9",borderRadius:10,padding:"12px 14px",border:"1px solid #e4f0e5",textAlign:"center"}}>
-                  <div style={{fontSize:18,fontWeight:800,color:c.color}}>{c.val}</div>
-                  <div style={{fontSize:10,color:"#888",fontWeight:600,marginTop:2,textTransform:"uppercase"}}>{c.label}</div>
-                </div>
-              ))}
-            </div>
+          <TableCard
+            style={{gridColumn:"1/-1"}}
+            icon={<CheckCircle size={14} color="#1b5e20"/>}
+            title={`Loan Approval Rate by Type (${selectedYear})`}
+            subtitle="Approved vs declined applications per loan type"
+            rowCount={(approvalRate.by_type||[]).length}
+            open={openTable==="approvalRate"}
+            onOpen={()=>setOpenTable("approvalRate")}
+            onClose={()=>setOpenTable(null)}
+            extra={
+              <div onClick={e=>e.stopPropagation()} style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,margin:"12px 0"}}>
+                {[
+                  {label:"Total",        val:approvalRate.total||0,          color:"#1565c0"},
+                  {label:"Approved",     val:approvalRate.approved||0,       color:"#2e7d32"},
+                  {label:"Declined",     val:approvalRate.declined||0,       color:"#c62828"},
+                  {label:"Approval Rate",val:`${approvalRate.approval_rate||0}%`, color:"#6a1b9a"},
+                ].map((c,i) => (
+                  <div key={i} style={{background:"#f9fef9",borderRadius:10,padding:"12px 14px",border:"1px solid #e4f0e5",textAlign:"center"}}>
+                    <div style={{fontSize:18,fontWeight:800,color:c.color}}>{c.val}</div>
+                    <div style={{fontSize:10,color:"#888",fontWeight:600,marginTop:2,textTransform:"uppercase"}}>{c.label}</div>
+                  </div>
+                ))}
+              </div>
+            }
+          >
             <ProTable
               columns={[
                 {label:"Loan Type",     key:"loan_type",  tdStyle:{fontWeight:600}},
@@ -632,12 +724,19 @@ export default function Reports() {
               rows={approvalRate.by_type||[]}
               empty="No loan data yet."
             />
-          </div>
+          </TableCard>
 
           {/* Repayment Progress */}
-          <div className="rp-chart-card" style={{gridColumn:"1/-1"}}>
-            <div className="rp-chart-title" style={{display:"flex",alignItems:"center",gap:6}}><BarChart2 size={14} color="#1b5e20"/> Loan Repayment Progress</div>
-            <div className="rp-chart-sub">Active and overdue loans — how much has been paid vs remaining</div>
+          <TableCard
+            style={{gridColumn:"1/-1"}}
+            icon={<BarChart2 size={14} color="#1b5e20"/>}
+            title="Loan Repayment Progress"
+            subtitle="Active and overdue loans — how much has been paid vs remaining"
+            rowCount={repayment.length}
+            open={openTable==="repayment"}
+            onOpen={()=>setOpenTable("repayment")}
+            onClose={()=>setOpenTable(null)}
+          >
             <ProTable
               columns={[
                 {label:"Loan ID",   key:"loan_id",    tdStyle:{fontFamily:"monospace",fontSize:11}},
@@ -659,7 +758,7 @@ export default function Reports() {
               rows={repayment}
               empty="No active loans."
             />
-          </div>
+          </TableCard>
         </div>
       )}
 
@@ -711,9 +810,14 @@ export default function Reports() {
           </div>
 
           {/* Top Borrowers */}
-          <div className="rp-chart-card">
-            <div className="rp-chart-title">Top Borrowers ({selectedYear})</div>
-            <div className="rp-chart-sub">Members with the most loan applications</div>
+          <TableCard
+            title={`Top Borrowers (${selectedYear})`}
+            subtitle="Members with the most loan applications"
+            rowCount={(topBorrowers.data||[]).length}
+            open={openTable==="topBorrowers"}
+            onOpen={()=>setOpenTable("topBorrowers")}
+            onClose={()=>setOpenTable(null)}
+          >
             <ProTable
               columns={[
                 {label:"#",          key:"_rank",       style:{width:40},  tdStyle:{textAlign:"center",fontWeight:700,color:"#2e7d32"}, render:(_,i)=>i+1},
@@ -728,16 +832,18 @@ export default function Reports() {
               rows={topBorrowers.data || []}
               empty="No borrowers yet."
             />
-          </div>
+          </TableCard>
 
           {/* First-time Borrowers */}
-          <div className="rp-chart-card">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-              <div>
-                <div className="rp-chart-title" style={{display:"flex",alignItems:"center",gap:6}}><UserPlus size={14} color="#1b5e20"/> First-time Borrowers ({selectedYear})</div>
-                <div className="rp-chart-sub">Members applying for their very first loan · {firstTimers.count||0} found</div>
-              </div>
-            </div>
+          <TableCard
+            icon={<UserPlus size={14} color="#1b5e20"/>}
+            title={`First-time Borrowers (${selectedYear})`}
+            subtitle={`Members applying for their very first loan · ${firstTimers.count||0} found`}
+            rowCount={(firstTimers.data||[]).length}
+            open={openTable==="firstTimers"}
+            onOpen={()=>setOpenTable("firstTimers")}
+            onClose={()=>setOpenTable(null)}
+          >
             <ProTable
               columns={[
                 {label:"#",          tdStyle:{textAlign:"center",width:36,fontWeight:700,color:"#2e7d32"}, render:(_,i)=>i+1},
@@ -752,7 +858,7 @@ export default function Reports() {
               rows={firstTimers.data||[]}
               empty={`No first-time borrowers for ${selectedYear}.`}
             />
-          </div>
+          </TableCard>
         </div>
       )}
 
@@ -779,9 +885,14 @@ export default function Reports() {
           </div>
 
           {/* Member performance table */}
-          <div className="rp-chart-card">
-            <div className="rp-chart-title">Member Payment Performance ({selectedYear})</div>
-            <div className="rp-chart-sub">Ranked by on-time payment rate — Excellent ≥90% · Good ≥70% · Fair ≥50% · Poor &lt;50%</div>
+          <TableCard
+            title={`Member Payment Performance (${selectedYear})`}
+            subtitle="Ranked by on-time payment rate — Excellent ≥90% · Good ≥70% · Fair ≥50% · Poor <50%"
+            rowCount={memberPerf.length}
+            open={openTable==="memberPerf"}
+            onOpen={()=>setOpenTable("memberPerf")}
+            onClose={()=>setOpenTable(null)}
+          >
             <ProTable
               columns={[
                 {label:"#",          tdStyle:{textAlign:"center",fontWeight:700,color:"#2e7d32",width:40},  render:(_,i)=>i+1},
@@ -799,12 +910,17 @@ export default function Reports() {
               rows={memberPerf}
               empty="No payment data for this year."
             />
-          </div>
+          </TableCard>
 
           {/* Share Capital table */}
-          <div className="rp-chart-card">
-            <div className="rp-chart-title">Share Capital — Top 20 Members</div>
-            <div className="rp-chart-sub">Members with highest share capital</div>
+          <TableCard
+            title="Share Capital — Top 20 Members"
+            subtitle="Members with highest share capital"
+            rowCount={shareCapital.length}
+            open={openTable==="shareCapital"}
+            onOpen={()=>setOpenTable("shareCapital")}
+            onClose={()=>setOpenTable(null)}
+          >
             <ProTable
               columns={[
                 {label:"#",            tdStyle:{textAlign:"center",fontWeight:700,color:"#2e7d32",width:40}, render:(_,i)=>i+1},
@@ -820,16 +936,19 @@ export default function Reports() {
               rows={shareCapital}
               empty="No share capital data yet."
             />
-          </div>
+          </TableCard>
 
           {/* Delinquency Report */}
-          <div className="rp-chart-card">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:8}}>
-              <div>
-                <div className="rp-chart-title" style={{display:"flex",alignItems:"center",gap:6}}><AlertTriangle size={14} color="#1b5e20"/> Delinquency Report</div>
-                <div className="rp-chart-sub">Members with no payment in the past {delinqMonths} month{delinqMonths>1?"s":""} · {delinquency.count||0} found</div>
-              </div>
-              <div style={{display:"flex",gap:6}}>
+          <TableCard
+            icon={<AlertTriangle size={14} color="#1b5e20"/>}
+            title="Delinquency Report"
+            subtitle={`Members with no payment in the past ${delinqMonths} month${delinqMonths>1?"s":""} · ${delinquency.count||0} found`}
+            rowCount={(delinquency.data||[]).length}
+            open={openTable==="delinquency"}
+            onOpen={()=>setOpenTable("delinquency")}
+            onClose={()=>setOpenTable(null)}
+            extra={
+              <div onClick={e=>e.stopPropagation()} style={{display:"flex",gap:6,margin:"8px 0"}}>
                 {[1,2,3,6].map(m => (
                   <button key={m} onClick={()=>{setDelinqMonths(m);setFetchedTabs(p=>({...p,performance:false}));}}
                     style={{padding:"4px 12px",borderRadius:20,border:`1.5px solid ${delinqMonths===m?"#c62828":"#e0e0e0"}`,background:delinqMonths===m?"#ffebee":"#fff",color:delinqMonths===m?"#c62828":"#888",fontWeight:700,fontSize:11,cursor:"pointer"}}>
@@ -837,7 +956,8 @@ export default function Reports() {
                   </button>
                 ))}
               </div>
-            </div>
+            }
+          >
             <ProTable
               columns={[
                 {label:"Loan ID",     key:"loan_id",     tdStyle:{fontFamily:"monospace",fontSize:11}},
@@ -853,25 +973,33 @@ export default function Reports() {
               rows={delinquency.data||[]}
               empty="No delinquent members found."
             />
-          </div>
+          </TableCard>
 
           {/* Risk Assessment */}
-          <div className="rp-chart-card">
-            <div className="rp-chart-title" style={{display:"flex",alignItems:"center",gap:6}}><Shield size={14} color="#1b5e20"/> Risk Assessment</div>
-            <div className="rp-chart-sub">Members at risk of default — based on overdue status, days since last payment, and outstanding balance</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
-              {[
-                {label:"Critical Risk",val:riskData.summary?.critical||0,bg:"#ffebee",c:"#c62828",icon:<AlertTriangle size={20}/>},
-                {label:"High Risk",    val:riskData.summary?.high||0,    bg:"#fff3e0",c:"#e65100",icon:<Shield size={20}/>},
-                {label:"Medium Risk",  val:riskData.summary?.medium||0,  bg:"#fff8e1",c:"#f57c00",icon:<Activity size={20}/>},
-              ].map((s,i) => (
-                <div key={i} style={{background:s.bg,border:`1px solid ${s.c}33`,borderRadius:10,padding:"12px",textAlign:"center"}}>
-                  <div style={{color:s.c,display:"flex",justifyContent:"center",marginBottom:4}}>{s.icon}</div>
-                  <div style={{fontSize:22,fontWeight:800,color:s.c,marginTop:4}}>{s.val}</div>
-                  <div style={{fontSize:10,color:s.c,fontWeight:700,textTransform:"uppercase",marginTop:2}}>{s.label}</div>
-                </div>
-              ))}
-            </div>
+          <TableCard
+            icon={<Shield size={14} color="#1b5e20"/>}
+            title="Risk Assessment"
+            subtitle="Members at risk of default — based on overdue status, days since last payment, and outstanding balance"
+            rowCount={(riskData.data||[]).length}
+            open={openTable==="risk"}
+            onOpen={()=>setOpenTable("risk")}
+            onClose={()=>setOpenTable(null)}
+            extra={
+              <div onClick={e=>e.stopPropagation()} style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,margin:"12px 0"}}>
+                {[
+                  {label:"Critical Risk",val:riskData.summary?.critical||0,bg:"#ffebee",c:"#c62828",icon:<AlertTriangle size={20}/>},
+                  {label:"High Risk",    val:riskData.summary?.high||0,    bg:"#fff3e0",c:"#e65100",icon:<Shield size={20}/>},
+                  {label:"Medium Risk",  val:riskData.summary?.medium||0,  bg:"#fff8e1",c:"#f57c00",icon:<Activity size={20}/>},
+                ].map((s,i) => (
+                  <div key={i} style={{background:s.bg,border:`1px solid ${s.c}33`,borderRadius:10,padding:"12px",textAlign:"center"}}>
+                    <div style={{color:s.c,display:"flex",justifyContent:"center",marginBottom:4}}>{s.icon}</div>
+                    <div style={{fontSize:22,fontWeight:800,color:s.c,marginTop:4}}>{s.val}</div>
+                    <div style={{fontSize:10,color:s.c,fontWeight:700,textTransform:"uppercase",marginTop:2}}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            }
+          >
             <ProTable
               columns={[
                 {label:"Loan ID",     key:"loan_id",     tdStyle:{fontFamily:"monospace",fontSize:11}},
@@ -890,7 +1018,7 @@ export default function Reports() {
               rows={riskData.data||[]}
               empty="No at-risk loans detected."
             />
-          </div>
+          </TableCard>
         </div>
       )}
 
@@ -1035,9 +1163,15 @@ export default function Reports() {
 
       {/* ══ AUDIT LOG ════════════════════════════════════════════════════════ */}
       {activeTab === "audit" && (
-        <div className="rp-chart-card">
-          <div className="rp-chart-title" style={{display:"flex",alignItems:"center",gap:6}}><Link size={14}/> Blockchain Audit Log ({selectedYear})</div>
-          <div className="rp-chart-sub">All recorded loan payments with SHA-256 hash and blockchain transaction ID</div>
+        <TableCard
+          icon={<Link size={14}/>}
+          title={`Blockchain Audit Log (${selectedYear})`}
+          subtitle="All recorded loan payments with SHA-256 hash and blockchain transaction ID"
+          rowCount={auditLog.length}
+          open={openTable==="audit"}
+          onOpen={()=>setOpenTable("audit")}
+          onClose={()=>setOpenTable(null)}
+        >
           <ProTable
             columns={[
               {label:"Date",      key:"paid_at",     tdStyle:{color:"#555",fontSize:11}},
@@ -1049,11 +1183,87 @@ export default function Reports() {
               {label:"Balance",   key:"balance",     render:r=>`₱${Number(r.balance||0).toLocaleString()}`, tdStyle:{color:"#1565c0"}},
               {label:"Hash",      key:"hash",        tdStyle:{fontFamily:"monospace",fontSize:9,color:"#aaa",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis"}},
               {label:"By",        key:"recorded_by", tdStyle:{fontSize:11,color:"#888"}},
+              // ── BAGO: "Verify" button/badge — tinatawag ang
+              // verify-integrity endpoint at ipinapakita ang resulta
+              // (Verified ✓ / Tampered ⚠) nang hindi umaalis sa table. ──────
+              {label:"Integrity", key:"verify", render:r=>{
+                const res = verifyResults[r.tx_id];
+                const isLoading = verifying === r.tx_id;
+
+                const runVerify = async (e) => {
+                  e.stopPropagation();
+                  setVerifying(r.tx_id);
+                  try {
+                    const data = await verifyPaymentIntegrityAPI(r.tx_id);
+                    setVerifyResults(prev => ({ ...prev, [r.tx_id]: data }));
+                  } catch {
+                    setVerifyResults(prev => ({ ...prev, [r.tx_id]: { overall: "error" } }));
+                  } finally {
+                    setVerifying("");
+                  }
+                };
+
+                if (isLoading) {
+                  return <span style={{fontSize:11,color:"#888"}}>Checking...</span>;
+                }
+                if (!res) {
+                  return (
+                    <button onClick={runVerify} style={{
+                      fontSize:11, padding:"4px 10px", borderRadius:6,
+                      border:"1px solid #c8e6c9", background:"#f4faf4",
+                      color:"#2e7d32", cursor:"pointer", fontWeight:600,
+                    }}>
+                      Verify
+                    </button>
+                  );
+                }
+                if (res.overall === "error") {
+                  return (
+                    <span onClick={runVerify} style={{fontSize:11,color:"#e65100",cursor:"pointer"}} title="Click to retry">
+                      Check failed — retry
+                    </span>
+                  );
+                }
+                if (res.overall === "tampered") {
+                  // ── BAGO: ipakita kung ANO talaga ang nag-iba (DB vs
+                  // Chain), sa halip na "Tampered" na lang nang walang
+                  // detalye — kaparehong pattern ng ginawa na natin sa
+                  // Loan Release Record modal. ─────────────────────────
+                  const diff = (res.field_diff || []).find(f => !f.match);
+                  return (
+                    <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                      <span title={res.chain_checked ? "Hash mismatch vs. Polygon and/or stored DB hash" : "Hash mismatch vs. stored DB hash"}
+                        style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#c62828",fontWeight:700}}>
+                        <XCircle size={13}/> Tampered
+                      </span>
+                      {diff ? (
+                        <span style={{fontSize:9.5,color:"#c62828"}}>
+                          {diff.field}: DB ₱{Number(diff.db_value).toLocaleString()} vs Chain ₱{Number(diff.chain_value).toLocaleString()}
+                        </span>
+                      ) : res.field_diff && res.field_diff.every(f => f.match) ? (
+                        <span style={{fontSize:9.5,color:"#999"}}>Tugma ang amount — nasa hash mismo ang diff</span>
+                      ) : null}
+                    </div>
+                  );
+                }
+                return (
+                  // ── FIX: dating hindi na click-able pag "Verified" na
+                  // isang beses — nangangahulugan, kung binago mo pa ang
+                  // datos PAGKATAPOS ma-verify, luma pang "Verified" na
+                  // cached result pa rin ang makikita mo (kailangan pang
+                  // i-refresh ang BUONG page bago ka makapag-recheck).
+                  // "Click to re-check" na ngayon ito. ───────────────────
+                  <span onClick={runVerify} title={(res.chain_checked ? "Matches stored DB hash and Polygon record" : "Matches stored DB hash (Polygon not configured/connected)") + " — click to re-check"}
+                    style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#2e7d32",fontWeight:700,cursor:"pointer"}}>
+                    <CheckCircle size={13}/> Verified{!res.chain_checked && " (local)"}
+                  </span>
+                );
+              }},
             ]}
             rows={auditLog}
             empty={`No transactions recorded for ${selectedYear}.`}
           />
-        </div>
+        </TableCard>
       )}
 
     </div>

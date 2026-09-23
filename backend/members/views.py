@@ -649,6 +649,15 @@ def member_financial_summary_view(request, pk):
                 'term_months': l.term_months,
                 'status':      l.status,
                 'applied_at':  str(l.applied_at)[:10],
+                # ── BAGO: penalty breakdown fields para sa Manage Member
+                # → Loans tab, kasama ang buwan-buwang pagtaas ng penalty. ──
+                'next_due_date':            str(l.next_due_date) if l.next_due_date else None,
+                'months_overdue_penalized': l.months_overdue_penalized,
+                'total_penalty':            round(
+                    float(l.monthly_due) * 0.02
+                    * (l.months_overdue_penalized * (l.months_overdue_penalized + 1) // 2),
+                    2,
+                ),
                 'payments': [
                     {
                         'tx_id':       p.tx_id,

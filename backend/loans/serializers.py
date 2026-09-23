@@ -9,9 +9,17 @@ class LoanSerializer(serializers.ModelSerializer):
 
     is_f2f = serializers.BooleanField(required=False, default=False, write_only=True)
 
-    # ── BAGO: computed na halaga (piso) ng kabuuang naipong 2%
-    # penalty — para hindi na kailangang i-recompute ito ng frontend
-    # (months_overdue_penalized × monthly_due × 2%). ───────────────────
+    # ── FIX: dating "months_overdue_penalized × monthly_due × 2%" lang —
+    # SIMPLENG LINEAR formula ito, HINDI tugma sa TUNAY na ESCALATING/
+    # triangular formula na ginagamit ng "apply_overdue_penalty()" sa
+    # models.py (na siya namang TUNAY na idinadagdag sa "balance" ng
+    # miyembro). Dahil dito, ang IPINAPAKITANG "total_penalty" ay
+    # MAS MALIIT kaysa sa TOTOONG idinagdag na penalty sa balance —
+    # hal. 4 buwan late, ₱1,000 monthly_due: dating ipinapakita ay
+    # 4×1,000×2% = ₱80 lang, pero ang TOTOONG naidagdag na sa balance
+    # (via triangular) ay ₱1,000×2%×T(4) = ₱1,000×2%×10 = ₱200.
+    # Ngayon, parehong TRIANGULAR na formula na ang ginagamit dito,
+    # kaya tugma na ang ipinapakita sa TUNAY na nasa balance. ───────────
     total_penalty = serializers.SerializerMethodField()
 
     class Meta:
@@ -20,7 +28,9 @@ class LoanSerializer(serializers.ModelSerializer):
 
     def get_total_penalty(self, obj):
         from .models import PENALTY_RATE
-        return round(float(obj.months_overdue_penalized) * float(obj.monthly_due) * float(PENALTY_RATE), 2)
+        n = int(obj.months_overdue_penalized)
+        triangular_units = n * (n + 1) // 2  # T(n) = 1+2+...+n = n(n+1)/2
+        return round(float(obj.monthly_due) * float(PENALTY_RATE) * triangular_units, 2)
 
 
 class CreateLoanSerializer(serializers.ModelSerializer):

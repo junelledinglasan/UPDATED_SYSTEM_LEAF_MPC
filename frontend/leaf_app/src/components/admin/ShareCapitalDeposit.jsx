@@ -98,16 +98,35 @@ export default function ShareCapitalDeposit() {
   // ── FIX: dating "position:fixed,inset:0" — mali dahil totoong
   // ROUTE na ito sa loob ng AdminLayout, dapat normal content lang
   // sa loob ng <Outlet/>. ───────────────────────────────────────────
+  // ── FIX: dating "margin:40px auto" lang — horizontal centering
+  // lang 'yon, kaya nadikit sa taas ang card at malaking blangkong
+  // espasyo ang natitira sa ibaba (parehong isyu na inayos na sa
+  // SavingsDeposit.jsx). Binalot ng flex wrapper para gitna talaga
+  // ang card sa visible content area. ─────────────────────────────
+  // ── FIX: dating "onClick={onClose}" din — lumalabas palabas ng
+  // page papunta kung saan-saan galing. Ngayon, manatili sa loob ng
+  // Share Capital page, sa PAREHONG member (updated na ang share
+  // capital na makikita), malinis na ulit ang amount/note. ──────────
+  const handleDone = () => {
+    setSelect(prev => ({ ...prev, share_capital: newSC }));
+    setDone(false);
+    setAmount("");
+    setNote("");
+    setError("");
+  };
+
   if (done) return (
-    <div style={{maxWidth:500,margin:"40px auto",padding:"32px 24px",textAlign:"center",background:"#fff",borderRadius:14,border:"1px solid #e4f0e5"}}>
-      <div style={{display:"flex",justifyContent:"center"}}><Wallet size={40} color="#1565c0"/></div>
-      <div style={{fontSize:15,fontWeight:700,color:"#1565c0",marginTop:8}}>Share Capital Deposit Recorded!</div>
-      <div style={{fontSize:12,color:"#888",marginTop:8}}>
-        ₱{parsed.toLocaleString()} deposited for <strong>{selected.fullname}</strong>.<br/>
-        New Share Capital: <strong style={{color:"#1565c0"}}>₱{newSC.toLocaleString()}</strong><br/>
-        New Max Loanable: <strong style={{color:"#2e7d32"}}>₱{newMaxLoan.toLocaleString()}</strong>
+    <div style={{minHeight:"70vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px 24px"}}>
+      <div style={{width:"100%",maxWidth:440,padding:"32px 24px",textAlign:"center",background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",boxShadow:"0 4px 20px rgba(0,0,0,0.06)"}}>
+        <div style={{display:"flex",justifyContent:"center"}}><Wallet size={40} color="#1565c0"/></div>
+        <div style={{fontSize:15,fontWeight:700,color:"#1565c0",marginTop:8}}>Share Capital Deposit Recorded!</div>
+        <div style={{fontSize:12,color:"#888",marginTop:8}}>
+          ₱{parsed.toLocaleString()} deposited for <strong>{selected.fullname}</strong>.<br/>
+          New Share Capital: <strong style={{color:"#1565c0"}}>₱{newSC.toLocaleString()}</strong><br/>
+          New Max Loanable: <strong style={{color:"#2e7d32"}}>₱{newMaxLoan.toLocaleString()}</strong>
+        </div>
+        <button className="al-btn-save" style={{background:"#1565c0",borderColor:"#1565c0",marginTop:20,width:"100%"}} onClick={handleDone}>Done</button>
       </div>
-      <button className="al-btn-save" style={{background:"#1565c0",borderColor:"#1565c0",marginTop:20,width:"100%"}} onClick={onClose}>Done</button>
     </div>
   );
 
@@ -144,14 +163,21 @@ export default function ShareCapitalDeposit() {
         </div>
 
         {mainTab === "new" && step === 1 && (
-          <div style={{background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",padding:20}}>
-            <div className="al-step-info">Select the member to record share capital deposit.</div>
-            <div className="al-search-wrap" style={{marginBottom:16,padding:"10px 14px",gap:10}}>
-              <Search size={13} color="#aaa"/>
-              <input className="al-search-in" placeholder="Search by name or member ID..."
-                value={search} onChange={e => setSearch(e.target.value)} autoFocus/>
-            </div>
-            <div className="al-loan-list">
+          // ── FIX: dating naka-shrink lang sa content (maliit na
+          // listahan, malaking blangkong green space sa ibaba) — gaya
+          // ng parehong fix sa SavingsDeposit.jsx: "height" (fixed) sa
+          // card, "minHeight:0" sa mga flex child (kailangan para
+          // gumana nang tama ang internal scroll sa halip na lumaki
+          // ang buong page), at overflowY:auto sa listahan mismo. ─────
+          <div style={{background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",padding:20,height:"calc(100vh - 260px)",display:"flex",flexDirection:"column"}}>
+            <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column"}}>
+              <div className="al-step-info">Select the member to record share capital deposit.</div>
+              <div className="al-search-wrap" style={{marginBottom:16,padding:"10px 14px",gap:10}}>
+                <Search size={13} color="#aaa"/>
+                <input className="al-search-in" placeholder="Search by name or member ID..."
+                  value={search} onChange={e => setSearch(e.target.value)} autoFocus/>
+              </div>
+              <div className="al-loan-list" style={{flex:1,minHeight:0,maxHeight:"none",overflowY:"auto"}}>
               {fetching
                 ? <div style={{textAlign:"center",padding:24,color:"#aaa"}}>Loading members...</div>
                 : filtered.length===0
@@ -179,6 +205,7 @@ export default function ShareCapitalDeposit() {
                   );
                 })
               }
+              </div>
             </div>
             <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:16}}>
               <button className="al-btn-cancel" onClick={onClose}>Cancel</button>
@@ -189,7 +216,9 @@ export default function ShareCapitalDeposit() {
         )}
 
         {mainTab === "new" && step === 2 && (
-          <div style={{background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",padding:20}}>
+          // ── FIX: parehong consistency fix — minHeight para hindi
+          // biglang lumiit ang card kumpara sa Step 1. ─────────────
+          <div style={{background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",padding:20,minHeight:"calc(100vh - 260px)"}}>
             <div className="al-borrower-strip" style={{background:"#e3f2fd",borderColor:"#90caf9"}}>
               <div className="al-loan-avatar" style={{background:"#1565c0",color:"#fff",border:"2px solid #90caf9"}}>
                 {(selected.fullname||"M")[0]}

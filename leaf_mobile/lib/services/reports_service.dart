@@ -81,4 +81,14 @@ class ReportsService {
 
   static String exportPdfUrl(String baseUrl, String type, String from, String to) =>
       '$baseUrl/reports/export/pdf/?type=${Uri.encodeComponent(type)}&from=$from&to=$to';
+
+  // ── BAGO: actual file download (bytes), kasabay ng auth headers at
+  // auto-refresh, gamit ang bagong ApiClient.getBytes(). Ginagamit ito ng
+  // Generate Report tab para talagang mai-save/i-share ang exported file
+  // sa device, hindi na lang placeholder na SnackBar. ────────────────────
+  static Future<List<int>> exportExcelBytes(String type, String from, String to) async =>
+      await ApiClient.getBytes('/reports/export/excel/', params: {'type': type, 'from': from, 'to': to});
+
+  static Future<List<int>> exportPdfBytes(String type, String from, String to) async =>
+      await ApiClient.getBytes('/reports/export/pdf/', params: {'type': type, 'from': from, 'to': to});
 }

@@ -9,22 +9,22 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  
+
   # HTTP requests
   http: ^1.2.0
-  
+
   # Local storage
   shared_preferences: ^2.2.3
-  
+
   # Icons
   flutter_svg: ^2.0.10+1
-  
+
   # State management
   provider: ^6.1.2
-  
+
   # Image picker (for GCash screenshot)
   image_picker: ^1.1.2
-  
+
   # URL launcher (for Polygonscan)
   url_launcher: ^6.3.0
 
@@ -32,6 +32,12 @@ dependencies:
 
   # Charts (Admin Dashboard — Line/Bar/Doughnut)
   fl_chart: ^0.69.0
+
+  # Reports — save exported Excel/PDF to a temp folder on-device
+  path_provider: ^2.1.4
+
+  # Reports — native share/save sheet para i-download ang exported file
+  share_plus: ^7.2.2
 
 dev_dependencies:
   flutter_test:

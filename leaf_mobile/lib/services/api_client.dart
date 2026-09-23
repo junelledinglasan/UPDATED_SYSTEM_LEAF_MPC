@@ -102,6 +102,42 @@ class ApiClient {
     return _handleResponse(res);
   }
 
+  // ── GET (raw bytes — para sa file downloads gaya ng Excel/PDF export) ──────
+  // BAGO: yung `get()` sa taas ay palaging `jsonDecode` ang response, kaya
+  // sisira 'yon kapag binary file (xlsx/pdf) ang sagot ng server. Ito ay
+  // hindi nag-de-decode, `res.bodyBytes` (raw List<int>) ang ibinabalik,
+  // pero pareho pa rin ang auth headers + auto-refresh-on-401 na behavior. ──
+  static Future<List<int>> getBytes(String endpoint, {Map<String, String>? params}) async {
+    var uri = Uri.parse('${AppConstants.baseUrl}$endpoint');
+    if (params != null) uri = uri.replace(queryParameters: params);
+
+    var res = await http.get(uri, headers: await _headers());
+
+    if (res.statusCode == 401) {
+      if (await _refreshToken()) {
+        res = await http.get(uri, headers: await _headers());
+      } else {
+        await _forceLogout();
+        throw ApiException(401, 'Session expired. Please login again.');
+      }
+    }
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return res.bodyBytes;
+    }
+
+    // Error response galing sa export endpoint ay JSON pa rin (hal.
+    // {"error": "..."}), kaya subukan munang i-decode bago gawing generic
+    // message — pero huwag hayaang bumagsak ang error handling mismo kung
+    // hindi pala JSON ang laman.
+    String msg = 'Request failed (${res.statusCode})';
+    try {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      msg = (body['detail'] ?? body['error'] ?? body['message'] ?? msg).toString();
+    } catch (_) {}
+    throw ApiException(res.statusCode, msg);
+  }
+
   // ── POST ───────────────────────────────────────────────────────────────────
   static Future<dynamic> post(String endpoint, {Map<String, dynamic>? body}) async {
     final uri = Uri.parse('${AppConstants.baseUrl}$endpoint');

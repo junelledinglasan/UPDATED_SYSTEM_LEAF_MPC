@@ -1,7 +1,14 @@
-import json
-import hashlib
 from rest_framework import serializers
 from .models import Payment
+# ── FIX: tinanggal ang sariling "_generate_hash()" ng klase na ito sa
+# ibaba (gumagamit ito ng "float(amount)", na IBA ang str() representation
+# sa "Decimal" — hal. "1000.0" vs "1000.00" — kaysa sa kung paano ito
+# ire-recompute mula sa database sa ibang pagkakataon, gaya ng "Verify
+# Integrity" endpoint. Ginagamit na lang ngayon ang IISANG
+# "generate_payment_hash()" mula sa blockchain.py, na siya na ring
+# ginagamit ng Payment model at ng verify endpoint — laging magkakatugma
+# ang basehan ng hash kahit saan pa ito kino-compute. ────────────────────
+from .blockchain import generate_payment_hash
 
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -23,15 +30,6 @@ class CreatePaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Payment
         fields = ['loan', 'member', 'amount', 'note']
-
-    def _generate_hash(self, tx_id, member_id, loan_id, amount):
-        payload = json.dumps({
-            'tx_id':     tx_id,
-            'member_id': str(member_id),
-            'loan_id':   str(loan_id),
-            'amount':    str(amount),
-        }, sort_keys=True)
-        return hashlib.sha256(payload.encode()).hexdigest()
 
     def create(self, validated_data):
         loan   = validated_data['loan']
@@ -55,7 +53,9 @@ class CreatePaymentSerializer(serializers.ModelSerializer):
         suffix = ''.join(random.choices(string.digits, k=3))
         tx_id  = f"TX-{ts}-{suffix}"  # max ~16 chars, well under VARCHAR(30)
 
-        hash_val = self._generate_hash(tx_id, member.member_id, loan.loan_id, amount)
+        # ── BAGO: kasama na rin ang "balance" sa hash — tingnan ang
+        # paliwanag sa Payment.save() (models.py). ─────────────────────
+        hash_val = generate_payment_hash(tx_id, member.member_id, loan.loan_id, amount, loan.balance)
 
         validated_data['tx_id']   = tx_id
         validated_data['hash']    = hash_val

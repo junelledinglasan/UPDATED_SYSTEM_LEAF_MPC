@@ -191,7 +191,20 @@ class _SavingsDepositScreenState extends State<SavingsDepositScreen> {
             const SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _SVColors.green, foregroundColor: Colors.white),
-              onPressed: () => Navigator.pop(context, true),
+              // ── FIX: dating "Navigator.pop(context, true)" — lumalabas
+              // ito palabas ng Savings Deposit screen papunta kung
+              // saan-saan galing (parehong isyu na inayos na sa web
+              // version). Ngayon, manatili sa loob ng screen na ito, sa
+              // PAREHONG member (hindi na babalik sa member-selection
+              // list), updated na ang balance, at malinis na ulit ang
+              // amount/note para handa sa susunod na transaction. ──────
+              onPressed: () => setState(() {
+                _balance = _newBalance;
+                _amountCtrl.clear();
+                _noteCtrl.clear();
+                _error = null;
+                _done = false;
+              }),
               child: const Text('Done'),
             ),
           ],

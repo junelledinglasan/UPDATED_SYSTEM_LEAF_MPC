@@ -80,14 +80,28 @@ def loan_list_view(request):
             sd_rate  = Decimal(str(loan.sd_rate))
 
             if cbu_rate > 0:
-                share_capital_addition = loan.amount * cbu_rate
+                # ── FIX: idinagdag ang ".quantize(Decimal('0.01'))" — dating
+                # walang ito, kaya ang resulta (hal. Decimal('90.0000')) ay
+                # MAY 4 DECIMAL PLACES sa oras ng paggawa, pero kapag na-save
+                # na sa DecimalField(decimal_places=2), awtomatikong
+                # ni-ro-round ito ni Postgres papuntang 2 decimals
+                # (Decimal('90.00')) — magkaibang STRING (kahit magkaparehong
+                # halaga), kaya iba rin ang naging SHA-256 hash sa Polygon
+                # kumpara sa mare-recompute mula sa DB — nagreresulta ng
+                # maling "Tampered" flag sa "Verify Integrity" feature kahit
+                # walang talagang binago. ────────────────────────────────────
+                share_capital_addition = (loan.amount * cbu_rate).quantize(Decimal('0.01'))
                 loan.member.share_capital += share_capital_addition
                 loan.member.save()
             else:
                 share_capital_addition = Decimal('0')
 
             if sd_rate > 0:
-                savings_deposit = loan.amount * sd_rate
+                # ── FIX: parehong dahilan gaya ng "share_capital_addition" sa
+                # itaas — idinagdag ang ".quantize(Decimal('0.01'))" para
+                # tumugma agad sa magiging 2-decimal-place na representasyon
+                # nito pagkatapos ma-save/ma-reload sa DecimalField. ────────
+                savings_deposit = (loan.amount * sd_rate).quantize(Decimal('0.01'))
                 total_dep = Savings.objects.filter(member=loan.member, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or Decimal('0')
                 total_wdr = Savings.objects.filter(member=loan.member, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or Decimal('0')
                 new_balance = (total_dep - total_wdr) + savings_deposit
@@ -394,14 +408,28 @@ def loan_detail_view(request, pk):
             sd_rate  = Decimal(str(loan.sd_rate))
 
             if cbu_rate > 0:
-                share_capital_addition = loan.amount * cbu_rate
+                # ── FIX: idinagdag ang ".quantize(Decimal('0.01'))" — dating
+                # walang ito, kaya ang resulta (hal. Decimal('90.0000')) ay
+                # MAY 4 DECIMAL PLACES sa oras ng paggawa, pero kapag na-save
+                # na sa DecimalField(decimal_places=2), awtomatikong
+                # ni-ro-round ito ni Postgres papuntang 2 decimals
+                # (Decimal('90.00')) — magkaibang STRING (kahit magkaparehong
+                # halaga), kaya iba rin ang naging SHA-256 hash sa Polygon
+                # kumpara sa mare-recompute mula sa DB — nagreresulta ng
+                # maling "Tampered" flag sa "Verify Integrity" feature kahit
+                # walang talagang binago. ────────────────────────────────────
+                share_capital_addition = (loan.amount * cbu_rate).quantize(Decimal('0.01'))
                 loan.member.share_capital += share_capital_addition
                 loan.member.save()
             else:
                 share_capital_addition = Decimal('0')
 
             if sd_rate > 0:
-                savings_deposit = loan.amount * sd_rate
+                # ── FIX: parehong dahilan gaya ng "share_capital_addition" sa
+                # itaas — idinagdag ang ".quantize(Decimal('0.01'))" para
+                # tumugma agad sa magiging 2-decimal-place na representasyon
+                # nito pagkatapos ma-save/ma-reload sa DecimalField. ────────
+                savings_deposit = (loan.amount * sd_rate).quantize(Decimal('0.01'))
                 total_dep = Savings.objects.filter(member=loan.member, transaction_type='Deposit').aggregate(t=Sum('amount'))['t'] or Decimal('0')
                 total_wdr = Savings.objects.filter(member=loan.member, transaction_type='Withdraw').aggregate(t=Sum('amount'))['t'] or Decimal('0')
                 current_balance = total_dep - total_wdr
@@ -750,6 +778,7 @@ def gcash_verify_view(request, pk):
             member_id = loan.member.member_id,
             loan_id   = loan.loan_id,
             amount    = float(amount),
+            balance   = new_balance,
         )
         payment.hash         = bc.get('hash', payment.hash)
         payment.polygon_tx   = bc.get('tx_hash')

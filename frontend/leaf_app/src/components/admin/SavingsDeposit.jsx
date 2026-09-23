@@ -10,6 +10,35 @@ import { getMembersAPI, recordSavingsAPI, getMemberSavingsAPI } from "../../api/
 export default function SavingsDeposit() {
   const navigate = useNavigate();
   const onClose = () => navigate(-1);
+  // ── BAGO: dating "navigate(-1)" din ang "Done" button pagkatapos
+  // mag-deposit/withdraw — pero bumabalik lang 'yon kung saan-saan
+  // galing sa browser history (madalas sa Manage Member LIST, hindi sa
+  // specific member profile mismo). Gamit na dito ang parehong
+  // "openMemberId" navigation-state pattern na ginagamit na ng
+  // Dashboard's "Overdue Loan Alert" widget (tingnan ang ManageMember.jsx,
+  // useEffect na naka-listen sa location.state.openMemberId) — para
+  // deretso na sa profile ng member na pinindot dito. ─────────────────
+  // ── FIX: dating nag-nanavigate palabas ng Savings/Deposit page
+  // papunta sa Manage Member profile — mali 'yon, gusto lang pala ni
+  // Junelle na manatili SA LOOB mismo ng Savings/Deposit, sa PAREHONG
+  // member na pinindot (hindi babalik sa member-selection list, hindi
+  // rin aalis papunta sa ibang page). Kaya dito, hindi na "navigate" —
+  // babalik lang sa Step 2 (Transaction Details) ng parehong "selected"
+  // member, malinis na ulit ang amount/note, handa na para sa susunod
+  // na transaction nang hindi na kailangang piliin ulit ang member. ────
+  const handleDone = () => {
+    // ── FIX: hindi awtomatikong nagre-refresh ang "balance" state dito
+    // dahil naka-key lang sa [selected] ang useEffect na kumukuha nito
+    // — kaya kung parehong member pa rin, hindi ito uulitin. Gamit na
+    // lang ang "newBal" na nakalkula na rin sa render (balance + / -
+    // parsed) para agad na updated ang balance na makikita sa susunod
+    // na transaction ng parehong member. ──────────────────────────────
+    setBalance(newBal);
+    setDone(false);
+    setAmount("");
+    setNote("");
+    setError("");
+  };
 
   const [mainTab,  setMainTab] = useState("new");
   const [step,     setStep]    = useState(1);
@@ -111,15 +140,24 @@ export default function SavingsDeposit() {
   // lumabas lang ito bilang normal na content sa loob ng <Outlet/>
   // (tulad ng Dashboard, Manage Member, atbp.) — kasama pa rin ang
   // sidebar/topbar ng AdminLayout. ─────────────────────────────────────
+  // ── FIX: dating "margin:40px auto" lang — horizontal centering lang
+  // 'yon, kaya nadikit sa taas ang card at nagiging malaking blangkong
+  // espasyo ang natitira sa ibaba (screenshot ni Junelle). Dinagdagan
+  // ng flex wrapper (minHeight + alignItems/justifyContent center) para
+  // gitna talaga ang card sa visible content area — hindi na ito
+  // full-screen overlay (tama pa rin 'yong dating fix na 'yon), content
+  // area lang mismo ang cine-center. ─────────────────────────────────
   if (done) return (
-    <div style={{maxWidth:500,margin:"40px auto",padding:"32px 24px",textAlign:"center",background:"#fff",borderRadius:14,border:"1px solid #e4f0e5"}}>
-      <div style={{display:"flex",justifyContent:"center"}}>{type === "Deposit" ? <ArrowDownCircle size={40} color="#2e7d32"/> : <ArrowUpCircle size={40} color="#c62828"/>}</div>
-      <div style={{fontSize:15,fontWeight:700,color:"#1b5e20",marginTop:8}}>{type} Recorded!</div>
-      <div style={{fontSize:12,color:"#888",marginTop:8}}>
-        ₱{parsed.toLocaleString()} {type.toLowerCase()} for <strong>{selected.fullname}</strong>.
-        New balance: <strong>₱{newBal.toLocaleString()}</strong>
+    <div style={{minHeight:"70vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px 24px"}}>
+      <div style={{width:"100%",maxWidth:440,padding:"32px 24px",textAlign:"center",background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",boxShadow:"0 4px 20px rgba(0,0,0,0.06)"}}>
+        <div style={{display:"flex",justifyContent:"center"}}>{type === "Deposit" ? <ArrowDownCircle size={40} color="#2e7d32"/> : <ArrowUpCircle size={40} color="#c62828"/>}</div>
+        <div style={{fontSize:15,fontWeight:700,color:"#1b5e20",marginTop:8}}>{type} Recorded!</div>
+        <div style={{fontSize:12,color:"#888",marginTop:8}}>
+          ₱{parsed.toLocaleString()} {type.toLowerCase()} for <strong>{selected.fullname}</strong>.
+          New balance: <strong>₱{newBal.toLocaleString()}</strong>
+        </div>
+        <button className="al-btn-save" style={{marginTop:20,width:"100%"}} onClick={handleDone}>Done</button>
       </div>
-      <button className="al-btn-save" style={{marginTop:20,width:"100%"}} onClick={onClose}>Done</button>
     </div>
   );
 
@@ -158,14 +196,45 @@ export default function SavingsDeposit() {
 
         {mainTab === "new" && (<>
           {step === 1 && (
-            <div style={{background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",padding:20}}>
-              <div>
+            // ── FIX: dating "minHeight:65vh" lang — hindi pa rin
+            // sapat, malaki pa ring blangkong green space ang natitira
+            // sa ibaba ng card (screenshot ni Junelle). Ginawang
+            // "calc(100vh - 260px)" para direktang i-account ang taas
+            // ng topbar/title/tabs sa itaas nito, kaya halos hanggang
+            // ibaba ng screen na ang card. ─────────────────────────────
+            // ── FIX: dating "minHeight" lang ang card, walang cap sa
+            // taas — kaya kapag maraming member (15+), lumalaki na ang
+            // BUONG PAGE (lumalampas pa sa sidebar/footer) sa halip na
+            // mag-scroll sa loob ng listahan lang. Ginawang "height"
+            // (fixed, hindi minHeight) ang card, at dinagdagan ng
+            // "minHeight:0" ang mga flex child sa ibaba (kailangan ito
+            // dahil ang default na "min-height:auto" ng flex items ay
+            // pinipigilan silang lumiit kahit mas mahaba ang laman —
+            // kaya hindi gumagana ang overflowY:auto nang tama nang
+            // wala ito). ─────────────────────────────────────────────
+            <div style={{background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",padding:20,height:"calc(100vh - 260px)",display:"flex",flexDirection:"column"}}>
+              <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column"}}>
                 <div className="al-search-wrap" style={{marginBottom:16,padding:"10px 14px",gap:10}}>
                   <Search size={13} color="#aaa"/>
                   <input className="al-search-in" placeholder="Search by name or member ID..."
                     value={search} onChange={e => setSearch(e.target.value)} autoFocus />
                 </div>
-                <div className="al-loan-list">
+                {/* ── FIX: dating "flex:1" lang — hindi pa rin
+                    sumapat dahil malamang may max-height/height na
+                    naka-set na sa ".al-loan-list" class mismo (sa CSS
+                    file), kaya kahit palaki ang parent, ang box ng
+                    listahan mismo ay naka-cap pa rin doon. Direktang
+                    ini-override dito ang maxHeight/height (mas
+                    matimbang ang inline style kaysa external CSS class
+                    para sa parehong property), kaya sumusunod na ito sa
+                    parent's available height. ─────────────────────── */}
+                {/* ── FIX: dating may dagdag na "height:100%" — sobra
+                    palang lumaki (overflow past the card mismo). Naka-
+                    "flex:1" + "maxHeight:none" na lang, para sumakto sa
+                    eksaktong available space ng parent card (yung
+                    calc(100vh-260px) na ginawa na), hindi na lalampas
+                    dito. ──────────────────────────────────────────── */}
+                <div className="al-loan-list" style={{flex:1,minHeight:0,maxHeight:"none",overflowY:"auto"}}>
                   {fetching
                     ? <div style={{textAlign:"center",padding:24,color:"#aaa",fontSize:13}}>Loading members...</div>
                     : filtered.length === 0
@@ -203,7 +272,10 @@ export default function SavingsDeposit() {
             </div>
           )}
           {step === 2 && (
-            <div style={{background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",padding:20}}>
+            // ── FIX: parehong "malaking blangkong espasyo" issue tulad
+            // ng Step 1 — dinagdagan din ng minHeight para consistent
+            // ang tingin ng buong page. ─────────────────────────────
+            <div style={{background:"#fff",borderRadius:14,border:"1px solid #e4f0e5",padding:20,minHeight:"calc(100vh - 260px)"}}>
               <div>
                 <div className="al-borrower-strip" style={{background:"#fff8e1",borderColor:"#ffe082"}}>
                   <div className="al-loan-avatar" style={{background:"#f57f17",color:"#fff",border:"2px solid #ffe082"}}>

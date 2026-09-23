@@ -655,7 +655,11 @@ def build_report_data(report_type, date_from_str, date_to_str):
                     total_p, on_time, late, overdue,
                     f'{rate}%', rating,
                 ])
-        rows.sort(key=lambda r: r[7], reverse=True)
+        # ── r[7] is the formatted "85.0%" STRING, not a number — sorting
+        # on it directly does a lexicographic (character-by-character) sort,
+        # not a numeric one, so e.g. "9.0%" would rank above "85.0%" since
+        # '9' > '8'. Parse it back to a float for the actual sort key. ──
+        rows.sort(key=lambda r: float(r[7].rstrip('%')), reverse=True)
         return {
             'summary': [
                 ('Total Members with Loans', len(rows)),

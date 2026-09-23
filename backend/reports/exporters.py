@@ -61,7 +61,8 @@ def generate_excel(report_type, date_from, date_to, data):
 
     ws.merge_cells(f'A3:{get_column_letter(ncols)}3')
     t3 = ws['A3']
-    t3.value     = f'Period: {date_from}  to  {date_to}   |   Generated: {__import__('datetime').datetime.now().strftime("%B %d, %Y %I:%M %p")}'
+    generated_str = timezone.now().strftime("%B %d, %Y %I:%M %p")
+    t3.value     = f'Period: {date_from}  to  {date_to}   |   Generated: {generated_str}'
     t3.font      = sub_font
     t3.alignment = center
     ws.row_dimensions[3].height = 18
@@ -114,7 +115,7 @@ def generate_excel(report_type, date_from, date_to, data):
     for ci, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(ci)].width = w
 
-    ws.freeze_panes = f'A{5 + len(summary) + (1 if summary else 0)}'
+    ws.freeze_panes = f'A{6 + len(summary) + (1 if summary else 0)}'
 
     # Save to buffer
     buf = io.BytesIO()
@@ -128,12 +129,35 @@ def generate_excel(report_type, date_from, date_to, data):
 # ══════════════════════════════════════════════════════════════════
 
 def generate_pdf(report_type, date_from, date_to, data):
+    import os
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import cm
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    # ── Register a Unicode-capable font so the ₱ (Peso) sign renders
+    # correctly. The base-14 PDF fonts (Helvetica) only support the
+    # WinAnsi/cp1252 character set, which does NOT include ₱ — with
+    # Helvetica the peso sign silently comes out blank/garbled in every
+    # currency value across all report types. DejaVu Sans covers it. ──
+    FONT_REGULAR = 'Helvetica'
+    FONT_BOLD    = 'Helvetica-Bold'
+    _dejavu_paths = [
+        ('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',      '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'),
+        ('/usr/share/fonts/dejavu/DejaVuSans.ttf',                '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'),
+    ]
+    for reg_path, bold_path in _dejavu_paths:
+        if os.path.exists(reg_path) and os.path.exists(bold_path):
+            if 'DejaVuSans' not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont('DejaVuSans', reg_path))
+                pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', bold_path))
+            FONT_REGULAR = 'DejaVuSans'
+            FONT_BOLD    = 'DejaVuSans-Bold'
+            break
 
     buf = io.BytesIO()
 
@@ -158,23 +182,24 @@ def generate_pdf(report_type, date_from, date_to, data):
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle('title',
-        fontSize=16, textColor=GREEN, fontName='Helvetica-Bold',
+        fontSize=16, textColor=GREEN, fontName=FONT_BOLD,
         alignment=TA_CENTER, spaceAfter=4)
     sub_style = ParagraphStyle('sub',
-        fontSize=11, textColor=GREEN, fontName='Helvetica-Bold',
+        fontSize=11, textColor=GREEN, fontName=FONT_BOLD,
         alignment=TA_CENTER, spaceAfter=2)
     info_style = ParagraphStyle('info',
-        fontSize=9, textColor=colors.gray,
+        fontSize=9, textColor=colors.gray, fontName=FONT_REGULAR,
         alignment=TA_CENTER, spaceAfter=8)
     label_style = ParagraphStyle('label',
-        fontSize=10, textColor=DARK, fontName='Helvetica-Bold')
+        fontSize=10, textColor=DARK, fontName=FONT_BOLD)
     val_style = ParagraphStyle('val',
-        fontSize=10, textColor=GREEN)
+        fontSize=10, textColor=GREEN, fontName=FONT_REGULAR)
 
     story = []
 
-    # Header
-    story.append(Paragraph('🌿  LEAF MPC — Cooperative Management System', title_style))
+    # Header (walang emoji — kahit DejaVu Sans ay walang glyph para sa
+    # mga emoji character tulad ng 🌿, kaya plain text na lang)
+    story.append(Paragraph('LEAF MPC — Cooperative Management System', title_style))
     story.append(Paragraph(report_type, sub_style))
     story.append(Paragraph(
         f'Period: {date_from}  to  {date_to}   |   Generated: {timezone.now().strftime("%B %d, %Y %I:%M %p")}',
@@ -192,10 +217,11 @@ def generate_pdf(report_type, date_from, date_to, data):
         sum_table.setStyle(TableStyle([
             ('BACKGROUND',  (0,0), (-1,0),  GREEN),
             ('TEXTCOLOR',   (0,0), (-1,0),  WHITE),
-            ('FONTNAME',    (0,0), (-1,0),  'Helvetica-Bold'),
+            ('FONTNAME',    (0,0), (-1,0),  FONT_BOLD),
             ('FONTSIZE',    (0,0), (-1,0),  10),
             ('ALIGN',       (0,0), (-1,-1), 'LEFT'),
-            ('FONTNAME',    (0,1), (0,-1),  'Helvetica-Bold'),
+            ('FONTNAME',    (0,1), (0,-1),  FONT_BOLD),
+            ('FONTNAME',    (1,1), (-1,-1), FONT_REGULAR),
             ('FONTSIZE',    (0,1), (-1,-1), 9),
             ('ROWBACKGROUNDS', (0,1), (-1,-1), [LT_GREEN, WHITE]),
             ('GRID',        (0,0), (-1,-1), 0.5, colors.HexColor('#C8E6C9')),
@@ -221,11 +247,11 @@ def generate_pdf(report_type, date_from, date_to, data):
         table.setStyle(TableStyle([
             ('BACKGROUND',    (0,0), (-1,0),  GREEN),
             ('TEXTCOLOR',     (0,0), (-1,0),  WHITE),
-            ('FONTNAME',      (0,0), (-1,0),  'Helvetica-Bold'),
+            ('FONTNAME',      (0,0), (-1,0),  FONT_BOLD),
             ('FONTSIZE',      (0,0), (-1,0),  9),
             ('ALIGN',         (0,0), (-1,0),  'CENTER'),
             ('FONTSIZE',      (0,1), (-1,-1), 8),
-            ('FONTNAME',      (0,1), (-1,-1), 'Helvetica'),
+            ('FONTNAME',      (0,1), (-1,-1), FONT_REGULAR),
             ('ROWBACKGROUNDS',(0,1), (-1,-1), [LT_GREEN, WHITE]),
             ('GRID',          (0,0), (-1,-1), 0.4, colors.HexColor('#C8E6C9')),
             ('TOPPADDING',    (0,0), (-1,-1), 4),
@@ -240,7 +266,7 @@ def generate_pdf(report_type, date_from, date_to, data):
     story.append(HRFlowable(width='100%', thickness=1, color=MED_GREEN))
     story.append(Paragraph(
         f'LEAF MPC Cooperative Management System  •  Confidential  •  {timezone.now().strftime("%Y")}',
-        ParagraphStyle('footer', fontSize=7, textColor=colors.gray, alignment=TA_CENTER, spaceBefore=4)
+        ParagraphStyle('footer', fontSize=7, textColor=colors.gray, fontName=FONT_REGULAR, alignment=TA_CENTER, spaceBefore=4)
     ))
 
     doc.build(story)

@@ -352,6 +352,59 @@ function FinancialSummary({ memberId }) {
                       <span>Total Paid: <strong style={{color:"#2e7d32"}}>₱{Number(loan.payments?.reduce((s,p) => s + p.amount, 0) || 0).toLocaleString()}</strong></span>
                       <span>Remaining: <strong style={{color:isPaid?"#1565c0":"#c62828",display:"inline-flex",alignItems:"center",gap:3}}>{isPaid ? <>₱0 — Fully Paid <Check size={11}/></> : `₱${Number(loan.balance).toLocaleString()}`}</strong></span>
                     </div>
+
+                    {/* ── BAGO: Penalty Breakdown — buwan-buwang tabulation
+                        ng 2% escalating penalty (kaparehong formula ng
+                        "apply_overdue_penalty()" sa backend), para makita
+                        EXACTLY kung magkano ang idinadagdag kada buwan at
+                        kung magkano na ang TOTAL na naipon. Lumalabas lang
+                        ito kung may naipong buwan na naka-overdue. ────────── */}
+                    {loan.months_overdue_penalized > 0 && (
+                      <div style={{borderTop:"1px solid #ffe0b2",background:"#fffaf3"}}>
+                        <div style={{padding:"8px 14px 4px",fontSize:11,fontWeight:700,color:"#e65100",display:"flex",alignItems:"center",gap:6}}>
+                          <ShieldAlert size={12}/> Penalty Breakdown — 2% escalating kada buwang naliban
+                          <span style={{fontWeight:400,color:"#c88a4a",fontSize:10}}>
+                            ({loan.months_overdue_penalized} buwan{loan.months_overdue_penalized!==1?"g":""} late)
+                          </span>
+                        </div>
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                          <thead>
+                            <tr style={{background:"#ffe0b2"}}>
+                              <th style={{padding:"6px 14px",textAlign:"left",color:"#e65100",fontWeight:600}}>Buwan Late</th>
+                              <th style={{padding:"6px 14px",textAlign:"right",color:"#e65100",fontWeight:600}}>Penalty ng Buwang 'yon Lang</th>
+                              <th style={{padding:"6px 14px",textAlign:"right",color:"#e65100",fontWeight:600}}>TOTAL na Naipong Penalty</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              const due  = Number(loan.monthly_due) || 0;
+                              const n    = loan.months_overdue_penalized;
+                              let running = 0;
+                              const rows  = [];
+                              for (let m = 1; m <= n; m++) {
+                                const thisMonth = due * m * 0.02;
+                                running += thisMonth;
+                                rows.push(
+                                  <tr key={m} style={{background:m%2===0?"#fff":"#fff8ee",borderTop:"1px solid #ffe0b2"}}>
+                                    <td style={{padding:"6px 14px",color:"#666"}}>{m}</td>
+                                    <td style={{padding:"6px 14px",textAlign:"right",color:"#e65100"}}>
+                                      ₱{due.toLocaleString()} × {m} × 2% = <strong>₱{thisMonth.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</strong>
+                                    </td>
+                                    <td style={{padding:"6px 14px",textAlign:"right",fontWeight:700,color:"#c62828"}}>
+                                      ₱{running.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
+                                    </td>
+                                  </tr>
+                                );
+                              }
+                              return rows;
+                            })()}
+                          </tbody>
+                        </table>
+                        <div style={{padding:"8px 14px",fontSize:11,color:"#888",borderTop:"1px solid #ffe0b2"}}>
+                          Kasalukuyang TOTAL na penalty (naidagdag na sa balance): <strong style={{color:"#c62828"}}>₱{Number(loan.total_penalty||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</strong>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
